@@ -1,12 +1,11 @@
-# Decision Log
+# Decision Log (Legacy)
 
-## Current direction
+This file is kept as a compatibility pointer.
 
-- Project name: RelayHQ
-- Product direction: control plane for people and agents
-- Build incrementally in usable slices
+The canonical decision log now lives in:
 
-## Notes
+- `docs/decisions/log.md`
 
-- Keep the README short.
-- Put future scope changes here or in `docs/relayhq-scope.md`.
+The canonical docs hub is:
+
+- `docs/index.md`

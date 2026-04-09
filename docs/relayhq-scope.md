@@ -1,20 +1,13 @@
-# RelayHQ Scope
+# RelayHQ Scope (Legacy)
 
-## Purpose
+This file is kept as a compatibility pointer.
 
-RelayHQ is a control plane for coordinating work across people and agents.
+The canonical Phase 1 scope now lives in:
 
-## Phase 1
+- `docs/scope/phase-1.md`
 
-- project registry
-- task board
-- human and agent assignment
-- approvals
-- audit notes
+The canonical product context lives in:
 
-## Not phase 1
-
-- full automation platform
-- marketplace for third-party agents
-- advanced analytics
-- billing
+- `README.md`
+- `docs/vision.md`
+- `docs/index.md`
