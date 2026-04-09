@@ -121,18 +121,33 @@ That means:
 
 - the product direction is defined
 - the scope is intentionally small
-- implementation has not started in earnest
+- the backend and frontend shells are in place
 - the docs are the source of truth for now
 
-There is no runnable runtime yet.
+The product runtime is still a work in progress, but the app structure now exists.
 
 ## Getting started
 
-There is nothing to install or run yet.
+The repo is organized as a monorepo with a Go backend and a React frontend.
 
 ```bash
 git clone <repo-url>
 cd RelayHQ
+```
+
+Backend:
+
+```bash
+cd backend
+go run ./cmd/relayhq-api
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 Then read the docs below to understand the direction and scope.
@@ -152,6 +167,17 @@ Because this is still a scaffold:
 RelayHQ/
 ├─ README.md
 ├─ LICENSE
+├─ Makefile
+├─ go.work
+├─ backend/
+│  ├─ cmd/relayhq-api/
+│  ├─ internal/
+│  └─ go.mod
+├─ frontend/
+│  ├─ index.html
+│  ├─ package.json
+│  ├─ src/
+│  └─ tsconfig.json
 ├─ docs/
 │  ├─ index.md
 │  ├─ vision.md

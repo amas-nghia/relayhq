@@ -6,6 +6,8 @@
 - runtime: executes the actual agent work
 - workspace: groups related projects and their coordination state
 - audit trail: preserves what happened and why
+- backend shell: Go HTTP API and domain modules
+- frontend shell: React control-plane UI
 
 ## Core boundary
 
