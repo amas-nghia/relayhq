@@ -32,6 +32,7 @@ Use this page to find the source of truth fast.
 | Architecture boundaries | `docs/architecture.md` |
 | Agent execution protocol | `docs/workflows/agent-execution-protocol.md` |
 | Run log template | `docs/runs/template.md` |
+| Example run log | `docs/runs/2026-04-09-project-registry-slice.md` |
 
 ## What each doc is for
 
@@ -175,6 +176,16 @@ Use it for:
 - recording timestamps and durations
 - logging difficulty and outcome
 - noting follow-up updates
+
+### `docs/runs/*.md`
+
+Example execution logs.
+
+Use them for:
+
+- reviewing how a run was executed
+- comparing outcomes across runs
+- refining agent instructions and routing rules
 
 ## Source of truth rule
 
