@@ -1,5 +1,7 @@
 package project
 
+import "time"
+
 type Status string
 
 const (
@@ -9,9 +11,10 @@ const (
 )
 
 type Project struct {
-	ID      string
-	Name    string
-	Summary string
-	OwnerID string
-	Status  Status
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Summary   string    `json:"summary,omitempty"`
+	Owner     string    `json:"owner"`
+	Status    Status    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
 }

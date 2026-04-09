@@ -30,6 +30,8 @@ Use this page to find the source of truth fast.
 | Roadmap | `docs/roadmap.md` |
 | Future capabilities | `docs/capabilities/*.md` |
 | Architecture boundaries | `docs/architecture.md` |
+| Agent execution protocol | `docs/workflows/agent-execution-protocol.md` |
+| Run log template | `docs/runs/template.md` |
 
 ## What each doc is for
 
@@ -105,6 +107,7 @@ Use them for:
 - how assignment works
 - how approvals work
 - how audit notes are written and preserved
+- how agents are coordinated during execution
 
 ### `docs/decisions/log.md`
 
@@ -148,6 +151,30 @@ Use it for:
 - control plane vs runtime
 - where state belongs
 - what RelayHQ owns and does not own
+
+### `docs/workflows/agent-execution-protocol.md`
+
+Execution protocol for layered agents.
+
+Use it for:
+
+- task intake
+- decomposition
+- priority and requirements capture
+- agent selection
+- logging step-by-step progress
+- pilot feedback and template updates
+
+### `docs/runs/template.md`
+
+Run log template.
+
+Use it for:
+
+- capturing each execution run
+- recording timestamps and durations
+- logging difficulty and outcome
+- noting follow-up updates
 
 ## Source of truth rule
 
