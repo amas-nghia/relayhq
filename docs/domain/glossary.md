@@ -14,11 +14,23 @@ A plan is a higher-level structure that breaks a goal into ordered or related wo
 
 Plans help describe how work should unfold before it becomes a set of tasks.
 
+## Board
+
+A board is the main operating surface for day-to-day project work.
+
+It shows tasks as cards moving through workflow stages.
+
+## Column
+
+A column is a workflow stage on a board.
+
+It represents where a task currently sits in the flow.
+
 ## Task
 
 A task is the atomic unit of work in RelayHQ.
 
-Tasks can be assigned, approved, tracked, and audited.
+Tasks can be assigned, approved, tracked, audited, and shown as cards on a board.
 
 ## Assignment
 

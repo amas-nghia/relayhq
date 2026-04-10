@@ -6,10 +6,11 @@ RelayHQ should grow as one app with clear domain modules.
 
 The roadmap below groups those modules by phase so the product can stay small, understandable, and testable while still growing in capability.
 
-## Phase 1: Core control plane
+## Phase 1: Core Kanban control plane
 
 - project registry
 - task board
+- board structure and column flow
 - human and agent assignment
 - approvals
 - audit notes
@@ -19,14 +20,16 @@ The roadmap below groups those modules by phase so the product can stay small, u
 - workspace / tenant boundary
 - identity and access basics
 - project registry
+- board service
+- column / workflow model
 - task board
 - assignment
 - approvals
 - audit trail
 
-**Goal:** coordinate work with clear ownership and traceability.
+**Goal:** coordinate work through visible boards with clear ownership and traceability.
 
-## Phase 2: Plans
+## Phase 2: Plans and deeper task structure
 
 - structured plans
 - task breakdowns
@@ -38,7 +41,7 @@ The roadmap below groups those modules by phase so the product can stay small, u
 - task hierarchy / breakdown support
 - dependency modeling
 
-**Goal:** move from isolated tasks to explicit execution plans.
+**Goal:** move from board cards to explicit execution plans when the work needs more structure.
 
 ## Phase 3: Chat
 
@@ -118,3 +121,4 @@ The roadmap below groups those modules by phase so the product can stay small, u
 - preserve auditability across phases
 - prefer simple coordination primitives over broad abstraction
 - keep service boundaries visible even when everything is still in one app
+- treat boards and flow visibility as the main operating surface, with approvals and audit layered around them

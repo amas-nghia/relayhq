@@ -2,18 +2,18 @@
 
 ## Purpose
 
-The task board is RelayHQ’s working view of active tasks.
+The task board is RelayHQ’s main working view of active tasks moving through a Kanban-style flow.
 
 ## Why it exists
 
-Teams need a simple place to see what is open, what is moving, and what needs attention next.
+Teams need a simple place to see what is open, what is moving, what is blocked, and what needs attention next.
 
 ## How humans use it
 
 Humans use the board to:
 
 - create tasks
-- review task status
+- review work by column and flow stage
 - prioritize work
 - spot blockers
 - move tasks through the workflow
@@ -24,17 +24,18 @@ Agents use the board to:
 
 - pick up assigned work
 - report progress
-- mark tasks ready for review
+- move tasks to the next stage when allowed
 - surface blockers or dependency issues
 
 ## Flow / lifecycle
 
-1. A task is created under a project.
-2. It is triaged, scoped, or split if needed.
-3. It is assigned to a human or agent.
-4. Work progresses across statuses.
-5. It is reviewed, approved if needed, and closed.
-6. The task remains as part of the work history.
+1. A task is created under a project and appears on the board.
+2. It starts in an initial workflow column.
+3. It is triaged, scoped, or split if needed.
+4. It is assigned to a human or agent.
+5. Work progresses as the card moves across columns.
+6. It is reviewed, approved if needed, and closed.
+7. The task remains as part of the work history.
 
 ## Boundaries / non-goals
 
@@ -42,10 +43,17 @@ Agents use the board to:
 - not a full sprint or backlog management system
 - not a replacement for detailed planning docs
 - not the place to hide long-form decision history
+- not just a flat status list
 
 ## Traceability / ownership notes
 
 - every task should have a clear owner
-- status changes should be attributable
+- movement between columns should be attributable
 - blocked work should be visible, not implicit
 - task history should explain what changed and why
+
+## Current implementation note
+
+The current codebase still models the board with task status updates rather than explicit `board` and `column` entities.
+
+That is a transition step, not the final Kanban model.

@@ -2,11 +2,12 @@
 
 ## Product definition
 
-RelayHQ is a control plane for agent-assisted work.
+RelayHQ is a Kanban-first control plane for agent-assisted project work.
 
 It coordinates work across people and agents by providing:
 
-- a place to define projects and work items
+- a place to define projects, boards, and work items
+- a visible flow of work across stages
 - ownership and assignment
 - approvals for controlled actions
 - status and progress visibility
@@ -21,6 +22,8 @@ Teams using agents need more than a prompt and a chat window.
 They need:
 
 - a stable home for work across multiple projects
+- a board that makes the flow of work visible
+- a way to see where tasks are blocked or piling up
 - clear handoffs between people and agents
 - explicit approval for risky or expensive actions
 - progress tracking that survives context loss
@@ -41,7 +44,8 @@ RelayHQ is for teams that:
 People use RelayHQ to:
 
 - create workspaces and projects
-- define plans and break them into tasks
+- define boards, columns, and tasks
+- move work through visible workflow stages
 - assign work to humans or agents
 - review status and approve actions
 - track progress and outcomes
@@ -50,6 +54,7 @@ Agents use RelayHQ to:
 
 - receive tasks
 - report progress
+- update work movement when allowed
 - request approvals
 - post completion notes
 - feed results back into future work
@@ -57,12 +62,12 @@ Agents use RelayHQ to:
 ### Example flow
 
 1. A human creates a project.
-2. The project is broken into tasks.
-3. Some tasks are assigned to agents.
-4. An agent asks for approval before acting.
-5. The human approves.
-6. The agent completes the task and updates status.
-7. RelayHQ preserves the history.
+2. The project gets a board and workflow columns.
+3. Tasks are added as cards on the board.
+4. Some tasks are assigned to agents.
+5. Work moves across stages as it progresses.
+6. An agent asks for approval before risky actions.
+7. RelayHQ preserves movement, ownership, and history.
 
 ## RelayHQ vs. the agent runtime
 
@@ -72,7 +77,7 @@ The agent runtime is the execution layer.
 
 RelayHQ:
 
-- stores work structure
+- stores work structure and board structure
 - routes tasks and approvals
 - tracks progress
 - records history
@@ -88,11 +93,12 @@ RelayHQ should integrate with runtimes, not replace them.
 
 ## Long-term vision
 
-RelayHQ should grow into a workspace for ongoing agent-assisted operations, not just isolated tasks.
+RelayHQ should grow into a workspace for ongoing agent-assisted operations, centered on Kanban-style boards and work flowing through them.
 
 Planned capability areas:
 
 - multi-project workspaces
+- boards and columns
 - plans
 - task breakdowns
 - chat
@@ -104,6 +110,12 @@ Planned capability areas:
 ### Multi-project workspaces
 
 A workspace should hold related projects, teams, and activity in one place.
+
+### Boards and columns
+
+Boards should be the main operating surface for day-to-day work.
+
+Columns should represent workflow stages so humans and agents can see where work is, where it is blocked, and what needs attention next.
 
 ### Plans and task breakdowns
 
@@ -121,6 +133,7 @@ Reminders should bring attention back to blocked, overdue, or waiting work.
 
 Progress tracking should show:
 
+- column distribution
 - current status
 - ownership
 - blockers
@@ -154,3 +167,5 @@ RelayHQ is not:
 ## Summary
 
 RelayHQ exists to make agent-assisted work governable, traceable, and coordinated across projects.
+
+Its main operating surface should be a board that makes work movement visible, while approvals, audit, and agent coordination remain layered around that flow.

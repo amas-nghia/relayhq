@@ -1,8 +1,8 @@
 # RelayHQ
 
-RelayHQ is a control plane for agent-assisted work.
+RelayHQ is a Kanban-first control plane for agent-assisted project work.
 
-It gives teams one place to register projects, assign ownership, request approvals, track progress, and preserve the history behind important decisions.
+It gives teams one place to manage projects, boards, tasks, ownership, approvals, progress, and the history behind important decisions.
 
 ## Who it is for
 
@@ -22,6 +22,7 @@ Teams using agents in real work usually need more than a prompt and a chat windo
 They need:
 
 - a stable home for work across multiple projects
+- a visible board that shows where work is in the flow
 - clear handoffs between people and agents
 - explicit approval for risky or expensive actions
 - progress tracking that survives context loss
@@ -32,11 +33,12 @@ RelayHQ exists to provide that coordination layer.
 
 ## Product vision
 
-RelayHQ should grow into a workspace for ongoing agent-assisted operations, not just isolated tasks.
+RelayHQ should grow into a workspace for ongoing agent-assisted operations, centered on project boards and work flowing across them.
 
 Planned capability areas include:
 
 - multi-project workspaces
+- boards and columns
 - plans
 - task breakdowns
 - chat
@@ -45,7 +47,7 @@ Planned capability areas include:
 - customer reporting
 - agent improvement loops
 
-That vision is intentionally broad, but the repository starts with the smallest useful control plane first.
+That vision is intentionally broad, but the repository starts with the smallest useful Kanban-first control plane first.
 
 ## Phase 1
 
@@ -55,6 +57,7 @@ Phase 1 is the smallest useful version of RelayHQ.
 
 - project registry
 - task board
+- board structure and column flow
 - human and agent assignment
 - approvals
 - audit notes
@@ -75,7 +78,9 @@ RelayHQ is meant to support both audiences.
 Humans use RelayHQ to:
 
 - create and review projects
+- organize work on boards
 - break work into tasks
+- move tasks across workflow stages
 - assign work to people or agents
 - approve important actions
 - review progress and history
@@ -86,6 +91,7 @@ Agents use RelayHQ as the coordination surface for:
 
 - receiving assigned tasks
 - reporting status
+- moving work through the board when appropriate
 - requesting approval
 - writing audit notes
 - feeding back outcomes for future improvement
@@ -97,7 +103,8 @@ RelayHQ is not the agent runtime. It is the control plane around it.
 RelayHQ is:
 
 - a project registry
-- a task coordination layer
+- a Kanban-style task coordination layer
+- a board and workflow surface
 - a human/agent assignment system
 - an approval workflow
 - an audit trail
@@ -115,13 +122,14 @@ RelayHQ is not:
 
 ## Current repository state
 
-This repository is currently a scaffold.
+This repository is currently an early scaffold.
 
 That means:
 
 - the product direction is defined
 - the scope is intentionally small
 - the backend and frontend shells are in place
+- the current implementation is still task/status based and will need to evolve toward a fuller board/column model
 - the docs are the source of truth for now
 
 The product runtime is still a work in progress, but the app structure now exists.
@@ -236,6 +244,8 @@ RelayHQ should optimize for:
 A good RelayHQ implementation should make these easy to answer:
 
 - What is being worked on right now?
+- Where is this work in the flow?
+- What is blocked on the board?
 - Who owns this task?
 - Why was this approved?
 - What did the agent do?
