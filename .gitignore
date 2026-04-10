@@ -7,6 +7,7 @@ tmp/
 runs/*
 !runs/.gitkeep
 .idea/
+.opencode/
 backend/bin/
 frontend/node_modules/
 frontend/dist/

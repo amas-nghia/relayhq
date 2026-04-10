@@ -1,5 +1,7 @@
 package task
 
+import "time"
+
 type Status string
 
 const (
@@ -12,9 +14,11 @@ const (
 )
 
 type Task struct {
-	ID        string
-	ProjectID string
-	Title     string
-	Details   string
-	Status    Status
+	ID        string    `json:"id"`
+	ProjectID string    `json:"project_id"`
+	Title     string    `json:"title"`
+	Details   string    `json:"details,omitempty"`
+	Status    Status    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

@@ -11,5 +11,5 @@
     "outDir": "./dist-test",
     "rootDir": "./src"
   },
-  "include": ["src/projectRegistry.ts"]
+  "include": ["src/projectRegistry.ts", "src/taskBoard.ts"]
 }

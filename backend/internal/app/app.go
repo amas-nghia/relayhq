@@ -9,6 +9,7 @@ import (
 
 	"github.com/amas-nghia/relayhq/backend/internal/httpapi"
 	"github.com/amas-nghia/relayhq/backend/internal/projectregistry"
+	"github.com/amas-nghia/relayhq/backend/internal/taskboard"
 )
 
 type Config struct {
@@ -20,7 +21,9 @@ type App struct {
 }
 
 func New(cfg Config) *App {
-	mux := httpapi.NewRouter(projectregistry.NewStore())
+	projects := projectregistry.NewStore()
+	tasks := taskboard.NewStore(projects)
+	mux := httpapi.NewRouter(projects, tasks)
 
 	return &App{
 		server: &http.Server{

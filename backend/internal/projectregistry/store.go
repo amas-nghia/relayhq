@@ -72,3 +72,16 @@ func (s *Store) List() []project.Project {
 
 	return items
 }
+
+func (s *Store) Exists(id string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.projects {
+		if p.ID == id {
+			return true
+		}
+	}
+
+	return false
+}

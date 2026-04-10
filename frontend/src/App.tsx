@@ -1,32 +1,80 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   emptyDraft,
   fetchProjects,
-  getErrorMessage,
+  getErrorMessage as getProjectErrorMessage,
   projectsEndpoint,
   type Project,
   type ProjectDraft,
 } from './projectRegistry'
+import {
+  createTask,
+  emptyTaskDraft,
+  fetchTasks,
+  getErrorMessage as getTaskErrorMessage,
+  taskStatuses,
+  type Task,
+  type TaskDraft,
+  updateTaskStatus,
+} from './taskBoard'
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<ProjectDraft>(emptyDraft)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const [projectDraft, setProjectDraft] = useState<ProjectDraft>(emptyDraft)
+  const [projectSubmitting, setProjectSubmitting] = useState(false)
+  const [projectSubmitError, setProjectSubmitError] = useState<string | null>(null)
+
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksLoading, setTasksLoading] = useState(false)
+  const [tasksError, setTasksError] = useState<string | null>(null)
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(emptyTaskDraft)
+  const [taskSubmitting, setTaskSubmitting] = useState(false)
+  const [taskSubmitError, setTaskSubmitError] = useState<string | null>(null)
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  )
 
   async function loadProjects() {
-    setLoading(true)
-    setError(null)
+    setProjectsLoading(true)
+    setProjectsError(null)
+
+      try {
+        const nextProjects = await fetchProjects()
+        setProjects(nextProjects)
+
+        if (!selectedProjectId && nextProjects[0]?.id) {
+          const nextProjectId = String(nextProjects[0].id)
+          setSelectedProjectId(nextProjectId)
+          setTaskDraft((current) => ({ ...current, project_id: nextProjectId }))
+        }
+      } catch (error_) {
+        setProjectsError(getProjectErrorMessage(error_))
+      } finally {
+      setProjectsLoading(false)
+    }
+  }
+
+  async function loadTasks(projectId: string) {
+    if (!projectId) {
+      setTasks([])
+      return
+    }
+
+    setTasksLoading(true)
+    setTasksError(null)
 
     try {
-      const nextProjects = await fetchProjects()
-      setProjects(nextProjects)
+      const nextTasks = await fetchTasks(projectId)
+      setTasks(nextTasks)
     } catch (error_) {
-      setError(getErrorMessage(error_))
+      setTasksError(getTaskErrorMessage(error_))
     } finally {
-      setLoading(false)
+      setTasksLoading(false)
     }
   }
 
@@ -34,22 +82,30 @@ export default function App() {
     let ignore = false
 
     async function start() {
-      setLoading(true)
-      setError(null)
+      setProjectsLoading(true)
+      setProjectsError(null)
 
       try {
         const nextProjects = await fetchProjects()
 
-        if (!ignore) {
-          setProjects(nextProjects)
+        if (ignore) {
+          return
         }
+
+        setProjects(nextProjects)
+
+        const initialProjectId = nextProjects[0]?.id ? String(nextProjects[0].id) : ''
+        setSelectedProjectId(initialProjectId)
+        setTaskDraft((current) => ({ ...current, project_id: initialProjectId }))
+
       } catch (error_) {
         if (!ignore) {
-          setError(getErrorMessage(error_))
+          setProjectsError(getProjectErrorMessage(error_))
         }
       } finally {
         if (!ignore) {
-          setLoading(false)
+          setProjectsLoading(false)
+          setTasksLoading(false)
         }
       }
     }
@@ -61,19 +117,34 @@ export default function App() {
     }
   }, [])
 
-  function updateField(field: keyof ProjectDraft) {
+  useEffect(() => {
+    if (selectedProjectId) {
+      void loadTasks(selectedProjectId)
+    }
+  }, [selectedProjectId])
+
+  function updateProjectField(field: keyof ProjectDraft) {
     return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setDraft((current: ProjectDraft) => ({
+      setProjectDraft((current) => ({
         ...current,
         [field]: event.currentTarget.value,
       }))
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function updateTaskField(field: keyof TaskDraft) {
+    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      setTaskDraft((current) => ({
+        ...current,
+        [field]: event.currentTarget.value,
+      }))
+    }
+  }
+
+  async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setSubmitting(true)
-    setSubmitError(null)
+    setProjectSubmitting(true)
+    setProjectSubmitError(null)
 
     try {
       const response = await fetch(projectsEndpoint, {
@@ -81,98 +152,128 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(projectDraft),
       })
 
       if (!response.ok) {
         throw new Error(`POST ${projectsEndpoint} failed (${response.status})`)
       }
 
-      setDraft(emptyDraft)
+      setProjectDraft(emptyDraft)
       await loadProjects()
     } catch (error_) {
-      setSubmitError(getErrorMessage(error_))
+      setProjectSubmitError(getProjectErrorMessage(error_))
     } finally {
-      setSubmitting(false)
+      setProjectSubmitting(false)
     }
+  }
+
+  async function handleTaskSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const projectId = taskDraft.project_id || selectedProjectId
+
+    if (!projectId) {
+      setTaskSubmitError('Choose a project first.')
+      return
+    }
+
+    setTaskSubmitting(true)
+    setTaskSubmitError(null)
+
+    try {
+      await createTask({ ...taskDraft, project_id: projectId })
+      setTaskDraft((current) => ({
+        ...emptyTaskDraft,
+        project_id: projectId,
+      }))
+      await loadTasks(projectId)
+    } catch (error_) {
+      setTaskSubmitError(getTaskErrorMessage(error_))
+    } finally {
+      setTaskSubmitting(false)
+    }
+  }
+
+  async function handleTaskStatusChange(taskId: string, status: Task['status']) {
+    try {
+      await updateTaskStatus(taskId, status)
+      await loadTasks(selectedProjectId)
+    } catch (error_) {
+      setTasksError(getTaskErrorMessage(error_))
+    }
+  }
+
+  function handleProjectSelection(event: ChangeEvent<HTMLSelectElement>) {
+    const nextProjectId = event.currentTarget.value
+    setSelectedProjectId(nextProjectId)
+    setTaskDraft((current) => ({
+      ...current,
+      project_id: nextProjectId,
+    }))
   }
 
   return (
     <main className="page">
       <section className="hero">
         <p className="eyebrow">RelayHQ</p>
-        <h1>Project Registry</h1>
-        <p className="lede">Create projects and keep the current list in sync with the backend.</p>
+        <h1>Project Registry + Task Board</h1>
+        <p className="lede">
+          Track projects, create tasks, and move work through basic status updates in one control plane.
+        </p>
       </section>
 
-      <section className="layout" aria-label="Project registry">
-        <form className="card form-card" onSubmit={handleSubmit}>
+      <section className="layout" aria-label="RelayHQ workspace">
+        <form className="card form-card" onSubmit={handleProjectSubmit}>
           <div className="panel-header">
             <div>
-              <p className="section-kicker">Create project</p>
-              <h2>New project</h2>
+              <p className="section-kicker">Project registry</p>
+              <h2>Create project</h2>
             </div>
           </div>
 
-          {submitError ? (
+          {projectSubmitError ? (
             <p className="status status-error" role="alert">
-              {submitError}
+              {projectSubmitError}
             </p>
           ) : null}
 
           <label className="field">
             <span>Name</span>
-            <input
-              name="name"
-              value={draft.name}
-              onChange={updateField('name')}
-              required
-              autoComplete="off"
-            />
+            <input name="name" value={projectDraft.name} onChange={updateProjectField('name')} required autoComplete="off" />
           </label>
 
           <label className="field">
             <span>Summary</span>
-            <textarea
-              name="summary"
-              value={draft.summary}
-              onChange={updateField('summary')}
-              rows={4}
-            />
+            <textarea name="summary" value={projectDraft.summary} onChange={updateProjectField('summary')} rows={4} />
           </label>
 
           <label className="field">
             <span>Owner</span>
-            <input
-              name="owner"
-              value={draft.owner}
-              onChange={updateField('owner')}
-              required
-              autoComplete="off"
-            />
+            <input name="owner" value={projectDraft.owner} onChange={updateProjectField('owner')} required autoComplete="off" />
           </label>
 
-          <button className="primary-button" type="submit" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create project'}
+          <button className="primary-button" type="submit" disabled={projectSubmitting}>
+            {projectSubmitting ? 'Creating…' : 'Create project'}
           </button>
-        </form>
 
-        <section className="card panel" aria-live="polite" aria-busy={loading}>
+          <div className="spacer" />
+
           <div className="panel-header">
             <div>
               <p className="section-kicker">Registry</p>
               <h2>Projects</h2>
             </div>
-            <button className="secondary-button" type="button" onClick={() => void loadProjects()} disabled={loading}>
+            <button className="secondary-button" type="button" onClick={() => void loadProjects()} disabled={projectsLoading}>
               Refresh
             </button>
           </div>
 
-          {loading ? (
+          {projectsLoading ? (
             <div className="status">Loading projects…</div>
-          ) : error ? (
+          ) : projectsError ? (
             <div className="status status-error" role="alert">
-              <p>{error}</p>
+              <p>{projectsError}</p>
               <button className="secondary-button" type="button" onClick={() => void loadProjects()}>
                 Try again
               </button>
@@ -194,6 +295,135 @@ export default function App() {
                 </li>
               ))}
             </ul>
+          )}
+        </form>
+
+        <section className="card panel" aria-live="polite">
+          <div className="panel-header">
+            <div>
+              <p className="section-kicker">Task board</p>
+              <h2>Tasks</h2>
+            </div>
+          </div>
+
+          {projects.length === 0 ? (
+            <div className="status">
+              <p>Create a project first to unlock the task board.</p>
+            </div>
+          ) : (
+            <>
+              <label className="field">
+                <span>Project</span>
+                <select value={selectedProjectId} onChange={handleProjectSelection}>
+                  <option value="">Choose a project</option>
+                  {projects.map((project) => (
+                    <option key={String(project.id)} value={String(project.id)}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <form className="task-form" onSubmit={handleTaskSubmit}>
+                {taskSubmitError ? (
+                  <p className="status status-error" role="alert">
+                    {taskSubmitError}
+                  </p>
+                ) : null}
+
+                <label className="field">
+                  <span>Title</span>
+                  <input name="title" value={taskDraft.title} onChange={updateTaskField('title')} required autoComplete="off" />
+                </label>
+
+                <label className="field">
+                  <span>Details</span>
+                  <textarea name="details" value={taskDraft.details} onChange={updateTaskField('details')} rows={4} />
+                </label>
+
+                <label className="field">
+                  <span>Status</span>
+                  <select name="status" value={taskDraft.status} onChange={updateTaskField('status')}>
+                    {taskStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={taskSubmitting || !selectedProjectId}
+                >
+                  {taskSubmitting ? 'Creating…' : 'Create task'}
+                </button>
+              </form>
+
+              <div className="panel-header tasks-header">
+                <div>
+                  <p className="section-kicker">List</p>
+                  <h2>{selectedProject ? `${selectedProject.name} tasks` : 'Project tasks'}</h2>
+                </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => void loadTasks(selectedProjectId)}
+                  disabled={tasksLoading || !selectedProjectId}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {tasksLoading ? (
+                <div className="status">Loading tasks…</div>
+              ) : tasksError ? (
+                <div className="status status-error" role="alert">
+                  <p>{tasksError}</p>
+                  <button className="secondary-button" type="button" onClick={() => void loadTasks(selectedProjectId)}>
+                    Try again
+                  </button>
+                </div>
+              ) : tasks.length === 0 ? (
+                <div className="status">
+                  <p>No tasks yet for this project.</p>
+                  <p>Create the first task above.</p>
+                </div>
+              ) : (
+                <ul className="task-list">
+                  {tasks.map((task, index) => (
+                    <li className="task-item" key={task.id ?? `${task.title}-${index}`}>
+                      <div className="task-topline">
+                        <div>
+                          <h3>{task.title}</h3>
+                          <p>{task.details?.trim() ? task.details : 'No details provided.'}</p>
+                        </div>
+                        <span className="task-status">{task.status}</span>
+                      </div>
+
+                      <div className="task-actions">
+                        <label className="field field-inline">
+                          <span>Status</span>
+                          <select
+                            value={task.status}
+                            onChange={(event) => {
+                              void handleTaskStatusChange(String(task.id), event.currentTarget.value as Task['status'])
+                            }}
+                          >
+                            {taskStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
       </section>
