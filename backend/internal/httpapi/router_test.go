@@ -196,6 +196,99 @@ func TestProjectOrder(t *testing.T) {
 	}
 }
 
+func TestBoard(t *testing.T) {
+	t.Parallel()
+
+	projects, router := newTestRouter()
+	projectID := createProject(t, router, "Alpha", "team-a")
+	if !projects.Exists(projectID) {
+		t.Fatal("project should exist")
+	}
+
+	for _, payload := range []string{
+		`{"project_id":"` + projectID + `","title":"Todo task","status":"todo"}`,
+		`{"project_id":"` + projectID + `","title":"Doing task","status":"in_progress"}`,
+		`{"project_id":"` + projectID + `","title":"Review task","status":"review"}`,
+		`{"project_id":"` + projectID + `","title":"Done task","status":"done"}`,
+		`{"project_id":"` + projectID + `","title":"Cancelled task","status":"cancelled"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString(payload))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("create task status = %d, want %d", rec.Code, http.StatusCreated)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/boards?project_id="+projectID, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		ProjectID string `json:"project_id"`
+		Columns   []struct {
+			Key   string `json:"key"`
+			Count int    `json:"count"`
+			Tasks []struct {
+				Title  string `json:"title"`
+				Status string `json:"status"`
+			} `json:"tasks"`
+		} `json:"columns"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal board: %v", err)
+	}
+
+	if payload.ProjectID != projectID {
+		t.Fatalf("project_id = %q, want %q", payload.ProjectID, projectID)
+	}
+	if len(payload.Columns) != 4 {
+		t.Fatalf("columns = %d, want 4", len(payload.Columns))
+	}
+
+	expect := map[string]int{
+		"todo":   1,
+		"doing":  1,
+		"review": 1,
+		"done":   2,
+	}
+	for _, col := range payload.Columns {
+		if want := expect[col.Key]; col.Count != want {
+			t.Fatalf("column %s count = %d, want %d", col.Key, col.Count, want)
+		}
+	}
+}
+
+func TestBoardMissingProject(t *testing.T) {
+	t.Parallel()
+
+	_, router := newTestRouter()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/boards?project_id=missing", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestBoardMissingProjectID(t *testing.T) {
+	t.Parallel()
+
+	_, router := newTestRouter()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/boards", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestCreateTask(t *testing.T) {
 	t.Parallel()
 

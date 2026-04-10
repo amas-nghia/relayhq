@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/amas-nghia/relayhq/backend/internal/board"
 	"github.com/amas-nghia/relayhq/backend/internal/domain/task"
 	"github.com/amas-nghia/relayhq/backend/internal/projectregistry"
 	"github.com/amas-nghia/relayhq/backend/internal/taskboard"
@@ -23,6 +24,7 @@ func NewRouter(projects *projectregistry.Store, tasks *taskboard.Store) http.Han
 	mux.HandleFunc("/healthz", healthHandler)
 	mux.HandleFunc("/readyz", readyHandler)
 	mux.HandleFunc("/api/v1/projects", projectsHandler(projects))
+	mux.HandleFunc("/api/v1/boards", boardsHandler(projects, tasks))
 	mux.HandleFunc("/api/v1/tasks", tasksHandler(tasks))
 	mux.HandleFunc("/api/v1/tasks/", taskStatusHandler(tasks))
 	mux.HandleFunc("/", rootHandler)
@@ -122,6 +124,29 @@ func tasksHandler(store *taskboard.Store) http.HandlerFunc {
 			w.Header().Set("Allow", "GET, POST")
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
+	}
+}
+
+func boardsHandler(projects *projectregistry.Store, tasks *taskboard.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET")
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+		if projectID == "" {
+			writeError(w, http.StatusBadRequest, "project_id is required")
+			return
+		}
+
+		if projects != nil && !projects.Exists(projectID) {
+			writeError(w, http.StatusNotFound, "project not found")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, board.Build(projectID, tasks.List(projectID)))
 	}
 }
 
