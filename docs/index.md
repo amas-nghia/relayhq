@@ -35,6 +35,7 @@ Use this page to find the source of truth fast.
 | Example run log | `docs/runs/2026-04-09-project-registry-slice.md` |
 | Task Board run log | `docs/runs/2026-04-10-task-board-slice.md` |
 | Board + Columns backend run log | `docs/runs/2026-04-10-board-columns-backend.md` |
+| Board + Columns frontend run log | `docs/runs/2026-04-10-board-columns-frontend.md` |
 
 ## What each doc is for
 
@@ -190,6 +191,7 @@ Use them for:
 - refining agent instructions and routing rules
 - reviewing how the Task Board slice was executed
 - reviewing how the Board + Columns backend slice was executed
+- reviewing how the Board + Columns frontend slice was executed
 
 ## Source of truth rule
 

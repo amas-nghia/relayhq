@@ -10,9 +10,11 @@ import {
 import {
   createTask,
   emptyTaskDraft,
-  fetchTasks,
+  fetchBoard,
+  boardColumns,
   getErrorMessage as getTaskErrorMessage,
   taskStatuses,
+  type Board,
   type Task,
   type TaskDraft,
   updateTaskStatus,
@@ -27,7 +29,7 @@ export default function App() {
   const [projectSubmitError, setProjectSubmitError] = useState<string | null>(null)
 
   const [selectedProjectId, setSelectedProjectId] = useState('')
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [board, setBoard] = useState<Board | null>(null)
   const [tasksLoading, setTasksLoading] = useState(false)
   const [tasksError, setTasksError] = useState<string | null>(null)
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(emptyTaskDraft)
@@ -37,6 +39,20 @@ export default function App() {
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
+  )
+
+  const taskColumns = useMemo(
+    () =>
+      boardColumns.map((column) => {
+        const nextColumn = board?.columns.find((item) => item.key === column.key)
+
+        return {
+          ...column,
+          count: nextColumn?.count ?? 0,
+          tasks: nextColumn?.tasks ?? [],
+        }
+      }),
+    [board],
   )
 
   async function loadProjects() {
@@ -59,9 +75,9 @@ export default function App() {
     }
   }
 
-  async function loadTasks(projectId: string) {
+  async function loadBoard(projectId: string) {
     if (!projectId) {
-      setTasks([])
+      setBoard(null)
       return
     }
 
@@ -69,8 +85,8 @@ export default function App() {
     setTasksError(null)
 
     try {
-      const nextTasks = await fetchTasks(projectId)
-      setTasks(nextTasks)
+      const nextBoard = await fetchBoard(projectId)
+      setBoard(nextBoard)
     } catch (error_) {
       setTasksError(getTaskErrorMessage(error_))
     } finally {
@@ -97,6 +113,7 @@ export default function App() {
         const initialProjectId = nextProjects[0]?.id ? String(nextProjects[0].id) : ''
         setSelectedProjectId(initialProjectId)
         setTaskDraft((current) => ({ ...current, project_id: initialProjectId }))
+        setBoard(null)
 
       } catch (error_) {
         if (!ignore) {
@@ -119,7 +136,7 @@ export default function App() {
 
   useEffect(() => {
     if (selectedProjectId) {
-      void loadTasks(selectedProjectId)
+      void loadBoard(selectedProjectId)
     }
   }, [selectedProjectId])
 
@@ -187,7 +204,7 @@ export default function App() {
         ...emptyTaskDraft,
         project_id: projectId,
       }))
-      await loadTasks(projectId)
+      await loadBoard(projectId)
     } catch (error_) {
       setTaskSubmitError(getTaskErrorMessage(error_))
     } finally {
@@ -198,7 +215,7 @@ export default function App() {
   async function handleTaskStatusChange(taskId: string, status: Task['status']) {
     try {
       await updateTaskStatus(taskId, status)
-      await loadTasks(selectedProjectId)
+      await loadBoard(selectedProjectId)
     } catch (error_) {
       setTasksError(getTaskErrorMessage(error_))
     }
@@ -363,13 +380,13 @@ export default function App() {
 
               <div className="panel-header tasks-header">
                 <div>
-                  <p className="section-kicker">List</p>
-                  <h2>{selectedProject ? `${selectedProject.name} tasks` : 'Project tasks'}</h2>
+                  <p className="section-kicker">Board</p>
+                  <h2>{selectedProject ? `${selectedProject.name} board` : 'Project board'}</h2>
                 </div>
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => void loadTasks(selectedProjectId)}
+                  onClick={() => void loadBoard(selectedProjectId)}
                   disabled={tasksLoading || !selectedProjectId}
                 >
                   Refresh
@@ -381,47 +398,75 @@ export default function App() {
               ) : tasksError ? (
                 <div className="status status-error" role="alert">
                   <p>{tasksError}</p>
-                  <button className="secondary-button" type="button" onClick={() => void loadTasks(selectedProjectId)}>
+                  <button className="secondary-button" type="button" onClick={() => void loadBoard(selectedProjectId)}>
                     Try again
                   </button>
                 </div>
-              ) : tasks.length === 0 ? (
-                <div className="status">
-                  <p>No tasks yet for this project.</p>
-                  <p>Create the first task above.</p>
-                </div>
               ) : (
-                <ul className="task-list">
-                  {tasks.map((task, index) => (
-                    <li className="task-item" key={task.id ?? `${task.title}-${index}`}>
-                      <div className="task-topline">
-                        <div>
-                          <h3>{task.title}</h3>
-                          <p>{task.details?.trim() ? task.details : 'No details provided.'}</p>
-                        </div>
-                        <span className="task-status">{task.status}</span>
-                      </div>
+                <section className="board" aria-label="Task columns">
+                  {boardColumns.map((column) => {
+                    const columnData = taskColumns.find((item) => item.key === column.key)
+                    const columnTasks = columnData?.tasks ?? []
 
-                      <div className="task-actions">
-                        <label className="field field-inline">
-                          <span>Status</span>
-                          <select
-                            value={task.status}
-                            onChange={(event) => {
-                              void handleTaskStatusChange(String(task.id), event.currentTarget.value as Task['status'])
-                            }}
-                          >
-                            {taskStatuses.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
+                    return (
+                      <article className="board-column" key={column.key} aria-labelledby={`board-column-${column.key}`}>
+                        <div className="board-column-header">
+                          <div>
+                            <h3 id={`board-column-${column.key}`}>{column.label}</h3>
+                            <p>{columnData?.count ?? 0} task{(columnData?.count ?? 0) === 1 ? '' : 's'}</p>
+                          </div>
+                          <span className={`column-chip column-chip-${column.key}`}>{column.label}</span>
+                        </div>
+
+                        {columnTasks.length === 0 ? (
+                          <div className="board-empty status">
+                            <p>No tasks in {column.label.toLowerCase()} yet.</p>
+                            <p>Use create task to add the first card.</p>
+                          </div>
+                        ) : (
+                          <ul className="board-list">
+                            {columnTasks.map((task, index) => (
+                              <li className="task-card" key={task.id ?? `${task.title}-${index}`}>
+                                <div className="task-card-topline">
+                                  <div>
+                                    <h4>{task.title}</h4>
+                                    <p>{task.details?.trim() ? task.details : 'No details provided.'}</p>
+                                  </div>
+                                  <span className={`task-status task-status-${column.key}`}>{column.label}</span>
+                                </div>
+
+                                <div className="task-meta-row">
+                                  <span className="task-meta-pill">Assignee: unassigned</span>
+                                  <span className="task-meta-pill">Updated {task.updated_at ? 'recently' : 'now'}</span>
+                                </div>
+
+                                <div className="task-actions">
+                                  <label className="field field-inline">
+                                    <span>Status</span>
+                                    <select
+                                      value={task.status}
+                                      onChange={(event) => {
+                                          if (task.id) {
+                                            void handleTaskStatusChange(String(task.id), event.currentTarget.value as Task['status'])
+                                          }
+                                        }}
+                                    >
+                                      {taskStatuses.map((status) => (
+                                        <option key={status} value={status}>
+                                          {status}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </div>
+                              </li>
                             ))}
-                          </select>
-                        </label>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          </ul>
+                        )}
+                      </article>
+                    )
+                  })}
+                </section>
               )}
             </>
           )}
