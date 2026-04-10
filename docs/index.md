@@ -33,6 +33,7 @@ Use this page to find the source of truth fast.
 | Agent execution protocol | `docs/workflows/agent-execution-protocol.md` |
 | Run log template | `docs/runs/template.md` |
 | Example run log | `docs/runs/2026-04-09-project-registry-slice.md` |
+| Task Board run log | `docs/runs/2026-04-10-task-board-slice.md` |
 
 ## What each doc is for
 
@@ -186,6 +187,7 @@ Use them for:
 - reviewing how a run was executed
 - comparing outcomes across runs
 - refining agent instructions and routing rules
+- reviewing how the Task Board slice was executed
 
 ## Source of truth rule
 
