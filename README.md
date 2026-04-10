@@ -134,28 +134,72 @@ That means:
 
 The product runtime is still a work in progress, but the app structure now exists.
 
-## Getting started
+## Installation and setup
 
-The repo is organized as a monorepo with a Go backend and a React frontend.
+RelayHQ is a monorepo with a Go backend and a React frontend.
+
+### Prerequisites
+
+- Go 1.22+
+- Node.js + npm (for the frontend)
+
+### Fresh clone
 
 ```bash
 git clone <repo-url>
 cd RelayHQ
 ```
 
-Backend:
+### Backend API
 
 ```bash
 cd backend
 go run ./cmd/relayhq-api
 ```
 
-Frontend:
+The API listens on `:8081` by default. Override with `RELAYHQ_ADDR` if needed.
+
+### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+```
+
+### CLI
+
+Run the CLI against the API server:
+
+```bash
+cd backend
+go run ./cmd/relayhq --base-url http://127.0.0.1:8081 projects list
+```
+
+Most useful commands:
+
+- `projects list`
+- `projects create --name NAME --owner OWNER [--summary SUMMARY]`
+- `tasks list --project PROJECT_ID`
+- `tasks create --project PROJECT_ID --title TITLE [--details DETAILS] [--status STATUS]`
+- `tasks start|block|review|done TASK_ID`
+- `board --project PROJECT_ID`
+- `next --project PROJECT_ID`
+
+Environment variables:
+
+- `RELAYHQ_API_BASE_URL` — default CLI base URL
+- `RELAYHQ_PROJECT_ID` — default project id for board/next/tasks commands
+- `RELAYHQ_DEFAULT_OWNER` — default owner for project creation
+
+Makefile shortcuts:
+
+```bash
+make backend-dev
+make backend-cli
+make backend-test
+make frontend-dev
+make frontend-build
 ```
 
 Then read the docs below to understand the direction and scope.
