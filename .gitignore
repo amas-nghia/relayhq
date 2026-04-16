@@ -15,3 +15,6 @@ frontend/dist-test/
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+vault/users/
+.env.local
+app/.env.local

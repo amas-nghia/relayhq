@@ -1,0 +1,148 @@
+package vault
+
+import (
+	"testing"
+	"time"
+)
+
+func TestCanonicalPaths(t *testing.T) {
+	t.Parallel()
+
+	paths := CanonicalPaths()
+	want := []string{
+		"shared/workspaces/",
+		"shared/projects/",
+		"shared/boards/",
+		"shared/columns/",
+		"shared/issues/",
+		"shared/agents/",
+		"shared/runs/",
+		"shared/audit/",
+		"shared/threads/",
+		"users/<user>/provider.md",
+		"users/<user>/prefs.md",
+		"users/<user>/scratch/",
+		"system/schemas/",
+		"system/templates/",
+	}
+
+	if len(paths) != len(want) {
+		t.Fatalf("path count mismatch: got %d want %d", len(paths), len(want))
+	}
+
+	for i := range want {
+		if paths[i] != want[i] {
+			t.Fatalf("path[%d] mismatch: got %q want %q", i, paths[i], want[i])
+		}
+	}
+}
+
+func TestValidateTaskFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	task := TaskFrontmatter{
+		ID:              "task-001",
+		Type:            "task",
+		Version:         1,
+		WorkspaceID:     "ws-acme",
+		ProjectID:       "project-auth",
+		BoardID:         "board-auth-main",
+		Column:          TaskColumnTodo,
+		Status:          TaskStatusTodo,
+		Priority:        TaskPriorityHigh,
+		Title:           "Implement password reset API",
+		Assignee:        "agent-backend-dev",
+		CreatedBy:       "@alice",
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		Progress:        0,
+		ApprovalOutcome: ApprovalOutcomePending,
+	}
+
+	if err := ValidateTaskFrontmatter(task); err != nil {
+		t.Fatalf("expected valid task, got error: %v", err)
+	}
+
+	task.Status = "broken"
+	if err := ValidateTaskFrontmatter(task); err == nil {
+		t.Fatal("expected error for invalid status, got nil")
+	}
+}
+
+func TestValidateAgentFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	agent := AgentFrontmatter{
+		ID:          "agent-backend-dev",
+		Type:        "agent",
+		Name:        "Backend Developer",
+		Role:        "implementation",
+		Provider:    "claude",
+		Model:       "claude-sonnet-4-6",
+		SkillFile:   "skills/relayhq-backend-dev.md",
+		Status:      "available",
+		WorkspaceID: "ws-acme",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := ValidateAgentFrontmatter(agent); err != nil {
+		t.Fatalf("expected valid agent, got error: %v", err)
+	}
+}
+
+func TestValidateProviderOverlayFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	overlay := ProviderOverlayFrontmatter{
+		Type:      "provider-overlay",
+		UserID:    "@alice",
+		Provider:  "claude",
+		Model:     "claude-sonnet-4-6",
+		APIKeyRef: "env:ANTHROPIC_API_KEY",
+		UpdatedAt: now,
+	}
+
+	if err := ValidateProviderOverlay(overlay); err != nil {
+		t.Fatalf("expected valid overlay, got error: %v", err)
+	}
+}
+
+func TestValidateWorkspaceFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	workspace := WorkspaceFrontmatter{
+		ID:        "ws-acme",
+		Type:      "workspace",
+		Name:      "Acme Corp",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := ValidateWorkspaceFrontmatter(workspace); err != nil {
+		t.Fatalf("expected valid workspace, got error: %v", err)
+	}
+}
+
+func TestValidateAuditNoteFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	note := AuditNoteFrontmatter{
+		ID:         "audit-001",
+		Type:       "audit-note",
+		TaskID:     "task-001",
+		Message:    "Approved deployment after security review",
+		Source:     "human",
+		Confidence: 1,
+		CreatedAt:  now,
+	}
+
+	if err := ValidateAuditNoteFrontmatter(note); err != nil {
+		t.Fatalf("expected valid audit note, got error: %v", err)
+	}
+}

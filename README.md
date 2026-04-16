@@ -2,7 +2,7 @@
 
 RelayHQ is a Kanban-first control plane for agent-assisted project work.
 
-It gives teams one place to manage projects, boards, tasks, ownership, approvals, progress, and the history behind important decisions.
+It gives teams one place to manage projects, boards, tasks, ownership, approvals, progress, audit history, and the protocol agents use to keep state current.
 
 ## Who it is for
 
@@ -98,6 +98,16 @@ Agents use RelayHQ as the coordination surface for:
 
 RelayHQ is not the agent runtime. It is the control plane around it.
 
+## Architecture
+
+RelayHQ is built around three layers:
+
+1. **Domain model** — workspace, project, board, column, task, assignment, approval, audit note
+2. **Vault-first storage** — Markdown files + YAML frontmatter + Git history
+3. **API + UI** — Nuxt 3 app with TypeScript and Bun for coordination and visibility
+
+Agent execution stays outside RelayHQ.
+
 ## What RelayHQ is
 
 RelayHQ is:
@@ -128,7 +138,7 @@ That means:
 
 - the product direction is defined
 - the scope is intentionally small
-- the backend and frontend shells are in place
+- the app shell is in place
 - the current implementation is still task/status based and will need to evolve toward a fuller board/column model
 - the docs are the source of truth for now
 
@@ -136,12 +146,12 @@ The product runtime is still a work in progress, but the app structure now exist
 
 ## Installation and setup
 
-RelayHQ is a monorepo with a Go backend and a React frontend.
+RelayHQ is a monorepo with a Nuxt 3 app, TypeScript, and Bun, backed by vault files.
 
 ### Prerequisites
 
-- Go 1.22+
-- Node.js + npm (for the frontend)
+- Bun
+- Node.js (optional compatibility)
 
 ### Fresh clone
 
@@ -150,57 +160,54 @@ git clone <repo-url>
 cd RelayHQ
 ```
 
-### Backend API
+### App
 
 ```bash
-cd backend
-go run ./cmd/relayhq-api
-```
-
-The API listens on `:8081` by default. Override with `RELAYHQ_ADDR` if needed.
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
+cd app
+bun install
+bun run dev
 ```
 
 ### CLI
 
-Run the CLI against the API server:
+CLI commands talk to the local app API.
+
+From the repo root:
 
 ```bash
-cd backend
-go run ./cmd/relayhq --base-url http://127.0.0.1:8081 projects list
+bun run ./cli/relayhq.ts tasks --assignee=agent-backend-dev
+bun run ./cli/relayhq.ts claim task-001 --assignee=agent-backend-dev
+bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-backend-dev
+bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=done --result="PR #42"
+bun run ./cli/relayhq.ts request-approval task-001 --assignee=agent-backend-dev --reason="Need prod access"
 ```
 
-Most useful commands:
+Configuration:
 
-- `projects list`
-- `projects create --name NAME --owner OWNER [--summary SUMMARY]`
-- `tasks list --project PROJECT_ID`
-- `tasks create --project PROJECT_ID --title TITLE [--details DETAILS] [--status STATUS]`
-- `tasks start|block|review|done TASK_ID`
-- `board --project PROJECT_ID`
-- `next --project PROJECT_ID`
+- default base URL: `http://127.0.0.1:3000`
+- override with `RELAYHQ_BASE_URL=http://127.0.0.1:3000`
+- or pass `--base-url=http://127.0.0.1:3000`
 
-Environment variables:
+Common commands:
 
-- `RELAYHQ_API_BASE_URL` — default CLI base URL
-- `RELAYHQ_PROJECT_ID` — default project id for board/next/tasks commands
-- `RELAYHQ_DEFAULT_OWNER` — default owner for project creation
+- `bun run ./cli/relayhq.ts tasks --assignee=<caller>`
+- `bun run ./cli/relayhq.ts claim <task-id> --assignee=<caller>`
+- `bun run ./cli/relayhq.ts update <task-id> --assignee=<caller> --status=in-progress`
+- `bun run ./cli/relayhq.ts heartbeat <task-id> --assignee=<caller>`
+- `bun run ./cli/relayhq.ts request-approval <task-id> --assignee=<caller> --reason="..."`
 
-Makefile shortcuts:
+## Documentation
 
-```bash
-make backend-dev
-make backend-cli
-make backend-test
-make frontend-dev
-make frontend-build
-```
+Start here:
+
+- `docs/index.md`
+- `docs/vision.md`
+- `docs/architecture.md`
+- `docs/vault/structure.md`
+- `docs/vault/schema.md`
+- `docs/agents/definitions.md`
+- `docs/agents/protocol.md`
+- `docs/roadmap.md`
 
 Then read the docs below to understand the direction and scope.
 

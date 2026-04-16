@@ -1,3 +1,3 @@
-module github.com/amas-nghia/relayhq/backend
+module relayhq/backend
 
 go 1.22
