@@ -6,7 +6,7 @@ import type {
   VaultReadModel,
 } from "../../models/read-model";
 
-export type KiokuWorkStateEntityType = "project" | "board" | "task" | "approval";
+export type KiokuWorkStateEntityType = "project" | "board" | "task" | "approval" | "document";
 
 export interface KiokuWorkStateRelation {
   readonly kind: KiokuWorkStateEntityType;
@@ -20,6 +20,7 @@ export interface KiokuIndexDocument {
   readonly projectId: string | null;
   readonly boardId: string | null;
   readonly taskId: string | null;
+  readonly codebaseName?: string | null;
   readonly title: string;
   readonly summary: string;
   readonly keywords: ReadonlyArray<string>;
@@ -63,6 +64,7 @@ function buildDocument(input: {
   readonly projectId: string | null;
   readonly boardId: string | null;
   readonly taskId: string | null;
+  readonly codebaseName?: string | null;
   readonly title: string;
   readonly summary: string;
   readonly keywords: ReadonlyArray<string>;
@@ -77,6 +79,7 @@ function buildDocument(input: {
     projectId: input.projectId,
     boardId: input.boardId,
     taskId: input.taskId,
+    ...(input.codebaseName === undefined ? {} : { codebaseName: input.codebaseName }),
     title: normalizeWhitespace(input.title),
     summary: normalizeWhitespace(input.summary),
     keywords: uniqueStrings(input.keywords),
@@ -194,6 +197,64 @@ function buildApprovalUpdate(approval: ReadModelApproval): KiokuWorkStateUpdate 
       ],
       updatedAt: approval.updatedAt,
       sourcePath: approval.sourcePath,
+    }),
+  };
+}
+
+export function buildDocumentUpdate(input: {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly sourcePath: string;
+  readonly tags: ReadonlyArray<string>;
+  readonly updatedAt: string;
+}): KiokuWorkStateUpdate {
+  return {
+    operation: "upsert",
+    document: buildDocument({
+      entityType: "document",
+      entityId: input.id,
+      workspaceId: "",
+      projectId: null,
+      boardId: null,
+      taskId: null,
+      title: input.title,
+      summary: input.content,
+      keywords: [input.id, ...input.tags],
+      relations: [],
+      updatedAt: input.updatedAt,
+      sourcePath: input.sourcePath,
+    }),
+  };
+}
+
+export function buildCodeDocumentUpdate(input: {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly sourcePath: string;
+  readonly tags: ReadonlyArray<string>;
+  readonly updatedAt: string;
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly codebaseName?: string;
+}): KiokuWorkStateUpdate {
+  return {
+    operation: "upsert",
+    document: buildDocument({
+      entityType: "document",
+      entityId: input.id,
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      boardId: null,
+      taskId: null,
+      ...(input.codebaseName === undefined ? {} : { codebaseName: input.codebaseName }),
+      title: input.title,
+      summary: input.content,
+      keywords: [input.id, input.projectId, input.workspaceId, ...input.tags],
+      relations: [{ kind: "project", id: input.projectId }],
+      updatedAt: input.updatedAt,
+      sourcePath: input.sourcePath,
     }),
   };
 }

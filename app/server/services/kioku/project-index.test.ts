@@ -45,10 +45,39 @@ describe("project code indexing", () => {
 
     const result = indexProjectCodebase(project, root, storage);
     expect(result.indexedFiles).toBe(1);
+    expect(result.warnings).toEqual([]);
+    expect(result.resolvedPaths).toHaveLength(1);
 
     const status = readProjectCodeIndexStatus(project, root, storage);
     expect(status.status).toBe("indexed");
     expect(status.fileCount).toBe(1);
-    expect(storage.fetchById("project-demo:index.ts")?.projectId).toBe("project-demo");
+    expect(storage.fetchById("project-demo:main:index.ts")?.projectId).toBe("project-demo");
+  });
+
+  test("indexes multiple codebases and skips missing paths with warnings", async () => {
+    const root = await createRoot();
+    const storage = withStorage();
+
+    const frontendRoot = join(root, "frontend");
+    const backendRoot = join(root, "backend");
+    await mkdir(frontendRoot, { recursive: true });
+    await writeFile(join(frontendRoot, "page.ts"), "export const page = true\n", "utf8");
+    await mkdir(backendRoot, { recursive: true });
+    await writeFile(join(backendRoot, "service.ts"), "export const service = true\n", "utf8");
+
+    const result = indexProjectCodebase({
+      id: "project-demo",
+      workspaceId: "ws-demo",
+      codebases: [
+        { name: "frontend", path: "frontend", primary: true },
+        { name: "backend", path: "backend" },
+        { name: "missing", path: "missing" },
+      ],
+    }, root, storage);
+
+    expect(result.indexedFiles).toBe(2);
+    expect(result.warnings).toEqual([`Skipping missing codebase path for missing: ${join(root, "missing")}`]);
+    expect(storage.fetchById("project-demo:frontend:page.ts")?.codebaseName).toBe("frontend");
+    expect(storage.fetchById("project-demo:backend:service.ts")?.codebaseName).toBe("backend");
   });
 });

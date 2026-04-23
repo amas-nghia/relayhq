@@ -1,5 +1,9 @@
 import type { ReadModelTask, VaultReadModel } from "../app/server/models/read-model";
 import type { TaskFrontmatter, TaskStatus } from "../app/shared/vault/schema";
+import { indexCodebaseFiles } from "../app/server/services/kioku/code-indexer";
+import { indexProjectCodebase } from "../app/server/services/kioku/project-index";
+import { getKiokuStorage } from "../app/server/services/kioku/storage";
+import { resolveVaultWorkspaceRoot } from "../app/server/services/vault/runtime";
 
 import {
   createApprovalIntent,
@@ -41,7 +45,7 @@ export interface RelayHQCliInvocation {
 
 export interface RelayHQCliResult {
   readonly command: string;
-  readonly payload: ReadonlyArray<TaskFrontmatter> | RelayHQWritebackIntent | ReadonlyArray<string>;
+  readonly payload: ReadonlyArray<TaskFrontmatter> | RelayHQWritebackIntent | ReadonlyArray<string> | Record<string, unknown>;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -271,8 +275,23 @@ export function renderRelayHQHelp(): ReadonlyArray<string> {
   return [
     "RelayHQ CLI",
     ...RELAYHQ_COMMAND_SURFACE.map((command) => `${command.usage}  # ${command.summary}`),
+    "relayhq index <path>  # Index a single codebase path into Kioku",
+    "relayhq index --project=<projectId>  # Index all configured codebases for a project",
     `Base URL: --base-url=<url> or RELAYHQ_BASE_URL (default: ${DEFAULT_RELAYHQ_BASE_URL})`,
   ];
+}
+
+function upsertUpdates(updates: ReadonlyArray<{ readonly document: { readonly entityId: string; readonly updatedAt: string } }>, storage: ReturnType<typeof getKiokuStorage>) {
+  let indexedFiles = 0;
+  for (const update of updates) {
+    const existing = storage.fetchById(update.document.entityId);
+    if (existing?.updatedAt === update.document.updatedAt) {
+      continue;
+    }
+    storage.upsert(update.document as never);
+    indexedFiles += 1;
+  }
+  return indexedFiles;
 }
 
 export async function executeRelayHQInvocation(
@@ -331,7 +350,46 @@ export async function executeRelayHQInvocation(
     };
   }
 
+  if (invocation.command === "index") {
+    const storage = getKiokuStorage();
+    const projectId = invocation.flags.get("project");
+
+    if (projectId !== undefined && projectId.trim().length > 0) {
+      const model = await requestRelayHQ<VaultReadModel>(fetchFnForClient(client), `${resolveRelayHQBaseUrl(argv)}/api/vault/read-model`, { method: "GET" });
+      const project = model.projects.find((entry) => entry.id === projectId.trim());
+      if (!project) {
+        throw new Error(`Project not found: ${projectId}`);
+      }
+      const result = indexProjectCodebase(project, resolveVaultWorkspaceRoot(), storage);
+      return {
+        command: "index",
+        payload: {
+          projectId: project.id,
+          indexedFiles: result.indexedFiles,
+          resolvedPaths: result.resolvedPaths,
+          warnings: result.warnings,
+        },
+      };
+    }
+
+    const [path = ""] = invocation.positional;
+    const validatedPath = requireNonEmpty(path, "path is required unless --project=<id> is used");
+    const updates = indexCodebaseFiles(validatedPath);
+    const indexedFiles = upsertUpdates(updates, storage);
+    return {
+      command: "index",
+      payload: {
+        path: validatedPath,
+        indexedFiles,
+      },
+    };
+  }
+
   return { command: "help", payload: renderRelayHQHelp() };
+}
+
+function fetchFnForClient(client?: RelayHQProtocolClient): FetchLike {
+  return client ? fetch : fetch;
 }
 
 export async function main(
