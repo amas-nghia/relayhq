@@ -239,7 +239,36 @@ function createReadModel(workspaceBody = "## Tech Stack\n\n- Nuxt 3"): VaultRead
         sourcePath: "vault/shared/tasks/task-cancelled.md",
       },
     ],
-    docs: [],
+    docs: [
+      {
+        id: "doc-project",
+        type: "doc",
+        docType: "feature",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        title: "Project feature doc",
+        status: "draft",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T01:00:00Z",
+        tags: ["docs"],
+        body: "# Hidden body",
+        sourcePath: "vault/shared/docs/doc-project.md",
+      },
+      {
+        id: "doc-workspace",
+        type: "doc",
+        docType: "research",
+        workspaceId: "ws-demo",
+        projectId: null,
+        title: "Workspace research doc",
+        status: "active",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T02:00:00Z",
+        tags: ["research"],
+        body: "# Hidden workspace body",
+        sourcePath: "vault/shared/docs/doc-workspace.md",
+      },
+    ],
     approvals: [],
     auditNotes: [],
     agents: [
@@ -316,6 +345,23 @@ describe("GET /api/agent/planner-context", () => {
         assignee: "agent-claude-code",
       },
     ]);
+    expect(response.docs).toEqual([
+      {
+        id: "doc-project",
+        title: "Project feature doc",
+        doc_type: "feature",
+        status: "draft",
+        updatedAt: "2026-04-23T01:00:00Z",
+      },
+      {
+        id: "doc-workspace",
+        title: "Workspace research doc",
+        doc_type: "research",
+        status: "active",
+        updatedAt: "2026-04-23T02:00:00Z",
+      },
+    ]);
+    expect(JSON.stringify(response.docs)).not.toContain("Hidden body");
   });
 
   test("returns null when workspace body is empty", async () => {
