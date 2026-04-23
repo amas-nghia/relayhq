@@ -16,6 +16,8 @@ const PROJECT_FRONTMATTER_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = [
   "type",
   "workspace_id",
   "name",
+  "codebase_root",
+  "codebases",
   "created_at",
   "updated_at",
 ];
@@ -26,6 +28,7 @@ export interface SyncProjectRequest {
   readonly filePath: string;
   readonly actorId: string;
   readonly mutate: (project: ProjectFrontmatter) => unknown;
+  readonly mutateBody?: (body: string) => string;
   readonly now?: Date;
   readonly lockTtlMs?: number;
   readonly staleAfterMs?: number;
@@ -107,9 +110,40 @@ function splitDocument(content: string): { readonly frontmatter: string; readonl
 
 function parseFrontmatter(frontmatter: string): Record<string, unknown> {
   const record: Record<string, unknown> = {};
+  const lines = frontmatter.split(/\r?\n/);
+  let index = 0;
 
-  for (const line of frontmatter.split(/\r?\n/)) {
+  while (index < lines.length) {
+    const line = lines[index];
     if (line.trim().length === 0) {
+      index += 1;
+      continue;
+    }
+
+    const blockMatch = line.match(/^([A-Za-z0-9_]+):\s*$/);
+    if (blockMatch !== null) {
+      const key = blockMatch[1];
+      const items: Record<string, unknown>[] = [];
+      index += 1;
+
+      while (index < lines.length && lines[index].match(/^\s+-(\s|$)/)) {
+        const item: Record<string, unknown> = {};
+        const firstLine = lines[index].replace(/^\s+-\s?/, "");
+        if (firstLine.trim().length > 0) {
+          const kv = firstLine.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+          if (kv) item[kv[1]] = parseValue(kv[2]);
+        }
+        index += 1;
+        while (index < lines.length && lines[index].match(/^\s{4,}[A-Za-z0-9_]+:/)) {
+          const kvLine = lines[index].trim();
+          const kv = kvLine.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+          if (kv) item[kv[1]] = parseValue(kv[2]);
+          index += 1;
+        }
+        items.push(item);
+      }
+
+      record[key] = items;
       continue;
     }
 
@@ -120,6 +154,7 @@ function parseFrontmatter(frontmatter: string): Record<string, unknown> {
     }
 
     record[match[1]] = parseValue(match[2]);
+    index += 1;
   }
 
   return record;
@@ -146,13 +181,34 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
     type: "project",
     workspace_id: record.workspace_id,
     name: record.name,
+    codebase_root: typeof record.codebase_root === "string" ? record.codebase_root : null,
+    codebases: Array.isArray(record.codebases)
+      ? record.codebases.flatMap((entry) => {
+          if (typeof entry !== "object" || entry === null) {
+            return [];
+          }
+          const item = entry as Record<string, unknown>;
+          if (typeof item.name !== "string" || typeof item.path !== "string") {
+            return [];
+          }
+          return [{
+            name: item.name,
+            path: item.path,
+            ...(typeof item.tech === "string" ? { tech: item.tech } : {}),
+            ...(typeof item.primary === "boolean" ? { primary: item.primary } : {}),
+          }];
+        })
+      : [],
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
 }
 
 function serializeProjectFrontmatter(frontmatter: ProjectFrontmatter): string {
-  return PROJECT_FRONTMATTER_KEYS.map((key) => `${String(key)}: ${stringifyValue(frontmatter[key])}`).join("\n");
+  return PROJECT_FRONTMATTER_KEYS
+    .filter((key) => frontmatter[key] !== undefined)
+    .map((key) => `${String(key)}: ${stringifyValue(frontmatter[key])}`)
+    .join("\n");
 }
 
 export function serializeProjectDocument(frontmatter: ProjectFrontmatter, body: string): string {
@@ -224,15 +280,16 @@ export async function syncProjectDocument(request: SyncProjectRequest): Promise<
     }
 
     const next = applyProjectPatch(current.frontmatter, patch as Readonly<Partial<ProjectFrontmatter>>, now);
+    const nextBody = request.mutateBody ? request.mutateBody(current.body) : current.body;
 
-    await writeProjectDocumentAtomic(request.filePath, { frontmatter: next, body: current.body });
+    await writeProjectDocumentAtomic(request.filePath, { frontmatter: next, body: nextBody });
 
     return {
       sourcePath: current.sourcePath,
       filePath: request.filePath,
       previous: current.frontmatter,
       frontmatter: next,
-      body: current.body,
+      body: nextBody,
     };
   } finally {
     await fileLock.release();

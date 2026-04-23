@@ -1,0 +1,359 @@
+import { describe, expect, test } from "bun:test";
+
+import type { VaultReadModel } from "../../models/read-model";
+
+import { readPlannerContext } from "./planner-context.get";
+
+function createReadModel(workspaceBody = "## Tech Stack\n\n- Nuxt 3"): VaultReadModel {
+  return {
+    workspaces: [
+      {
+        id: "ws-demo",
+        type: "workspace",
+        name: "Demo Workspace",
+        ownerIds: ["@alice"],
+        memberIds: ["@alice", "agent-claude-code"],
+        projectIds: ["project-demo"],
+        boardIds: ["board-demo"],
+        columnIds: ["column-todo", "column-done"],
+        taskIds: ["task-open", "task-done", "task-cancelled"],
+        approvalIds: [],
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: workspaceBody,
+        sourcePath: "vault/shared/workspaces/ws-demo.md",
+      },
+    ],
+    projects: [
+      {
+        id: "project-demo",
+        type: "project",
+        workspaceId: "ws-demo",
+        name: "RelayHQ",
+        codebases: [],
+        boardIds: ["board-demo"],
+        columnIds: ["column-todo", "column-done"],
+        taskIds: ["task-open", "task-done", "task-cancelled"],
+        approvalIds: [],
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: "project body",
+        sourcePath: "vault/shared/projects/project-demo.md",
+      },
+    ],
+    boards: [
+      {
+        id: "board-demo",
+        type: "board",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        name: "Main Board",
+        columnIds: ["column-todo", "column-done"],
+        taskIds: ["task-open", "task-done", "task-cancelled"],
+        approvalIds: [],
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: "board body",
+        sourcePath: "vault/shared/boards/board-demo.md",
+      },
+    ],
+    columns: [
+      {
+        id: "column-todo",
+        type: "column",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        name: "Todo",
+        position: 0,
+        taskIds: ["task-open", "task-cancelled"],
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: "column body",
+        sourcePath: "vault/shared/columns/column-todo.md",
+      },
+      {
+        id: "column-done",
+        type: "column",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        name: "Done",
+        position: 1,
+        taskIds: ["task-done"],
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: "column body",
+        sourcePath: "vault/shared/columns/column-done.md",
+      },
+    ],
+    tasks: [
+      {
+        id: "task-open",
+        type: "task",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "column-todo",
+        status: "in-progress",
+        priority: "high",
+        title: "Implement planner context",
+        assignee: "agent-claude-code",
+        createdBy: "@alice",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        heartbeatAt: null,
+        executionStartedAt: null,
+        executionNotes: null,
+        progress: 50,
+        approvalNeeded: false,
+        approvalRequestedBy: null,
+        approvalReason: null,
+        approvedBy: null,
+        approvedAt: null,
+        approvalOutcome: "pending",
+        blockedReason: null,
+        blockedSince: null,
+        result: null,
+        completedAt: null,
+        parentTaskId: null,
+        dependsOn: [],
+        tags: [],
+        links: [],
+        lockedBy: null,
+        lockedAt: null,
+        lockExpiresAt: null,
+        isStale: false,
+        approvalIds: [],
+        approvalState: {
+          status: "not-needed",
+          needed: false,
+          outcome: "pending",
+          requestedBy: null,
+          requestedAt: null,
+          decidedBy: null,
+          decidedAt: null,
+          reason: null,
+        },
+        body: "task body",
+        sourcePath: "vault/shared/tasks/task-open.md",
+      },
+      {
+        id: "task-done",
+        type: "task",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "column-done",
+        status: "done",
+        priority: "medium",
+        title: "Completed task",
+        assignee: "agent-claude-code",
+        createdBy: "@alice",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        heartbeatAt: null,
+        executionStartedAt: null,
+        executionNotes: null,
+        progress: 100,
+        approvalNeeded: false,
+        approvalRequestedBy: null,
+        approvalReason: null,
+        approvedBy: null,
+        approvedAt: null,
+        approvalOutcome: "pending",
+        blockedReason: null,
+        blockedSince: null,
+        result: null,
+        completedAt: "2026-04-23T00:00:00Z",
+        parentTaskId: null,
+        dependsOn: [],
+        tags: [],
+        links: [],
+        lockedBy: null,
+        lockedAt: null,
+        lockExpiresAt: null,
+        isStale: false,
+        approvalIds: [],
+        approvalState: {
+          status: "not-needed",
+          needed: false,
+          outcome: "pending",
+          requestedBy: null,
+          requestedAt: null,
+          decidedBy: null,
+          decidedAt: null,
+          reason: null,
+        },
+        body: "task body",
+        sourcePath: "vault/shared/tasks/task-done.md",
+      },
+      {
+        id: "task-cancelled",
+        type: "task",
+        workspaceId: "ws-demo",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "column-todo",
+        status: "cancelled",
+        priority: "low",
+        title: "Cancelled task",
+        assignee: "agent-claude-code",
+        createdBy: "@alice",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        heartbeatAt: null,
+        executionStartedAt: null,
+        executionNotes: null,
+        progress: 0,
+        approvalNeeded: false,
+        approvalRequestedBy: null,
+        approvalReason: null,
+        approvedBy: null,
+        approvedAt: null,
+        approvalOutcome: "pending",
+        blockedReason: null,
+        blockedSince: null,
+        result: null,
+        completedAt: null,
+        parentTaskId: null,
+        dependsOn: [],
+        tags: [],
+        links: [],
+        lockedBy: null,
+        lockedAt: null,
+        lockExpiresAt: null,
+        isStale: false,
+        approvalIds: [],
+        approvalState: {
+          status: "not-needed",
+          needed: false,
+          outcome: "pending",
+          requestedBy: null,
+          requestedAt: null,
+          decidedBy: null,
+          decidedAt: null,
+          reason: null,
+        },
+        body: "task body",
+        sourcePath: "vault/shared/tasks/task-cancelled.md",
+      },
+    ],
+    docs: [],
+    approvals: [],
+    auditNotes: [],
+    agents: [
+      {
+        id: "agent-claude-code",
+        type: "agent",
+        workspaceId: "ws-demo",
+        name: "Claude Code",
+        role: "implementation",
+        provider: "claude",
+        model: "sonnet",
+        capabilities: ["write-typescript", "write-tests"],
+        taskTypesAccepted: ["feature-implementation"],
+        approvalRequiredFor: [],
+        cannotDo: [],
+        accessibleBy: ["@alice"],
+        skillFile: "skills/claude-code.md",
+        status: "available",
+        createdAt: "2026-04-23T00:00:00Z",
+        updatedAt: "2026-04-23T00:00:00Z",
+        body: "agent body",
+        sourcePath: "vault/shared/agents/agent-claude-code.md",
+      },
+    ],
+  };
+}
+
+describe("GET /api/agent/planner-context", () => {
+  test("returns workspace brief, nested board columns, agents, and open task summary", async () => {
+    const response = await readPlannerContext({
+      readModelReader: async () => createReadModel(),
+      resolveRoot: () => "/tmp/relayhq-vault",
+      workspaceIdReader: () => null,
+    });
+
+    expect(response.workspaceId).toBe("ws-demo");
+    expect(response.workspaceName).toBe("Demo Workspace");
+    expect(response.workspaceBrief).toBe("## Tech Stack\n\n- Nuxt 3");
+    expect(response.projects).toEqual([
+      {
+        id: "project-demo",
+        name: "RelayHQ",
+        boardIds: ["board-demo"],
+        codebases: [],
+      },
+    ]);
+    expect(response.boards).toEqual([
+      {
+        id: "board-demo",
+        projectId: "project-demo",
+        name: "Main Board",
+        columns: [
+          { id: "column-todo", name: "Todo", position: 0, taskCount: 2 },
+          { id: "column-done", name: "Done", position: 1, taskCount: 1 },
+        ],
+      },
+    ]);
+    expect(response.agents).toEqual([
+      {
+        id: "agent-claude-code",
+        name: "Claude Code",
+        capabilities: ["write-typescript", "write-tests"],
+        status: "available",
+      },
+    ]);
+    expect(response.openTaskSummary).toEqual([
+      {
+        id: "task-open",
+        title: "Implement planner context",
+        status: "in-progress",
+        priority: "high",
+        boardId: "board-demo",
+        columnId: "column-todo",
+        assignee: "agent-claude-code",
+      },
+    ]);
+  });
+
+  test("returns null when workspace body is empty", async () => {
+    const response = await readPlannerContext({
+      readModelReader: async () => createReadModel("   \n\n  "),
+      resolveRoot: () => "/tmp/relayhq-vault",
+      workspaceIdReader: () => null,
+    });
+
+    expect(response.workspaceBrief).toBeNull();
+  });
+
+  test("returns agent summaries from the vault read model", async () => {
+    const baseReadModel = createReadModel();
+    const response = await readPlannerContext({
+      readModelReader: async () => ({
+        ...baseReadModel,
+        agents: [
+          {
+            ...baseReadModel.agents[0]!,
+            id: "agent-planner",
+            name: "Planner",
+            capabilities: ["plan-work", "create-tasks"],
+            status: "busy",
+          },
+        ],
+      }),
+      resolveRoot: () => "/tmp/relayhq-vault",
+      workspaceIdReader: () => null,
+    });
+
+    expect(response.agents).toEqual([
+      {
+        id: "agent-planner",
+        name: "Planner",
+        capabilities: ["plan-work", "create-tasks"],
+        status: "busy",
+      },
+    ]);
+  });
+});

@@ -139,8 +139,10 @@ export const emptyVaultReadModel: VaultReadModel = {
   boards: [],
   columns: [],
   tasks: [],
+  issues: [],
   approvals: [],
   auditNotes: [],
+  docs: [],
   agents: [],
 };
 
@@ -397,7 +399,7 @@ export function selectProjectSummary(model: VaultReadModel, projectId: string): 
         { label: "Tasks", value: "0", note: "No live data" },
         { label: "Approvals", value: "0", note: "No live data" },
       ],
-      workflow: buildProjectWorkflow({ id: projectId, type: "project", workspaceId: "workspace-unavailable", name: "Project unavailable", boardIds: [], columnIds: [], taskIds: [], approvalIds: [], createdAt: "", updatedAt: "", body: "", sourcePath: `vault/shared/projects/${projectId}.md` }, 0, 0, 0),
+      workflow: buildProjectWorkflow({ id: projectId, type: "project", workspaceId: "workspace-unavailable", name: "Project unavailable", codebases: [], boardIds: [], columnIds: [], taskIds: [], approvalIds: [], createdAt: "", updatedAt: "", body: "", sourcePath: `vault/shared/projects/${projectId}.md` }, 0, 0, 0),
       links: [buildFallbackLink("Project file", `/projects/${projectId}`, `vault/shared/projects/${projectId}.md`)],
     };
   }

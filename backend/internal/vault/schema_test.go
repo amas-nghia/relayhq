@@ -128,6 +128,99 @@ func TestValidateWorkspaceFrontmatter(t *testing.T) {
 	}
 }
 
+func TestValidateProjectFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	legacyRoot := "/repo/main"
+
+	tests := []struct {
+		name    string
+		project ProjectFrontmatter
+		wantErr bool
+	}{
+		{
+			name: "accepts old codebase_root format",
+			project: ProjectFrontmatter{
+				ID:           "project-auth",
+				Type:         "project",
+				WorkspaceID:  "ws-acme",
+				Name:         "Authentication",
+				CodebaseRoot: &legacyRoot,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			},
+			wantErr: false,
+		},
+		{
+			name: "accepts single codebase entry",
+			project: ProjectFrontmatter{
+				ID:          "project-auth",
+				Type:        "project",
+				WorkspaceID: "ws-acme",
+				Name:        "Authentication",
+				Codebases: []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Primary: true}},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			wantErr: false,
+		},
+		{
+			name: "accepts multiple codebase entries",
+			project: ProjectFrontmatter{
+				ID:          "project-auth",
+				Type:        "project",
+				WorkspaceID: "ws-acme",
+				Name:        "Authentication",
+				Codebases: []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Tech: "Next.js", Primary: true}, {Name: "backend", Path: "/repo/backend", Tech: "NestJS"}},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			wantErr: false,
+		},
+		{
+			name: "rejects empty codebases without legacy root",
+			project: ProjectFrontmatter{
+				ID:          "project-auth",
+				Type:        "project",
+				WorkspaceID: "ws-acme",
+				Name:        "Authentication",
+				Codebases:   []CodebaseEntry{},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			wantErr: true,
+		},
+		{
+			name: "rejects non-slug codebase name",
+			project: ProjectFrontmatter{
+				ID:          "project-auth",
+				Type:        "project",
+				WorkspaceID: "ws-acme",
+				Name:        "Authentication",
+				Codebases:   []CodebaseEntry{{Name: "Front End", Path: "/repo/frontend"}},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		caseData := tt
+		t.Run(caseData.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateProjectFrontmatter(caseData.project)
+			if caseData.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !caseData.wantErr && err != nil {
+				t.Fatalf("expected valid project, got error: %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateAuditNoteFrontmatter(t *testing.T) {
 	t.Parallel()
 

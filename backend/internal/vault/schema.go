@@ -211,6 +211,24 @@ type WorkspaceFrontmatter struct {
 	UpdatedAt time.Time
 }
 
+type CodebaseEntry struct {
+	Name    string
+	Path    string
+	Tech    string
+	Primary bool
+}
+
+type ProjectFrontmatter struct {
+	ID           string
+	Type         string
+	WorkspaceID  string
+	Name         string
+	CodebaseRoot *string
+	Codebases    []CodebaseEntry
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type AuditNoteFrontmatter struct {
 	ID         string
 	Type       string
@@ -376,6 +394,59 @@ func ValidateWorkspaceFrontmatter(workspace WorkspaceFrontmatter) error {
 	if workspace.UpdatedAt.IsZero() {
 		errs = appendError(errs, "updated_at", "required")
 	}
+	if len(errs) > 0 {
+		return ValidationError{Fields: errs}
+	}
+	return nil
+}
+
+func ValidateProjectFrontmatter(project ProjectFrontmatter) error {
+	var errs []string
+	if project.ID == "" {
+		errs = appendError(errs, "id", "required")
+	}
+	if project.Type != "project" {
+		errs = appendError(errs, "type", "must be project")
+	}
+	if project.WorkspaceID == "" {
+		errs = appendError(errs, "workspace_id", "required")
+	}
+	if project.Name == "" {
+		errs = appendError(errs, "name", "required")
+	}
+	if project.CreatedAt.IsZero() {
+		errs = appendError(errs, "created_at", "required")
+	}
+	if project.UpdatedAt.IsZero() {
+		errs = appendError(errs, "updated_at", "required")
+	}
+
+	codebases := project.Codebases
+	if len(codebases) == 0 && project.CodebaseRoot != nil && strings.TrimSpace(*project.CodebaseRoot) != "" {
+		codebases = []CodebaseEntry{{Name: "main", Path: strings.TrimSpace(*project.CodebaseRoot), Primary: true}}
+	}
+
+	if len(codebases) == 0 {
+		errs = appendError(errs, "codebases", "must contain at least one entry")
+	}
+
+	for index, codebase := range codebases {
+		if codebase.Name == "" {
+			errs = appendError(errs, fmt.Sprintf("codebases[%d].name", index), "required")
+		} else {
+			for _, r := range codebase.Name {
+				valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-'
+				if !valid {
+					errs = appendError(errs, fmt.Sprintf("codebases[%d].name", index), "must be a lowercase slug")
+					break
+				}
+			}
+		}
+		if strings.TrimSpace(codebase.Path) == "" {
+			errs = appendError(errs, fmt.Sprintf("codebases[%d].path", index), "required")
+		}
+	}
+
 	if len(errs) > 0 {
 		return ValidationError{Fields: errs}
 	}

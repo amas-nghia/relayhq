@@ -5,6 +5,8 @@ import type {
   AuditNoteFrontmatter,
   BoardFrontmatter,
   ColumnFrontmatter,
+  DocFrontmatter,
+  IssueFrontmatter,
   ProjectFrontmatter,
   TaskFrontmatter,
   VaultDocument,
@@ -18,6 +20,8 @@ export type {
   AuditNoteFrontmatter,
   BoardFrontmatter,
   ColumnFrontmatter,
+  DocFrontmatter,
+  IssueFrontmatter,
   ProjectFrontmatter,
   TaskFrontmatter,
   VaultDocument,
@@ -85,6 +89,7 @@ export interface ReadModelProject {
   readonly type: "project";
   readonly workspaceId: string;
   readonly name: string;
+  readonly codebases: ReadonlyArray<{ readonly name: string; readonly path: string; readonly tech?: string; readonly primary?: boolean }>;
   readonly boardIds: ReadonlyArray<string>;
   readonly columnIds: ReadonlyArray<string>;
   readonly taskIds: ReadonlyArray<string>;
@@ -154,6 +159,7 @@ export interface ReadModelTask {
   readonly result: string | null;
   readonly completedAt: string | null;
   readonly parentTaskId: string | null;
+  readonly sourceIssueId?: string | null;
   readonly dependsOn: ReadonlyArray<string>;
   readonly tags: ReadonlyArray<string>;
   readonly links: ReadonlyArray<ReadModelLink>;
@@ -198,14 +204,49 @@ export interface ReadModelAuditNote {
   readonly sourcePath: string;
 }
 
+export interface ReadModelDoc {
+  readonly id: string;
+  readonly type: "doc";
+  readonly docType: string;
+  readonly workspaceId: string;
+  readonly projectId: string | null;
+  readonly title: string;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly tags: ReadonlyArray<string>;
+  readonly body: string;
+  readonly sourcePath: string;
+}
+
+export interface ReadModelIssue {
+  readonly id: string;
+  readonly type: "issue";
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly status: IssueFrontmatter["status"];
+  readonly priority: IssueFrontmatter["priority"];
+  readonly title: string;
+  readonly reportedBy: string;
+  readonly discoveredDuringTaskId: string | null;
+  readonly linkedTaskIds: ReadonlyArray<string>;
+  readonly tags: ReadonlyArray<string>;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly body: string;
+  readonly sourcePath: string;
+}
+
 export interface VaultReadModel {
   readonly workspaces: ReadonlyArray<ReadModelWorkspace>;
   readonly projects: ReadonlyArray<ReadModelProject>;
   readonly boards: ReadonlyArray<ReadModelBoard>;
   readonly columns: ReadonlyArray<ReadModelColumn>;
   readonly tasks: ReadonlyArray<ReadModelTask>;
+  readonly issues: ReadonlyArray<ReadModelIssue>;
   readonly approvals: ReadonlyArray<ReadModelApproval>;
   readonly auditNotes: ReadonlyArray<ReadModelAuditNote>;
+  readonly docs: ReadonlyArray<ReadModelDoc>;
   readonly agents: ReadonlyArray<ReadModelAgent>;
 }
 
@@ -289,6 +330,18 @@ function readLinkArray(record: TaskFrontmatter): ReadonlyArray<ReadModelLink> {
     });
 }
 
+function normalizeCodebases(frontmatter: ProjectFrontmatter): ReadonlyArray<ReadModelProject["codebases"][number]> {
+  if (Array.isArray(frontmatter.codebases) && frontmatter.codebases.length > 0) {
+    return [...frontmatter.codebases].sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  if (typeof frontmatter.codebase_root === "string" && frontmatter.codebase_root.trim().length > 0) {
+    return [{ name: "main", path: frontmatter.codebase_root.trim(), primary: true }];
+  }
+
+  return [];
+}
+
 function getLatestApproval(approvals: ReadonlyArray<ReadModelApproval>): ReadModelApproval | null {
   if (approvals.length === 0) {
     return null;
@@ -367,6 +420,7 @@ function buildProjectModel(
     type: "project",
     workspaceId: document.frontmatter.workspace_id,
     name: document.frontmatter.name,
+    codebases: normalizeCodebases(document.frontmatter),
     boardIds,
     columnIds,
     taskIds,
@@ -452,6 +506,26 @@ function buildAuditNoteModel(document: VaultDocument<AuditNoteFrontmatter>): Rea
   };
 }
 
+function buildIssueModel(document: VaultDocument<IssueFrontmatter>): ReadModelIssue {
+  return {
+    id: document.frontmatter.id,
+    type: "issue",
+    workspaceId: document.frontmatter.workspace_id,
+    projectId: document.frontmatter.project_id,
+    status: document.frontmatter.status,
+    priority: document.frontmatter.priority,
+    title: document.frontmatter.title,
+    reportedBy: document.frontmatter.reported_by,
+    discoveredDuringTaskId: document.frontmatter.discovered_during_task_id,
+    linkedTaskIds: sortStrings(document.frontmatter.linked_task_ids),
+    tags: sortStrings(document.frontmatter.tags),
+    createdAt: document.frontmatter.created_at,
+    updatedAt: document.frontmatter.updated_at,
+    body: document.body,
+    sourcePath: document.sourcePath,
+  };
+}
+
 function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAgent {
   return {
     id: document.frontmatter.id,
@@ -508,6 +582,7 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     result: document.frontmatter.result,
     completedAt: document.frontmatter.completed_at,
     parentTaskId: document.frontmatter.parent_task_id,
+    sourceIssueId: document.frontmatter.source_issue_id ?? null,
     dependsOn: sortStrings(document.frontmatter.depends_on),
     tags: sortStrings(document.frontmatter.tags),
     links: readLinkArray(document.frontmatter),
@@ -548,10 +623,46 @@ function collectColumnIdsByPosition(items: ReadonlyArray<ReadModelColumn>): Read
     .map((item) => item.id);
 }
 
+function buildDocModel(document: VaultDocument<DocFrontmatter>): ReadModelDoc {
+  return {
+    id: document.frontmatter.id,
+    type: "doc",
+    docType: document.frontmatter.doc_type,
+    workspaceId: document.frontmatter.workspace_id,
+    projectId: document.frontmatter.project_id,
+    title: document.frontmatter.title,
+    status: document.frontmatter.status,
+    createdAt: document.frontmatter.created_at,
+    updatedAt: document.frontmatter.updated_at,
+    tags: [...document.frontmatter.tags].sort(),
+    body: document.body,
+    sourcePath: document.sourcePath,
+  };
+}
+
+export function filterVaultReadModelByWorkspaceId(readModel: VaultReadModel, workspaceId: string): VaultReadModel {
+  return {
+    workspaces: readModel.workspaces.filter((ws) => ws.id === workspaceId),
+    projects: readModel.projects.filter((p) => p.workspaceId === workspaceId),
+    boards: readModel.boards.filter((b) => b.workspaceId === workspaceId),
+    columns: readModel.columns.filter((c) => c.workspaceId === workspaceId),
+    tasks: readModel.tasks.filter((t) => t.workspaceId === workspaceId),
+    issues: readModel.issues.filter((issue) => issue.workspaceId === workspaceId),
+    approvals: readModel.approvals.filter((a) => a.workspaceId === workspaceId),
+    auditNotes: readModel.auditNotes.filter((n) => {
+      const task = readModel.tasks.find((t) => t.id === n.taskId);
+      return task?.workspaceId === workspaceId;
+    }),
+    docs: readModel.docs.filter((d) => d.workspaceId === workspaceId),
+    agents: readModel.agents.filter((a) => a.workspaceId === workspaceId),
+  };
+}
+
 export function buildVaultReadModel(collections: VaultReadCollections, now: Date = new Date()): VaultReadModel {
   const agents = sortById(collections.agents.map(buildAgentModel));
   const approvals = sortById(collections.approvals.map(buildApprovalModel));
   const auditNotes = sortById(collections.auditNotes.map(buildAuditNoteModel));
+  const issues = sortById(collections.issues.map(buildIssueModel));
   const approvalsByTaskId = groupBy(approvals, (approval) => approval.taskId);
   const approvalsByBoardId = groupBy(approvals, (approval) => approval.boardId);
   const approvalsByProjectId = groupBy(approvals, (approval) => approval.projectId);
@@ -611,14 +722,18 @@ export function buildVaultReadModel(collections: VaultReadCollections, now: Date
     ),
   );
 
+  const docs = sortById(collections.docs.map(buildDocModel));
+
   return {
     workspaces,
     projects,
     boards,
     columns,
     tasks,
+    issues,
     approvals,
     auditNotes,
+    docs,
     agents,
   };
 }

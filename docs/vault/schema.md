@@ -132,6 +132,39 @@ locked_at: 2026-04-14T10:00:00Z
 lock_expires_at: 2026-04-14T10:05:00Z
 ```
 
+## Project file
+
+`vault/shared/projects/project-{id}.md`
+
+```yaml
+---
+id: project-auth
+type: project
+workspace_id: ws-acme
+name: Authentication
+codebases:
+  - name: frontend
+    path: /home/amas/code/auth-frontend
+    tech: Next.js
+    primary: true
+  - name: backend
+    path: /home/amas/code/auth-backend
+    tech: NestJS
+created_at: 2026-04-14T10:00:00Z
+updated_at: 2026-04-14T10:00:00Z
+---
+```
+
+Backward compatibility rule:
+- legacy `codebase_root` is still accepted by validators
+- when `codebases` is absent and `codebase_root` is present, normalize it to one entry named `main`
+
+Codebase entry rules:
+- `name` must be a lowercase slug
+- `path` may be absolute or repo-relative
+- `tech` is optional
+- `primary` is optional
+
 ## Agent file
 
 `vault/shared/agents/backend-developer.md`
