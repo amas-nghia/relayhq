@@ -56,7 +56,7 @@ export interface TaskFrontmatter {
   readonly status: TaskStatus;
   readonly priority: TaskPriority;
   readonly title: string;
-  readonly assignee: string;
+  readonly assignee: string | null;
   readonly created_by: string;
   readonly created_at: string;
   readonly updated_at: string;
@@ -75,6 +75,7 @@ export interface TaskFrontmatter {
   readonly result: string | null;
   readonly completed_at: string | null;
   readonly parent_task_id: string | null;
+  readonly source_issue_id?: string | null;
   readonly depends_on: ReadonlyArray<string>;
   readonly tags: ReadonlyArray<string>;
   readonly links: ReadonlyArray<TaskLink>;
@@ -138,6 +139,24 @@ export interface WorkspaceFrontmatter {
   readonly name: string;
   readonly owner_ids: ReadonlyArray<string>;
   readonly member_ids: ReadonlyArray<string>;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface ProjectCodebaseEntry {
+  readonly name: string;
+  readonly path: string;
+  readonly tech?: string;
+  readonly primary?: boolean;
+}
+
+export interface ProjectFrontmatter {
+  readonly id: string;
+  readonly type: "project";
+  readonly workspace_id: string;
+  readonly name: string;
+  readonly codebase_root?: string | null;
+  readonly codebases?: ReadonlyArray<ProjectCodebaseEntry>;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -394,7 +413,7 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   requireEnumField(input, "priority", TASK_PRIORITIES, issues);
 
   requireStringField(input, "title", issues);
-  requireStringField(input, "assignee", issues);
+  requireNullableStringField(input, "assignee", issues);
   requireStringField(input, "created_by", issues);
 
   requireRequiredTimestampField(input, "created_at", issues);
@@ -421,6 +440,9 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   requireNullableStringField(input, "result", issues);
   requireNullableTimestampField(input, "completed_at", issues);
   requireNullableStringField(input, "parent_task_id", issues);
+  if (hasKey(input, "source_issue_id")) {
+    requireNullableStringField(input, "source_issue_id", issues);
+  }
 
   requireStringArrayField(input, "depends_on", issues);
   requireStringArrayField(input, "tags", issues);
@@ -638,6 +660,122 @@ export function assertWorkspaceFrontmatter(input: unknown): asserts input is Wor
 
 export function assertAuditNoteFrontmatter(input: unknown): asserts input is AuditNoteFrontmatter {
   const result = validateAuditNoteFrontmatter(input);
+  if (!result.valid) {
+    throw new VaultSchemaError(result.issues);
+  }
+}
+
+export const ISSUE_STATUSES = ["open", "triaged", "investigating", "resolved", "closed", "wont-fix"] as const;
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+
+export interface IssueFrontmatter {
+  readonly id: string;
+  readonly type: "issue";
+  readonly version: typeof VAULT_SCHEMA_VERSION;
+  readonly workspace_id: string;
+  readonly project_id: string;
+  readonly status: IssueStatus;
+  readonly priority: TaskPriority;
+  readonly title: string;
+  readonly reported_by: string;
+  readonly discovered_during_task_id: string | null;
+  readonly linked_task_ids: ReadonlyArray<string>;
+  readonly tags: ReadonlyArray<string>;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export function validateIssueFrontmatter(input: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isRecord(input)) {
+    pushIssue(issues, "_self", "must be an object");
+    return { valid: false, issues };
+  }
+
+  requireStringField(input, "id", issues);
+
+  const type = requireStringField(input, "type", issues);
+  if (type !== undefined && type !== "issue") {
+    pushIssue(issues, "type", "must be issue");
+  }
+
+  const version = requireIntegerField(input, "version", issues);
+  if (version !== undefined && version !== VAULT_SCHEMA_VERSION) {
+    pushIssue(issues, "version", `must equal ${VAULT_SCHEMA_VERSION}`);
+  }
+
+  requireStringField(input, "workspace_id", issues);
+  requireStringField(input, "project_id", issues);
+  requireEnumField(input, "status", ISSUE_STATUSES, issues);
+  requireEnumField(input, "priority", TASK_PRIORITIES, issues);
+  requireStringField(input, "title", issues);
+  requireStringField(input, "reported_by", issues);
+  requireNullableStringField(input, "discovered_during_task_id", issues);
+  requireStringArrayField(input, "linked_task_ids", issues);
+  requireStringArrayField(input, "tags", issues);
+  requireRequiredTimestampField(input, "created_at", issues);
+  requireRequiredTimestampField(input, "updated_at", issues);
+
+  return { valid: issues.length === 0, issues };
+}
+
+export function assertIssueFrontmatter(input: unknown): asserts input is IssueFrontmatter {
+  const result = validateIssueFrontmatter(input);
+  if (!result.valid) {
+    throw new VaultSchemaError(result.issues);
+  }
+}
+
+export const DOC_TYPES = ["feature-spec", "design", "adr", "runbook", "general", "feature", "decision", "research", "retro"] as const;
+export type DocType = (typeof DOC_TYPES)[number];
+export const DOC_STATUSES = ["draft", "active", "archived"] as const;
+export type DocStatus = (typeof DOC_STATUSES)[number];
+
+export interface DocFrontmatter {
+  readonly id: string;
+  readonly type: "doc";
+  readonly doc_type: DocType;
+  readonly workspace_id: string;
+  readonly project_id?: string | null;
+  readonly title: string;
+  readonly status: DocStatus;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly tags: ReadonlyArray<string>;
+}
+
+export function validateDocFrontmatter(input: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isRecord(input)) {
+    pushIssue(issues, "_self", "must be an object");
+    return { valid: false, issues };
+  }
+
+  requireStringField(input, "id", issues);
+
+  const type = requireStringField(input, "type", issues);
+  if (type !== undefined && type !== "doc") {
+    pushIssue(issues, "type", "must be doc");
+  }
+
+  requireEnumField(input, "doc_type", DOC_TYPES, issues);
+  requireStringField(input, "workspace_id", issues);
+  if (hasKey(input, "project_id")) {
+    requireNullableStringField(input, "project_id", issues);
+  }
+  requireStringField(input, "title", issues);
+  requireEnumField(input, "status", DOC_STATUSES, issues);
+  requireRequiredTimestampField(input, "created_at", issues);
+  requireRequiredTimestampField(input, "updated_at", issues);
+  requireStringArrayField(input, "tags", issues);
+
+  return { valid: issues.length === 0, issues };
+}
+
+export function assertDocFrontmatter(input: unknown): asserts input is DocFrontmatter {
+  const result = validateDocFrontmatter(input);
   if (!result.valid) {
     throw new VaultSchemaError(result.issues);
   }

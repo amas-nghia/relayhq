@@ -638,8 +638,10 @@ describe("readCanonicalVaultReadModel", () => {
         boards: [],
         columns: [],
         tasks: [],
+        issues: [],
         approvals: [],
         auditNotes: [],
+        docs: [],
         agents: [],
       });
       expectNoPrivateOverlayLeak(model);

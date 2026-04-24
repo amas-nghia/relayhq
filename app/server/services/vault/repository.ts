@@ -1,11 +1,11 @@
-import type { AgentFrontmatter, ApprovalOutcome, AuditNoteFrontmatter, TaskFrontmatter, WorkspaceFrontmatter } from "../../../shared/vault/schema";
+import type { AgentFrontmatter, ApprovalOutcome, AuditNoteFrontmatter, DocFrontmatter, IssueFrontmatter, TaskFrontmatter, WorkspaceFrontmatter } from "../../../shared/vault/schema";
 
-export type { AgentFrontmatter, ApprovalOutcome, AuditNoteFrontmatter, TaskFrontmatter, WorkspaceFrontmatter } from "../../../shared/vault/schema";
+export type { AgentFrontmatter, ApprovalOutcome, AuditNoteFrontmatter, DocFrontmatter, IssueFrontmatter, TaskFrontmatter, WorkspaceFrontmatter } from "../../../shared/vault/schema";
 
-export const VAULT_RECORD_TYPES = ["workspace", "project", "board", "column", "task", "approval", "audit-note", "agent"] as const;
+export const VAULT_RECORD_TYPES = ["workspace", "project", "board", "column", "task", "issue", "doc", "approval", "audit-note", "agent"] as const;
 export type VaultRecordType = (typeof VAULT_RECORD_TYPES)[number];
 
-export const VAULT_COLLECTION_NAMES = ["workspaces", "projects", "boards", "columns", "tasks", "approvals", "auditNotes", "agents"] as const;
+export const VAULT_COLLECTION_NAMES = ["workspaces", "projects", "boards", "columns", "tasks", "issues", "docs", "approvals", "auditNotes", "agents"] as const;
 export type VaultCollectionName = (typeof VAULT_COLLECTION_NAMES)[number];
 
 export interface ProjectFrontmatter {
@@ -13,6 +13,8 @@ export interface ProjectFrontmatter {
   readonly type: "project";
   readonly workspace_id: string;
   readonly name: string;
+  readonly codebase_root?: string | null;
+  readonly codebases?: ReadonlyArray<{ readonly name: string; readonly path: string; readonly tech?: string; readonly primary?: boolean }>;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -63,6 +65,8 @@ export type VaultFrontmatter =
   | BoardFrontmatter
   | ColumnFrontmatter
   | TaskFrontmatter
+  | IssueFrontmatter
+  | DocFrontmatter
   | ApprovalFrontmatter
   | AuditNoteFrontmatter
   | AgentFrontmatter;
@@ -118,6 +122,18 @@ export interface ApprovalIdentity extends VaultRecordIdentity {
   readonly task_id: string;
 }
 
+export interface IssueIdentity extends VaultRecordIdentity {
+  readonly type: "issue";
+  readonly workspace_id: string;
+  readonly project_id: string;
+}
+
+export interface DocIdentity extends VaultRecordIdentity {
+  readonly type: "doc";
+  readonly workspace_id: string;
+  readonly project_id: string | null;
+}
+
 export interface AuditIdentity extends VaultRecordIdentity {
   readonly type: "audit-note";
   readonly task_id: string;
@@ -134,6 +150,8 @@ export type VaultIdentity =
   | BoardIdentity
   | ColumnIdentity
   | TaskIdentity
+  | IssueIdentity
+  | DocIdentity
   | ApprovalIdentity
   | AuditIdentity
   | AgentIdentity;
@@ -144,6 +162,8 @@ export interface VaultIdentityMap {
   readonly board: BoardIdentity;
   readonly column: ColumnIdentity;
   readonly task: TaskIdentity;
+  readonly issue: IssueIdentity;
+  readonly doc: DocIdentity;
   readonly approval: ApprovalIdentity;
   readonly auditNote: AuditIdentity;
   readonly agent: AgentIdentity;
@@ -155,6 +175,8 @@ export interface VaultRecordMap {
   readonly board: BoardFrontmatter;
   readonly column: ColumnFrontmatter;
   readonly task: TaskFrontmatter;
+  readonly issue: IssueFrontmatter;
+  readonly doc: DocFrontmatter;
   readonly approval: ApprovalFrontmatter;
   readonly auditNote: AuditNoteFrontmatter;
   readonly agent: AgentFrontmatter;
@@ -166,6 +188,8 @@ export const VAULT_COLLECTION_DIRECTORIES = {
   boards: "vault/shared/boards",
   columns: "vault/shared/columns",
   tasks: "vault/shared/tasks",
+  issues: "vault/shared/issues",
+  docs: "vault/shared/docs",
   approvals: "vault/shared/approvals",
   auditNotes: "vault/shared/audit",
   agents: "vault/shared/agents",
@@ -177,6 +201,8 @@ export const VAULT_RECORD_TYPES_BY_COLLECTION = {
   boards: "board",
   columns: "column",
   tasks: "task",
+  issues: "issue",
+  docs: "doc",
   approvals: "approval",
   auditNotes: "audit-note",
   agents: "agent",
@@ -188,6 +214,8 @@ export const VAULT_COLLECTIONS_BY_RECORD_TYPE = {
   board: "boards",
   column: "columns",
   task: "tasks",
+  issue: "issues",
+  doc: "docs",
   approval: "approvals",
   "audit-note": "auditNotes",
   agent: "agents",
@@ -199,6 +227,8 @@ export interface VaultReadCollections {
   readonly boards: ReadonlyArray<VaultDocument<BoardFrontmatter>>;
   readonly columns: ReadonlyArray<VaultDocument<ColumnFrontmatter>>;
   readonly tasks: ReadonlyArray<VaultDocument<TaskFrontmatter>>;
+  readonly issues: ReadonlyArray<VaultDocument<IssueFrontmatter>>;
+  readonly docs: ReadonlyArray<VaultDocument<DocFrontmatter>>;
   readonly approvals: ReadonlyArray<VaultDocument<ApprovalFrontmatter>>;
   readonly auditNotes: ReadonlyArray<VaultDocument<AuditNoteFrontmatter>>;
   readonly agents: ReadonlyArray<VaultDocument<AgentFrontmatter>>;

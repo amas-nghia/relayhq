@@ -31,6 +31,8 @@ export interface CreateTaskInput {
   readonly assignee: string;
   readonly tags?: ReadonlyArray<string>;
   readonly dependsOn?: ReadonlyArray<string>;
+  readonly body?: string;
+  readonly sourceIssueId?: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
 }
@@ -92,6 +94,7 @@ function buildTaskFrontmatter(input: {
   readonly assignee: string;
   readonly tags: ReadonlyArray<string>;
   readonly dependsOn: ReadonlyArray<string>;
+  readonly sourceIssueId: string | null;
 }): TaskFrontmatter {
   const timestamp = input.now.toISOString();
   const status = TASK_STATUS_BY_COLUMN[input.column];
@@ -126,6 +129,7 @@ function buildTaskFrontmatter(input: {
     result: null,
     completed_at: status === "done" ? timestamp : null,
     parent_task_id: null,
+    source_issue_id: input.sourceIssueId,
     depends_on: input.dependsOn,
     tags: input.tags,
     links: [],
@@ -195,11 +199,12 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     assignee,
     tags,
     dependsOn,
+    sourceIssueId: input.sourceIssueId ?? null,
   });
 
   return await createTaskDocument({
     filePath: resolveTaskFilePath(taskId, vaultRoot),
     frontmatter,
-    body: "",
+    body: input.body ?? "",
   });
 }

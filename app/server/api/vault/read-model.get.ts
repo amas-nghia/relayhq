@@ -1,9 +1,12 @@
 import { defineEventHandler } from "h3";
 
+import { filterVaultReadModelByWorkspaceId } from "../../models/read-model";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
-import { resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
+import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 
 export default defineEventHandler(async () => {
   const vaultRoot = resolveVaultWorkspaceRoot();
-  return await readCanonicalVaultReadModel(vaultRoot);
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
+  const workspaceId = normalizeConfiguredWorkspaceId(readConfiguredWorkspaceId(), readModel.workspaces);
+  return workspaceId === null ? readModel : filterVaultReadModelByWorkspaceId(readModel, workspaceId);
 });

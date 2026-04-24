@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 
-import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
+import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertDocFrontmatter, assertIssueFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
 import {
   buildVaultReadModel,
   type VaultReadModel,
@@ -14,6 +14,8 @@ import type {
   AuditNoteFrontmatter,
   BoardFrontmatter,
   ColumnFrontmatter,
+  DocFrontmatter,
+  IssueFrontmatter,
   ProjectFrontmatter,
   TaskFrontmatter,
   VaultDocument,
@@ -134,6 +136,8 @@ function requireBoolean(record: Record<string, unknown>, field: string, filePath
   if (typeof value === "boolean") {
     return value;
   }
+  if (value === 0) return false;
+  if (value === 1) return true;
 
   throw new VaultReadError(`Missing or invalid ${field}.`, filePath);
 }
@@ -248,7 +252,7 @@ function parseTaskFrontmatter(record: Record<string, unknown>, filePath: string)
     status: requireString(record, "status", filePath) as TaskFrontmatter["status"],
     priority: requireString(record, "priority", filePath) as TaskFrontmatter["priority"],
     title: requireString(record, "title", filePath),
-    assignee: requireString(record, "assignee", filePath),
+    assignee: requireNullableString(record, "assignee", filePath),
     created_by: requireString(record, "created_by", filePath),
     created_at: requireTimestamp(record, "created_at", filePath),
     updated_at: requireTimestamp(record, "updated_at", filePath),
@@ -267,6 +271,7 @@ function parseTaskFrontmatter(record: Record<string, unknown>, filePath: string)
     result: requireNullableString(record, "result", filePath),
     completed_at: requireNullableTimestamp(record, "completed_at", filePath),
     parent_task_id: requireNullableString(record, "parent_task_id", filePath),
+    ...(record.source_issue_id === undefined ? {} : { source_issue_id: requireNullableString(record, "source_issue_id", filePath) }),
     depends_on: [...requireStringArray(record, "depends_on", filePath)].sort(compareText),
     tags: [...requireStringArray(record, "tags", filePath)].sort(compareText),
     links: requireTaskLinks(record, filePath),
@@ -282,11 +287,35 @@ function parseTaskFrontmatter(record: Record<string, unknown>, filePath: string)
 function parseProjectFrontmatter(record: Record<string, unknown>, filePath: string): ProjectFrontmatter {
   requireExactType(record, "project", filePath);
 
+  const codebases = Array.isArray(record.codebases)
+    ? record.codebases.flatMap((entry, index) => {
+      if (typeof entry !== "object" || entry === null) {
+        throw new VaultReadError(`Missing or invalid codebases[${index}].`, filePath);
+      }
+
+      const item = entry as Record<string, unknown>;
+      if (typeof item.name !== "string" || item.name.trim().length === 0 || typeof item.path !== "string" || item.path.trim().length === 0) {
+        throw new VaultReadError(`Missing or invalid codebases[${index}].`, filePath);
+      }
+
+      return [{
+        name: item.name.trim(),
+        path: item.path.trim(),
+        ...(typeof item.tech === "string" && item.tech.trim().length > 0 ? { tech: item.tech.trim() } : {}),
+        ...(typeof item.primary === "boolean" ? { primary: item.primary } : {}),
+      }];
+    })
+    : typeof record.codebase_root === "string" && record.codebase_root.trim().length > 0
+      ? [{ name: "main", path: record.codebase_root.trim(), primary: true }]
+      : [];
+
   return {
     id: requireString(record, "id", filePath),
     type: "project",
     workspace_id: requireString(record, "workspace_id", filePath),
     name: requireString(record, "name", filePath),
+    ...(record.codebase_root === undefined ? {} : { codebase_root: requireNullableString(record, "codebase_root", filePath) }),
+    codebases,
     created_at: requireTimestamp(record, "created_at", filePath),
     updated_at: requireTimestamp(record, "updated_at", filePath),
   };
@@ -385,6 +414,46 @@ function parseAuditNoteFrontmatter(record: Record<string, unknown>, filePath: st
   return frontmatter;
 }
 
+function parseDocFrontmatter(record: Record<string, unknown>, filePath: string): DocFrontmatter {
+  const frontmatter = {
+    id: requireString(record, "id", filePath),
+    type: "doc" as const,
+    doc_type: requireString(record, "doc_type", filePath) as DocFrontmatter["doc_type"],
+    workspace_id: requireString(record, "workspace_id", filePath),
+    ...(record.project_id === undefined ? {} : { project_id: requireNullableString(record, "project_id", filePath) }),
+    title: requireString(record, "title", filePath),
+    status: requireString(record, "status", filePath) as DocFrontmatter["status"],
+    created_at: requireTimestamp(record, "created_at", filePath),
+    updated_at: requireTimestamp(record, "updated_at", filePath),
+    tags: [...requireStringArray(record, "tags", filePath)].sort(compareText),
+  } satisfies DocFrontmatter;
+
+  assertDocFrontmatter(frontmatter);
+  return frontmatter;
+}
+
+function parseIssueFrontmatter(record: Record<string, unknown>, filePath: string): IssueFrontmatter {
+  const frontmatter = {
+    id: requireString(record, "id", filePath),
+    type: "issue" as const,
+    version: requireNumber(record, "version", filePath) as IssueFrontmatter["version"],
+    workspace_id: requireString(record, "workspace_id", filePath),
+    project_id: requireString(record, "project_id", filePath),
+    status: requireString(record, "status", filePath) as IssueFrontmatter["status"],
+    priority: requireString(record, "priority", filePath) as IssueFrontmatter["priority"],
+    title: requireString(record, "title", filePath),
+    reported_by: requireString(record, "reported_by", filePath),
+    discovered_during_task_id: requireNullableString(record, "discovered_during_task_id", filePath),
+    linked_task_ids: [...requireStringArray(record, "linked_task_ids", filePath)].sort(compareText),
+    tags: [...requireStringArray(record, "tags", filePath)].sort(compareText),
+    created_at: requireTimestamp(record, "created_at", filePath),
+    updated_at: requireTimestamp(record, "updated_at", filePath),
+  } satisfies IssueFrontmatter;
+
+  assertIssueFrontmatter(frontmatter);
+  return frontmatter;
+}
+
 async function readVaultDocument<TFrontmatter extends VaultFrontmatter>(
   vaultRoot: string,
   filePath: string,
@@ -445,6 +514,8 @@ export async function readSharedVaultCollections(vaultRoot: string): Promise<Vau
     boards: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.boards, parseBoardFrontmatter),
     columns: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.columns, parseColumnFrontmatter),
     tasks: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.tasks, parseTaskFrontmatter),
+    issues: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.issues, parseIssueFrontmatter),
+    docs: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.docs, parseDocFrontmatter),
     approvals: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.approvals, parseApprovalFrontmatter),
     auditNotes: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.auditNotes, parseAuditNoteFrontmatter),
     agents: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.agents, parseAgentFrontmatter),

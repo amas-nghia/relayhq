@@ -45,7 +45,7 @@ const TASK_MUTABLE_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
 
 const PROJECT_IMMUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["id", "type", "workspace_id", "created_at", "updated_at"] as const;
 
-const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name"] as const;
+const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name", "codebase_root", "codebases"] as const;
 
 export interface TaskWriteValidationInput {
   readonly current: TaskFrontmatter;
@@ -134,6 +134,38 @@ function validateProjectFrontmatter(input: unknown): ValidationResult {
 
   if (typeof input.name !== "string" || input.name.trim().length === 0) {
     pushIssue(issues, "name", "must be a non-empty string");
+  }
+
+  if (input.codebase_root !== null && input.codebase_root !== undefined && (typeof input.codebase_root !== "string" || input.codebase_root.trim().length === 0)) {
+    pushIssue(issues, "codebase_root", "must be a non-empty string or null");
+  }
+
+  const codebases = (input as Record<string, unknown>).codebases;
+  if (codebases === undefined) {
+    if (input.codebase_root === undefined) {
+      pushIssue(issues, "codebases", "must be an array or use legacy codebase_root");
+    }
+  } else if (!Array.isArray(codebases)) {
+    pushIssue(issues, "codebases", "must be an array");
+  } else {
+    codebases.forEach((entry, index) => {
+      if (!isPlainRecord(entry)) {
+        pushIssue(issues, `codebases[${index}]`, "must be an object");
+        return;
+      }
+      if (typeof entry.name !== "string" || !/^[a-z0-9-]+$/.test(entry.name)) {
+        pushIssue(issues, `codebases[${index}].name`, "must be a lowercase slug");
+      }
+      if (typeof entry.path !== "string" || entry.path.trim().length === 0) {
+        pushIssue(issues, `codebases[${index}].path`, "must be a non-empty string");
+      }
+      if (entry.tech !== undefined && (typeof entry.tech !== "string" || entry.tech.trim().length === 0)) {
+        pushIssue(issues, `codebases[${index}].tech`, "must be a non-empty string when provided");
+      }
+      if (entry.primary !== undefined && typeof entry.primary !== "boolean") {
+        pushIssue(issues, `codebases[${index}].primary`, "must be a boolean when provided");
+      }
+    });
   }
 
   if (!isIsoTimestamp(input.created_at)) {
