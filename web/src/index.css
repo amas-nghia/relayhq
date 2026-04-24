@@ -1,20 +1,68 @@
 @import "tailwindcss";
 
+:root,
+[data-theme='light'],
+.theme-light {
+  color-scheme: light;
+  --brand: #2563eb;
+  --brand-light: #dbeafe;
+  --brand-dark: #1d4ed8;
+  --brand-muted: #eff6ff;
+  --surface: #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-sidebar: #eef2f7;
+  --border: #dbe4f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --status-active: #2563eb;
+  --status-waiting: #d97706;
+  --status-blocked: #dc2626;
+  --status-done: #16a34a;
+  --status-todo: #64748b;
+}
+
+[data-theme='dark'],
+.theme-dark,
+.dark {
+  color-scheme: dark;
+  --brand: #60a5fa;
+  --brand-light: rgba(96, 165, 250, 0.16);
+  --brand-dark: #3b82f6;
+  --brand-muted: rgba(96, 165, 250, 0.08);
+  --surface: #0f172a;
+  --surface-secondary: #111827;
+  --surface-sidebar: #0b1220;
+  --border: #233144;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --status-active: #60a5fa;
+  --status-waiting: #f59e0b;
+  --status-blocked: #f87171;
+  --status-done: #4ade80;
+  --status-todo: #94a3b8;
+}
+
 @theme {
-  --color-accent: #7c3aed;
-  --color-accent-light: #ede9fe;
-  --color-surface: #ffffff;
-  --color-surface-secondary: #f8fafc;
-  --color-surface-sidebar: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #94a3b8;
-  --color-status-active: #1d4ed8;
-  --color-status-waiting: #d97706;
-  --color-status-blocked: #dc2626;
-  --color-status-done: #16a34a;
-  --color-status-todo: #64748b;
+  --color-accent: var(--brand);
+  --color-accent-light: var(--brand-light);
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-muted: var(--brand-muted);
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-status-active: var(--status-active);
+  --color-status-waiting: var(--status-waiting);
+  --color-status-blocked: var(--status-blocked);
+  --color-status-done: var(--status-done);
+  --color-status-todo: var(--status-todo);
 
   /* Spacing */
   --space-1: 4px;
@@ -65,8 +113,8 @@
 
 @layer base {
   body {
-    background-color: var(--color-surface-secondary);
-    color: var(--color-text-primary);
+    background-color: var(--surface-secondary);
+    color: var(--text-primary);
   }
 }
 

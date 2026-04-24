@@ -38,8 +38,8 @@ export function Sidebar() {
   const navItems = [
     { name: 'Board', path: '/boards/main', icon: KanbanSquare },
     { name: 'Tasks', path: '/tasks', icon: CheckSquare },
-    { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-white' },
-    { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-white' },
+    { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-surface' },
+    { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-surface' },
     { name: 'Audit', path: '/audit', icon: FileClock },
   ];
 
@@ -51,13 +51,13 @@ export function Sidebar() {
             key={item.name}
             to={item.path}
             title={item.name}
-            className={({ isActive }) => clsx(
-              'relative flex items-center justify-center p-2.5 rounded-md transition-all text-sm font-medium w-full',
-              isActive
-                ? 'bg-accent-light text-accent'
-                : 'text-text-secondary hover:bg-surface hover:text-text-primary'
-            )}
-          >
+              className={({ isActive }) => clsx(
+                'relative flex items-center justify-center p-2.5 rounded-md transition-all text-sm font-medium w-full',
+                isActive
+                  ? 'bg-brand-light text-brand'
+                  : 'text-text-secondary hover:bg-surface hover:text-text-primary'
+              )}
+            >
             <item.icon className="w-5 h-5 opacity-80" />
             {!!item.badge && (
               <span className={clsx('absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-surface', item.badgeColor)}>
@@ -80,7 +80,7 @@ export function Sidebar() {
               className={clsx(
                 "relative w-10 h-10 rounded-md border flex items-center justify-center text-xs font-bold transition-colors",
                 isSelected 
-                  ? "bg-accent text-surface border-accent" 
+                  ? "bg-brand text-surface border-brand" 
                   : "bg-surface-secondary border-border text-text-secondary hover:bg-surface hover:text-text-primary hover:border-text-tertiary"
               )}
             >
@@ -101,11 +101,11 @@ export function Sidebar() {
 
       <div ref={menuRef} className="relative w-full border-t border-border px-2 pt-3">
         <div className="flex flex-col items-center gap-2">
-          <Button
-            type="button"
-            title="Notifications"
-            onClick={() => setOpenMenu(current => current === 'notifications' ? null : 'notifications')}
-            variant="outline"
+              <Button
+                type="button"
+                title="Notifications"
+                onClick={() => setOpenMenu(current => current === 'notifications' ? null : 'notifications')}
+                variant="outline"
             size="icon"
             className="relative"
           >
@@ -125,13 +125,13 @@ export function Sidebar() {
         </div>
 
         {openMenu === 'notifications' && (
-          <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-text-primary">Notifications</div>
-                <div className="text-xs text-text-tertiary">Approval queue and review requests</div>
-              </div>
-              <button type="button" onClick={() => { navigate('/approvals'); setOpenMenu(null); }} className="text-xs font-medium text-accent hover:text-accent/80">
+            <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-text-primary">Notifications</div>
+                  <div className="text-xs text-text-tertiary">Approval queue and review requests</div>
+                </div>
+              <button type="button" onClick={() => { navigate('/approvals'); setOpenMenu(null); }} className="text-xs font-medium text-brand hover:text-brand-dark">
                 Open approvals
               </button>
             </div>
@@ -149,7 +149,7 @@ export function Sidebar() {
                       <div className="truncate text-sm font-medium text-text-primary">{task.title}</div>
                       <div className="truncate text-xs text-text-tertiary">{task.id}</div>
                     </div>
-                    <Badge variant="warning">review</Badge>
+                    <Badge variant="secondary" className="border-status-waiting/20 bg-status-waiting/10 text-status-waiting">review</Badge>
                   </button>
                 ))}
               </div>
@@ -162,13 +162,13 @@ export function Sidebar() {
         )}
 
         {openMenu === 'user' && (
-          <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
-            <div className="mb-3 flex items-center gap-3 rounded-lg bg-surface-secondary px-3 py-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-light text-sm font-bold text-accent">A</div>
-              <div>
-                <div className="text-sm font-semibold text-text-primary">amas</div>
-                <div className="text-xs text-text-tertiary">Workspace operator</div>
-              </div>
+            <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
+              <div className="mb-3 flex items-center gap-3 rounded-lg bg-surface-secondary px-3 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-light text-sm font-bold text-brand">A</div>
+                <div>
+                  <div className="text-sm font-semibold text-text-primary">amas</div>
+                  <div className="text-xs text-text-tertiary">Workspace operator</div>
+                </div>
             </div>
 
             <div className="space-y-2">

@@ -1,6 +1,8 @@
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
+import { Button } from './button';
+import { Badge } from './badge';
 
 export function AlertStrip() {
   const tasks = useAppStore(state => state.tasks);
@@ -19,21 +21,25 @@ export function AlertStrip() {
   };
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between z-20">
+    <div className="flex items-center justify-between border-b border-status-waiting/20 bg-brand-muted px-4 py-2 text-text-primary">
       <div className="flex items-center gap-3">
-        <AlertTriangle className="w-5 h-5 text-status-waiting" />
-        <span className="text-sm font-medium text-amber-900">
+        <Badge variant="secondary" className="border-status-waiting/20 bg-surface text-status-waiting">
+          <AlertTriangle className="h-4 w-4" />
+        </Badge>
+        <span className="text-sm font-medium text-text-primary">
           {pendingApprovals.length === 1 
             ? `${pendingApprovals[0].id} đang chờ bạn approve · "${pendingApprovals[0].title}"` 
             : `${pendingApprovals.length} tasks đang chờ approve`}
         </span>
       </div>
-      <button 
+      <Button
         onClick={handleReview}
-        className="flex items-center gap-1 text-sm font-semibold text-status-waiting hover:text-amber-800 transition-colors"
+        variant="outline"
+        size="sm"
+        className="border-status-waiting/20 bg-surface text-status-waiting hover:bg-status-waiting/10 hover:text-status-waiting"
       >
-        Review <ArrowRight className="w-4 h-4" />
-      </button>
+        Review <ArrowRight className="h-4 w-4" />
+      </Button>
     </div>
   );
 }

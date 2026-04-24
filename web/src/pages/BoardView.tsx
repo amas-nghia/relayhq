@@ -5,6 +5,10 @@ import { TaskStatus } from '../types';
 import { Plus, LayoutGrid, Globe } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'motion/react';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Select } from '../components/ui/select';
+import { Badge } from '../components/ui/badge';
 
 const WorldCanvas = lazy(async () => ({ default: (await import('../components/live-world/WorldCanvas')).WorldCanvas }));
 
@@ -46,50 +50,59 @@ export function BoardView() {
           <div className="flex flex-wrap items-center gap-3 text-sm font-medium">
             <h1 className="text-2xl font-bold text-text-primary">Main Board</h1>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
-            <select
+            <Select
               value={selectedProjectId ?? ''}
               onChange={(event) => setSelectedProjectId(event.target.value || null)}
-              className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary outline-none transition-colors hover:bg-surface-secondary"
+              className="w-auto min-w-48"
             >
               <option value="">All Projects</option>
               {projects.map(project => (
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
-            </select>
+            </Select>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
-            <span className="text-text-secondary">{visibleTaskCount} tasks</span>
+            <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-text-secondary">
+              {visibleTaskCount} tasks
+            </Badge>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
             <span className="text-status-active">{activeAgentsCount} agents active</span>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-border bg-surface-secondary p-0.5">
-            <button 
-              onClick={() => setViewMode('board')} 
-              className={clsx("p-1.5 rounded", viewMode === 'board' ? "bg-surface text-accent shadow-sm" : "text-text-tertiary hover:text-text-secondary")}
-              title="Board View"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => setViewMode('world')} 
-              className={clsx("p-1.5 rounded", viewMode === 'world' ? "bg-surface text-accent shadow-sm" : "text-text-tertiary hover:text-text-secondary")}
-              title="World View"
-            >
-              <Globe className="w-4 h-4" />
-            </button>
+              <Button
+                type="button"
+                variant={viewMode === 'board' ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('board')}
+                className={clsx('h-8 w-8 rounded-md', viewMode === 'board' ? 'bg-surface text-brand shadow-sm' : 'text-text-tertiary hover:text-text-secondary')}
+                title="Board View"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'world' ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('world')}
+                className={clsx('h-8 w-8 rounded-md', viewMode === 'world' ? 'bg-surface text-brand shadow-sm' : 'text-text-tertiary hover:text-text-secondary')}
+                title="World View"
+              >
+                <Globe className="h-4 w-4" />
+              </Button>
             </div>
 
           </div>
         </div>
 
-        <button 
+        <Button
+          type="button"
           onClick={openNewTaskModal}
-          className="inline-flex items-center justify-center gap-1.5 self-start rounded-md bg-accent px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent/90"
+          className="self-start shadow-sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-4 w-4" />
           <span>New Task</span>
-        </button>
+        </Button>
       </div>
 
       {viewMode === 'world' ? (
@@ -101,24 +114,27 @@ export function BoardView() {
             {COLUMNS.map(col => {
               const colTasks = getTasksByStatus(col.id);
               return (
-                <section key={col.id} className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface p-4 shadow-card">
+                <Card key={col.id} className="flex h-full min-h-0 flex-col overflow-hidden p-4">
                   <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
                     <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                      {col.label} <span className="text-text-tertiary ml-1 font-medium">{colTasks.length}</span>
+                      {col.label} <Badge variant="secondary" className="ml-1 border-brand/15 bg-brand-muted text-text-tertiary">{colTasks.length}</Badge>
                     </h3>
                     {col.id === 'todo' && (
-                      <button 
+                      <Button
+                        type="button"
                         onClick={openNewTaskModal}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Add
-                      </button>
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </Button>
                     )}
                   </div>
                   
                   <div className="lane-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
                     {colTasks.length === 0 ? (
-                      <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-4 text-center">
+                      <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-secondary/60 p-4 text-center">
                         <span className="text-sm text-text-tertiary">No tasks</span>
                       </div>
                     ) : (
@@ -138,7 +154,7 @@ export function BoardView() {
                       </AnimatePresence>
                     )}
                   </div>
-                </section>
+                </Card>
               );
             })}
         </div>
