@@ -727,10 +727,12 @@ export function assertIssueFrontmatter(input: unknown): asserts input is IssueFr
   }
 }
 
-export const DOC_TYPES = ["feature-spec", "design", "adr", "runbook", "general", "feature", "decision", "research", "retro"] as const;
+export const DOC_TYPES = ["feature-spec", "design", "runbook", "general", "feature", "decision", "research", "retro", "brief", "plan", "meeting-minutes", "budget", "expense", "sop", "policy", "adr"] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 export const DOC_STATUSES = ["draft", "active", "archived"] as const;
 export type DocStatus = (typeof DOC_STATUSES)[number];
+export const DOC_VISIBILITIES = ["project", "workspace", "private"] as const;
+export type DocVisibility = (typeof DOC_VISIBILITIES)[number];
 
 export interface DocFrontmatter {
   readonly id: string;
@@ -740,6 +742,9 @@ export interface DocFrontmatter {
   readonly project_id?: string | null;
   readonly title: string;
   readonly status: DocStatus;
+  readonly visibility: DocVisibility;
+  readonly access_roles: ReadonlyArray<string>;
+  readonly sensitive: boolean;
   readonly created_at: string;
   readonly updated_at: string;
   readonly tags: ReadonlyArray<string>;
@@ -767,6 +772,9 @@ export function validateDocFrontmatter(input: unknown): ValidationResult {
   }
   requireStringField(input, "title", issues);
   requireEnumField(input, "status", DOC_STATUSES, issues);
+  requireEnumField(input, "visibility", DOC_VISIBILITIES, issues);
+  requireStringArrayField(input, "access_roles", issues);
+  requireBooleanField(input, "sensitive", issues);
   requireRequiredTimestampField(input, "created_at", issues);
   requireRequiredTimestampField(input, "updated_at", issues);
   requireStringArrayField(input, "tags", issues);

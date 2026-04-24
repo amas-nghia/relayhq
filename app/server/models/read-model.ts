@@ -212,6 +212,9 @@ export interface ReadModelDoc {
   readonly projectId: string | null;
   readonly title: string;
   readonly status: string;
+  readonly visibility: string;
+  readonly accessRoles: ReadonlyArray<string>;
+  readonly sensitive: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly tags: ReadonlyArray<string>;
@@ -632,6 +635,9 @@ function buildDocModel(document: VaultDocument<DocFrontmatter>): ReadModelDoc {
     projectId: document.frontmatter.project_id,
     title: document.frontmatter.title,
     status: document.frontmatter.status,
+    visibility: document.frontmatter.visibility,
+    accessRoles: [...document.frontmatter.access_roles].sort(),
+    sensitive: document.frontmatter.sensitive,
     createdAt: document.frontmatter.created_at,
     updatedAt: document.frontmatter.updated_at,
     tags: [...document.frontmatter.tags].sort(),

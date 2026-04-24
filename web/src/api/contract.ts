@@ -188,6 +188,9 @@ export interface ReadModelDoc {
   readonly projectId: string | null
   readonly title: string
   readonly status: string
+  readonly visibility: string
+  readonly accessRoles: ReadonlyArray<string>
+  readonly sensitive: boolean
   readonly createdAt: string
   readonly updatedAt: string
   readonly tags: ReadonlyArray<string>

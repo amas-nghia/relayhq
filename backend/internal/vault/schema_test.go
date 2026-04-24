@@ -239,3 +239,34 @@ func TestValidateAuditNoteFrontmatter(t *testing.T) {
 		t.Fatalf("expected valid audit note, got error: %v", err)
 	}
 }
+
+func TestValidateDocFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	projectID := "project-docs"
+	doc := DocFrontmatter{
+		ID:          "doc-001",
+		Type:        "doc",
+		DocType:     DocTypeBudget,
+		WorkspaceID: "ws-acme",
+		ProjectID:   &projectID,
+		Title:       "Budget Plan",
+		Status:      "draft",
+		Visibility:  DocVisibilityPrivate,
+		AccessRoles: []string{"role:pm"},
+		Sensitive:   true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		Tags:        []string{"finance"},
+	}
+
+	if err := ValidateDocFrontmatter(doc); err != nil {
+		t.Fatalf("expected valid doc, got error: %v", err)
+	}
+
+	doc.DocType = "broken"
+	if err := ValidateDocFrontmatter(doc); err == nil {
+		t.Fatal("expected error for invalid doc type, got nil")
+	}
+}

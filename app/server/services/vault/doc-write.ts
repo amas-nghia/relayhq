@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { assertDocFrontmatter, VaultSchemaError, type DocFrontmatter, type DocStatus, type DocType } from "../../../shared/vault/schema";
+import { assertDocFrontmatter, VaultSchemaError, type DocFrontmatter, type DocStatus, type DocType, type DocVisibility } from "../../../shared/vault/schema";
 import type { VaultDocument } from "./repository";
 
 export interface CreateDocInput {
@@ -12,6 +12,9 @@ export interface CreateDocInput {
   readonly workspaceId: string;
   readonly projectId?: string | null;
   readonly status?: DocStatus;
+  readonly visibility?: DocVisibility;
+  readonly accessRoles?: ReadonlyArray<string>;
+  readonly sensitive?: boolean;
   readonly tags?: ReadonlyArray<string>;
   readonly body?: string;
   readonly now?: Date;
@@ -82,7 +85,7 @@ function normalizeTags(tags: ReadonlyArray<string> | undefined): ReadonlyArray<s
 }
 
 export function serializeDocDocument(frontmatter: DocFrontmatter, body: string): string {
-  const keys: ReadonlyArray<keyof DocFrontmatter> = ["id", "type", "doc_type", "workspace_id", "project_id", "title", "status", "created_at", "updated_at", "tags"];
+  const keys: ReadonlyArray<keyof DocFrontmatter> = ["id", "type", "doc_type", "workspace_id", "project_id", "title", "status", "visibility", "access_roles", "sensitive", "created_at", "updated_at", "tags"];
   const content = keys
     .filter((key) => frontmatter[key] !== undefined)
     .map((key) => `${String(key)}: ${stringifyValue(frontmatter[key])}`)
@@ -112,6 +115,11 @@ async function writeDocDocumentAtomic(filePath: string, frontmatter: DocFrontmat
 
 export async function createDocDocument(filePath: string, input: CreateDocInput): Promise<VaultDocument<DocFrontmatter>> {
   const now = input.now ?? new Date();
+  const visibility = input.visibility ?? "project";
+  const accessRoles = input.accessRoles === undefined
+    ? ["all"]
+    : [...new Set(input.accessRoles.map((entry) => entry.trim()).filter((entry) => entry.length > 0))].sort((left, right) => left.localeCompare(right));
+  const sensitive = input.sensitive ?? (input.docType === "budget" || input.docType === "expense");
   const frontmatter = {
     id: input.id ?? `doc-${randomUUID().slice(0, 8)}`,
     type: "doc" as const,
@@ -120,6 +128,9 @@ export async function createDocDocument(filePath: string, input: CreateDocInput)
     ...(input.projectId === undefined ? {} : { project_id: input.projectId }),
     title: input.title.trim(),
     status: input.status ?? "draft",
+    visibility,
+    access_roles: accessRoles,
+    sensitive,
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
     tags: normalizeTags(input.tags),

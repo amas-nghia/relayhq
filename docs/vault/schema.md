@@ -209,6 +209,54 @@ updated_at: 2026-04-14T10:00:00Z
 ---
 ```
 
+## Doc file
+
+`vault/shared/docs/doc-{id}.md`
+
+```yaml
+---
+id: doc-product-brief
+type: doc
+doc_type: brief
+workspace_id: ws-acme
+project_id: project-auth
+title: Authentication rollout brief
+status: draft
+visibility: project
+access_roles: [all]
+sensitive: false
+created_at: 2026-04-14T10:00:00Z
+updated_at: 2026-04-14T10:00:00Z
+tags: [auth, launch]
+---
+```
+
+### Supported doc types
+- feature
+- decision
+- research
+- runbook
+- retro
+- brief
+- plan
+- meeting-minutes
+- budget
+- expense
+- sop
+- policy
+- adr
+
+### Access control defaults
+- `visibility` defaults to `project`
+- `access_roles` defaults to `[all]`
+- `sensitive` defaults to `false`
+- `budget` and `expense` default to `sensitive: true` when scaffolded
+
+### Access control notes
+- `visibility` may be `project`, `workspace`, or `private`
+- `access_roles` is a flexible string array and can contain agent ids, role markers like `role:pm`, `all`, or `human-only`
+- older docs without these fields still load using the defaults above
+
 ## Provider overlay file
 
 `vault/users/alice/provider.md`

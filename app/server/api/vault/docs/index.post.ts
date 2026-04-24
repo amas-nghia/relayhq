@@ -2,7 +2,7 @@ import { createError, defineEventHandler, readBody } from "h3";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import type { DocStatus, DocType } from "../../../../shared/vault/schema";
+import type { DocStatus, DocType, DocVisibility } from "../../../../shared/vault/schema";
 import { createDocDocument, VaultSchemaError } from "../../../services/vault/doc-write";
 import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { readConfiguredWorkspaceId, resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
@@ -42,6 +42,9 @@ export async function createVaultDoc(body: unknown, options: { vaultRoot?: strin
         workspaceId,
         projectId: typeof body.project_id === "string" ? body.project_id.trim() : body.project_id === null ? null : undefined,
         status: typeof body.status === "string" ? body.status as DocStatus : undefined,
+        visibility: typeof body.visibility === "string" ? body.visibility as DocVisibility : undefined,
+        accessRoles: readStringArray(body.access_roles, "access_roles"),
+        sensitive: typeof body.sensitive === "boolean" ? body.sensitive : undefined,
         tags: readStringArray(body.tags, "tags"),
         body: typeof body.body === "string" ? body.body : "",
         now: options.now,
@@ -55,6 +58,9 @@ export async function createVaultDoc(body: unknown, options: { vaultRoot?: strin
         title: result.frontmatter.title,
         doc_type: result.frontmatter.doc_type,
         status: result.frontmatter.status,
+        visibility: result.frontmatter.visibility,
+        access_roles: result.frontmatter.access_roles,
+        sensitive: result.frontmatter.sensitive,
         project_id: result.frontmatter.project_id ?? null,
         sourcePath: result.sourcePath,
       },

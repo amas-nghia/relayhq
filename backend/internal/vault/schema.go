@@ -239,6 +239,69 @@ type AuditNoteFrontmatter struct {
 	CreatedAt  time.Time
 }
 
+type DocType string
+
+const (
+	DocTypeFeatureSpec    DocType = "feature-spec"
+	DocTypeDesign         DocType = "design"
+	DocTypeRunbook        DocType = "runbook"
+	DocTypeGeneral        DocType = "general"
+	DocTypeFeature        DocType = "feature"
+	DocTypeDecision       DocType = "decision"
+	DocTypeResearch       DocType = "research"
+	DocTypeRetro          DocType = "retro"
+	DocTypeBrief          DocType = "brief"
+	DocTypePlan           DocType = "plan"
+	DocTypeMeetingMinutes DocType = "meeting-minutes"
+	DocTypeBudget         DocType = "budget"
+	DocTypeExpense        DocType = "expense"
+	DocTypeSOP            DocType = "sop"
+	DocTypePolicy         DocType = "policy"
+	DocTypeADR            DocType = "adr"
+)
+
+func (d DocType) Valid() bool {
+	switch d {
+	case DocTypeFeatureSpec, DocTypeDesign, DocTypeRunbook, DocTypeGeneral, DocTypeFeature, DocTypeDecision, DocTypeResearch, DocTypeRetro, DocTypeBrief, DocTypePlan, DocTypeMeetingMinutes, DocTypeBudget, DocTypeExpense, DocTypeSOP, DocTypePolicy, DocTypeADR:
+		return true
+	default:
+		return false
+	}
+}
+
+type DocVisibility string
+
+const (
+	DocVisibilityProject   DocVisibility = "project"
+	DocVisibilityWorkspace DocVisibility = "workspace"
+	DocVisibilityPrivate   DocVisibility = "private"
+)
+
+func (v DocVisibility) Valid() bool {
+	switch v {
+	case DocVisibilityProject, DocVisibilityWorkspace, DocVisibilityPrivate:
+		return true
+	default:
+		return false
+	}
+}
+
+type DocFrontmatter struct {
+	ID          string
+	Type        string
+	DocType     DocType
+	WorkspaceID string
+	ProjectID   *string
+	Title       string
+	Status      string
+	Visibility  DocVisibility
+	AccessRoles []string
+	Sensitive   bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Tags        []string
+}
+
 type ValidationError struct {
 	Fields []string
 }
@@ -475,6 +538,44 @@ func ValidateAuditNoteFrontmatter(note AuditNoteFrontmatter) error {
 	}
 	if note.CreatedAt.IsZero() {
 		errs = appendError(errs, "created_at", "required")
+	}
+	if len(errs) > 0 {
+		return ValidationError{Fields: errs}
+	}
+	return nil
+}
+
+func ValidateDocFrontmatter(doc DocFrontmatter) error {
+	var errs []string
+	if doc.ID == "" {
+		errs = appendError(errs, "id", "required")
+	}
+	if doc.Type != "doc" {
+		errs = appendError(errs, "type", "must be doc")
+	}
+	if !doc.DocType.Valid() {
+		errs = appendError(errs, "doc_type", "invalid")
+	}
+	if doc.WorkspaceID == "" {
+		errs = appendError(errs, "workspace_id", "required")
+	}
+	if doc.Title == "" {
+		errs = appendError(errs, "title", "required")
+	}
+	if doc.Status == "" {
+		errs = appendError(errs, "status", "required")
+	}
+	if !doc.Visibility.Valid() {
+		errs = appendError(errs, "visibility", "invalid")
+	}
+	if len(doc.AccessRoles) == 0 {
+		errs = appendError(errs, "access_roles", "required")
+	}
+	if doc.CreatedAt.IsZero() {
+		errs = appendError(errs, "created_at", "required")
+	}
+	if doc.UpdatedAt.IsZero() {
+		errs = appendError(errs, "updated_at", "required")
 	}
 	if len(errs) > 0 {
 		return ValidationError{Fields: errs}

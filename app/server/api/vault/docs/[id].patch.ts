@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 import { join } from "node:path";
 
-import type { DocStatus, DocType } from "../../../../shared/vault/schema";
+import type { DocStatus, DocType, DocVisibility } from "../../../../shared/vault/schema";
 import { syncDocDocument, VaultSchemaError } from "../../../services/vault/doc-write";
 import { resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 
@@ -23,6 +23,11 @@ export async function updateVaultDoc(docId: string, body: unknown, options: { va
     : Array.isArray(patch.tags) && patch.tags.every((entry) => typeof entry === "string")
       ? [...new Set((patch.tags as string[]).map((entry) => entry.trim()).filter((entry) => entry.length > 0))].sort((left, right) => left.localeCompare(right))
       : (() => { throw createError({ statusCode: 400, statusMessage: "tags must be a string array when provided." }); })();
+  const accessRoles = patch.access_roles === undefined
+    ? undefined
+    : Array.isArray(patch.access_roles) && patch.access_roles.every((entry) => typeof entry === "string")
+      ? [...new Set((patch.access_roles as string[]).map((entry) => entry.trim()).filter((entry) => entry.length > 0))].sort((left, right) => left.localeCompare(right))
+      : (() => { throw createError({ statusCode: 400, statusMessage: "access_roles must be a string array when provided." }); })();
 
   const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
   const filePath = join(resolveSharedVaultPath(vaultRoot), "docs", `${docId}.md`);
@@ -34,6 +39,9 @@ export async function updateVaultDoc(docId: string, body: unknown, options: { va
         ...(typeof patch.title === "string" ? { title: patch.title.trim() } : {}),
         ...(typeof patch.doc_type === "string" ? { doc_type: patch.doc_type as DocType } : {}),
         ...(typeof patch.status === "string" ? { status: patch.status as DocStatus } : {}),
+        ...(typeof patch.visibility === "string" ? { visibility: patch.visibility as DocVisibility } : {}),
+        ...(accessRoles === undefined ? {} : { access_roles: accessRoles }),
+        ...(typeof patch.sensitive === "boolean" ? { sensitive: patch.sensitive } : {}),
         ...(patch.project_id === null ? { project_id: null } : typeof patch.project_id === "string" ? { project_id: patch.project_id.trim() } : {}),
         ...(tags === undefined ? {} : { tags }),
       },
@@ -48,6 +56,9 @@ export async function updateVaultDoc(docId: string, body: unknown, options: { va
         title: result.frontmatter.title,
         doc_type: result.frontmatter.doc_type,
         status: result.frontmatter.status,
+        visibility: result.frontmatter.visibility,
+        access_roles: result.frontmatter.access_roles,
+        sensitive: result.frontmatter.sensitive,
         project_id: result.frontmatter.project_id ?? null,
         updated_at: result.frontmatter.updated_at,
         body: result.body,

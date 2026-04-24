@@ -42,6 +42,8 @@ describe("vault docs API", () => {
         title: "Feature Overview",
         doc_type: "feature",
         project_id: "project-demo",
+        visibility: "workspace",
+        access_roles: ["role:pm"],
         tags: ["vault", "docs"],
         body: "# Feature Overview",
       }, { vaultRoot: root, now: new Date("2026-04-24T00:00:00Z") });
@@ -51,6 +53,9 @@ describe("vault docs API", () => {
       const file = await readFile(join(root, "vault", "shared", "docs", `${docId}.md`), "utf8");
       expect(docId).toMatch(/^doc-/);
       expect(file).toContain('doc_type: "feature"');
+      expect(file).toContain('visibility: "workspace"');
+      expect(file).toContain('access_roles: ["role:pm"]');
+      expect(file).toContain('sensitive: false');
       expect(file).toContain('# Feature Overview');
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
@@ -70,6 +75,9 @@ describe("vault docs API", () => {
         'project_id: "project-demo"',
         'title: "Old Title"',
         'status: "draft"',
+        'visibility: "project"',
+        'access_roles: ["all"]',
+        'sensitive: false',
         'created_at: "2026-04-24T00:00:00Z"',
         'updated_at: "2026-04-24T00:00:00Z"',
         'tags: ["vault"]',
@@ -82,6 +90,9 @@ describe("vault docs API", () => {
           title: "New Title",
           doc_type: "design",
           status: "active",
+          visibility: "private",
+          access_roles: ["agent-claude-code"],
+          sensitive: true,
           tags: ["vault", "design"],
           body: "New body",
         },
@@ -91,12 +102,18 @@ describe("vault docs API", () => {
       expect(response.data.title).toBe("New Title");
       expect(response.data.doc_type).toBe("design");
       expect(response.data.status).toBe("active");
+      expect(response.data.visibility).toBe("private");
+      expect(response.data.access_roles).toEqual(["agent-claude-code"]);
+      expect(response.data.sensitive).toBe(true);
       expect(response.data.body).toBe("New body");
 
       const file = await readFile(join(root, "vault", "shared", "docs", "doc-abc12345.md"), "utf8");
       expect(file).toContain('title: "New Title"');
       expect(file).toContain('doc_type: "design"');
       expect(file).toContain('status: "active"');
+      expect(file).toContain('visibility: "private"');
+      expect(file).toContain('access_roles: ["agent-claude-code"]');
+      expect(file).toContain('sensitive: true');
       expect(file).toContain('tags: ["design","vault"]');
       expect(file).toContain('New body');
     } finally {
