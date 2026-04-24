@@ -1,0 +1,8 @@
+{
+  "name": "create-relayhq",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "create-relayhq": "scripts/create-relayhq.mjs"
+  }
+}
