@@ -5,6 +5,7 @@ import { AlertStrip } from '../ui/AlertStrip';
 import { DetailPanel } from '../task/DetailPanel';
 import { NewTaskModal } from '../task/NewTaskModal';
 import { OnboardingWizard } from './OnboardingWizard';
+import { Sheet, SheetContent, SheetOverlay } from '../ui/sheet';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
 import { useEffect } from 'react';
@@ -42,23 +43,12 @@ export function Shell() {
           </div>
         </main>
         
-        {/* Right side panel */}
-        <div 
-          className={clsx(
-            "fixed top-14 bottom-0 right-0 z-40 w-full transform border-l border-border bg-surface shadow-panel transition-transform duration-300 md:w-80",
-            isDetailPanelOpen ? "translate-x-0" : "translate-x-full"
-          )}
-        >
-          {selectedTaskId && <DetailPanel taskId={selectedTaskId} />}
-        </div>
-
-        {/* Mobile backdrop for panel */}
-        {isDetailPanelOpen && (
-          <div 
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-30 md:hidden"
-            onClick={closeDetail}
-          />
-        )}
+        <Sheet open={isDetailPanelOpen}>
+          <SheetOverlay className="z-30" onClick={closeDetail} />
+          <SheetContent className="z-40">
+            {selectedTaskId && <DetailPanel taskId={selectedTaskId} />}
+          </SheetContent>
+        </Sheet>
       </div>
       
       <OnboardingWizard />

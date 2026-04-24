@@ -3,6 +3,10 @@ import { Bell, Bot, CheckSquare, ChevronRight, FileClock, FolderKanban, KanbanSq
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { Separator } from '../ui/separator';
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -64,7 +68,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-6 flex flex-col gap-2 w-full px-2 flex-1 items-center">
-        <div className="w-6 border-t border-border mb-2"></div>
+        <Separator className="mb-2 w-6" />
         {projects.map(proj => {
           const initials = proj.name.slice(0, 2).toUpperCase();
           const isSelected = selectedProjectId === proj.id;
@@ -85,38 +89,43 @@ export function Sidebar() {
             </button>
           )
         })}
-        <button 
+        <Button 
           title="New Project"
-          className="w-10 h-10 rounded-md border border-dashed border-border flex items-center justify-center text-text-tertiary hover:text-text-primary hover:border-text-tertiary transition-colors mt-1"
+          variant="outline"
+          size="icon"
+          className="mt-1 border-dashed"
         >
           <FolderKanban className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
 
       <div ref={menuRef} className="relative w-full border-t border-border px-2 pt-3">
         <div className="flex flex-col items-center gap-2">
-          <button
+          <Button
             type="button"
             title="Notifications"
             onClick={() => setOpenMenu(current => current === 'notifications' ? null : 'notifications')}
-            className="relative flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+            variant="outline"
+            size="icon"
+            className="relative"
           >
             <Bell className="h-4 w-4" />
             {pendingCount > 0 && <span className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-status-blocked px-1 text-[10px] font-bold text-white">{pendingCount}</span>}
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             title="User and status"
             onClick={() => setOpenMenu(current => current === 'user' ? null : 'user')}
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+            variant="outline"
+            size="icon"
           >
             <User2 className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {openMenu === 'notifications' && (
-          <div className="absolute bottom-0 left-14 z-50 w-80 rounded-xl border border-border bg-surface p-3 shadow-panel">
+          <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-text-primary">Notifications</div>
@@ -140,7 +149,7 @@ export function Sidebar() {
                       <div className="truncate text-sm font-medium text-text-primary">{task.title}</div>
                       <div className="truncate text-xs text-text-tertiary">{task.id}</div>
                     </div>
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-waiting">review</span>
+                    <Badge variant="warning">review</Badge>
                   </button>
                 ))}
               </div>
@@ -149,11 +158,11 @@ export function Sidebar() {
                 No pending notifications.
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {openMenu === 'user' && (
-          <div className="absolute bottom-0 left-14 z-50 w-80 rounded-xl border border-border bg-surface p-3 shadow-panel">
+          <Card className="absolute bottom-0 left-14 z-50 w-80 p-3 shadow-panel">
             <div className="mb-3 flex items-center gap-3 rounded-lg bg-surface-secondary px-3 py-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-light text-sm font-bold text-accent">A</div>
               <div>
@@ -180,7 +189,7 @@ export function Sidebar() {
                 <ChevronRight className="h-4 w-4 text-text-tertiary" />
               </button>
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </aside>

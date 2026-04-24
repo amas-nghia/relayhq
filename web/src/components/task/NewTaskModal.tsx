@@ -2,6 +2,11 @@ import { useAppStore } from '../../store/appStore';
 import { X } from 'lucide-react';
 import React, { useState } from 'react';
 import { Task, TaskPriority } from '../../types';
+import { Button } from '../ui/button';
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Select } from '../ui/select';
+import { Textarea } from '../ui/textarea';
 
 export function NewTaskModal() {
   const isNewTaskModalOpen = useAppStore(state => state.isNewTaskModalOpen);
@@ -41,39 +46,37 @@ export function NewTaskModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-      <div 
-        className="bg-surface rounded-xl shadow-modal w-full max-w-lg overflow-hidden flex flex-col transform transition-all animate-in fade-in zoom-in-95 duration-200"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-bold text-text-primary">New Task</h2>
-          <button onClick={closeNewTaskModal} className="p-1 text-text-secondary hover:text-text-primary hover:bg-surface-secondary rounded-md transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={isNewTaskModalOpen}>
+      <DialogOverlay />
+      <DialogContent>
+        <DialogPanel className="max-w-lg" onClick={e => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>New Task</DialogTitle>
+            <Button variant="ghost" size="icon" onClick={closeNewTaskModal}>
+              <X className="w-5 h-5" />
+            </Button>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+          <DialogBody>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-text-primary">Title *</label>
-            <input 
+            <Input 
               required
               autoFocus
               type="text" 
               value={title}
               onChange={e => setTitle(e.target.value)}
-              className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all"
               placeholder="e.g. Deploy API to Production"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-text-primary">Description</label>
-            <textarea 
+            <Textarea 
               value={description}
               onChange={e => setDescription(e.target.value)}
               rows={3}
-              className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full resize-none transition-all"
               placeholder="Task details..."
             />
           </div>
@@ -81,49 +84,46 @@ export function NewTaskModal() {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Project *</label>
-              <select 
+              <Select 
                 value={projectId}
                 onChange={e => setProjectId(e.target.value)}
-                className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all"
               >
                 {projects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Board *</label>
-              <select className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all">
+              <Select>
                 <option>{selectedProject ? `${selectedProject.name} Board` : 'Project Board'}</option>
-              </select>
+              </Select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Priority</label>
-              <select 
+              <Select 
                 value={priority}
                 onChange={e => setPriority(e.target.value as TaskPriority)}
-                className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
                 <option value="critical">Critical</option>
-              </select>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Assignee</label>
-              <select 
+              <Select 
                 value={assigneeId}
                 onChange={e => setAssigneeId(e.target.value)}
-                className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all"
               >
                 {agents.map(a => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -153,25 +153,15 @@ export function NewTaskModal() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border">
-            <button 
-              type="button" 
-              onClick={closeNewTaskModal}
-              className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-secondary rounded-md border border-transparent transition-colors"
-            >
-              Cancel
-            </button>
-            {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
-            <button 
-              type="submit"
-              disabled={isMutating}
-              className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent/90 focus:ring-2 focus:ring-accent/50 focus:outline-none rounded-md transition-colors"
-            >
-              {isMutating ? 'Creating...' : 'Create Task'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+            <DialogFooter className="px-0 pb-0">
+              {mutationError && <p className="mr-auto text-sm text-status-blocked">{mutationError}</p>}
+              <Button variant="outline" onClick={closeNewTaskModal}>Cancel</Button>
+              <Button type="submit" disabled={isMutating}>{isMutating ? 'Creating...' : 'Create Task'}</Button>
+            </DialogFooter>
+            </form>
+          </DialogBody>
+        </DialogPanel>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -3,6 +3,9 @@ import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, 
 import clsx from 'clsx'
 
 import { useAppStore } from '../../store/appStore'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Card, CardContent, CardHeader } from '../ui/card'
 
 function readSection(body: string | undefined, heading: string): string | null {
   if (!body) return null
@@ -32,10 +35,12 @@ function formatTimestamp(value: string | undefined): string {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">{title}</h3>
-      {children}
-    </section>
+    <Card>
+      <CardHeader className="pb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">{title}</h3>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 
@@ -81,14 +86,14 @@ export function DetailPanel({ taskId }: { taskId: string }) {
     <div className="flex h-full flex-col bg-surface-secondary">
       <div className="flex items-center justify-between border-b border-border bg-surface p-4">
         <div className="flex items-center gap-2 text-sm text-text-tertiary">
-          <button onClick={closeDetail} className="hidden rounded-md p-1 hover:bg-surface-secondary md:block">
+          <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={closeDetail}>
             <X className="w-4 h-4" />
-          </button>
+          </Button>
           <span>{task.id}</span>
         </div>
-        <button onClick={closeDetail} className="rounded-md p-1 md:hidden">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={closeDetail}>
           <X className="w-5 h-5 text-text-secondary" />
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">

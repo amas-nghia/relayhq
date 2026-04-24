@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/appStore';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { Button } from '../ui/button';
 
 export function TopBar() {
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
@@ -26,14 +27,16 @@ export function TopBar() {
     <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur-md">
       <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-          <button
+          <Button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-secondary transition-colors hover:bg-surface-secondary md:hidden"
+            variant="outline"
+            size="icon"
+            className="md:hidden"
             onClick={() => setIsMobileNavOpen(open => !open)}
             aria-label="Toggle navigation"
           >
             <Menu className="w-4 h-4" />
-          </button>
+          </Button>
 
           <button className="flex min-w-0 items-center gap-2 text-left" onClick={() => navigate('/boards/main')}>
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-light text-accent ring-1 ring-accent/15">
