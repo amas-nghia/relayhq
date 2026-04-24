@@ -1,7 +1,48 @@
+import { useMemo, useState } from 'react';
+
 import { useAppStore } from '../store/appStore';
-import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle } from 'lucide-react';
+import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
-import { TaskStatus } from '../types';
+import { TaskPriority, TaskStatus } from '../types';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+
+type SortField = 'id' | 'title' | 'project' | 'status' | 'priority' | 'assignee' | null
+type SortDirection = 'asc' | 'desc' | null
+
+const STATUS_ORDER: Record<TaskStatus, number> = {
+  'waiting-approval': 0,
+  blocked: 1,
+  'in-progress': 2,
+  todo: 3,
+  done: 4,
+  cancelled: 5,
+}
+
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+}
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, undefined, { sensitivity: 'base' })
+}
+
+function getPriorityBadgeClass(priority: TaskPriority) {
+  switch (priority) {
+    case 'critical':
+      return 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked'
+    case 'high':
+      return 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting'
+    case 'medium':
+      return 'border-border bg-surface-secondary text-text-secondary'
+    case 'low':
+      return 'border-border/70 bg-surface-secondary/60 text-text-tertiary'
+  }
+}
 
 export function TasksView() {
   const tasks = useAppStore(state => state.tasks);
@@ -9,6 +50,9 @@ export function TasksView() {
   const projects = useAppStore(state => state.projects);
   const openDetail = useAppStore(state => state.openTaskDetail);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortField, setSortField] = useState<SortField>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
 
   const getStatusIcon = (status: TaskStatus) => {
     switch(status) {
@@ -30,43 +74,120 @@ export function TasksView() {
     }
   };
 
-  // Sort tasks: urgent first
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const order = { 'waiting-approval': 0, 'blocked': 1, 'in-progress': 2, 'todo': 3, 'done': 4 };
-    return order[a.status] - order[b.status];
-  });
+  const visibleTasks = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    const filteredTasks = normalizedQuery.length === 0
+      ? tasks
+      : tasks.filter(task => task.title.toLowerCase().includes(normalizedQuery))
+
+    const sortedTasks = [...filteredTasks].sort((left, right) => {
+      if (sortField === null || sortDir === null) {
+        return STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority] || compareText(left.title, right.title)
+      }
+
+      const leftProject = projects.find(project => project.id === left.projectId)?.name ?? ''
+      const rightProject = projects.find(project => project.id === right.projectId)?.name ?? ''
+      const leftAgent = agents.find(agent => agent.id === left.assigneeId)?.name ?? ''
+      const rightAgent = agents.find(agent => agent.id === right.assigneeId)?.name ?? ''
+
+      let result = 0
+      switch (sortField) {
+        case 'id':
+          result = compareText(left.id, right.id)
+          break
+        case 'title':
+          result = compareText(left.title, right.title)
+          break
+        case 'project':
+          result = compareText(leftProject, rightProject)
+          break
+        case 'status':
+          result = STATUS_ORDER[left.status] - STATUS_ORDER[right.status]
+          break
+        case 'priority':
+          result = PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority]
+          break
+        case 'assignee':
+          result = compareText(leftAgent, rightAgent)
+          break
+        default:
+          result = 0
+      }
+
+      if (result === 0) {
+        result = compareText(left.title, right.title)
+      }
+
+      return sortDir === 'asc' ? result : result * -1
+    })
+
+    return sortedTasks
+  }, [agents, projects, searchQuery, sortDir, sortField, tasks])
+
+  function toggleSort(field: Exclude<SortField, null>) {
+    if (sortField !== field) {
+      setSortField(field)
+      setSortDir('asc')
+      return
+    }
+
+    if (sortDir === 'asc') {
+      setSortDir('desc')
+      return
+    }
+
+    if (sortDir === 'desc') {
+      setSortField(null)
+      setSortDir(null)
+      return
+    }
+
+    setSortDir('asc')
+  }
+
+  function renderSortIcon(field: Exclude<SortField, null>) {
+    if (sortField !== field || sortDir === null) return null
+    return sortDir === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+  }
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
-          <button 
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
+            <p className="text-sm text-text-secondary">
+              {visibleTasks.length === tasks.length ? `${tasks.length} tasks` : `${visibleTasks.length} of ${tasks.length} tasks`}
+            </p>
+          </div>
+          <Button
             onClick={openNewTaskModal}
-            className="inline-flex items-center gap-1.5 self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent/90"
+            className="self-start"
           >
             <Plus className="w-4 h-4" /> New Task
-          </button>
+          </Button>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] flex items-center gap-2">
             <Search className="w-4 h-4 absolute left-3 text-text-tertiary" />
-            <input 
+            <Input
               type="text" 
+              value={searchQuery}
+              onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search tasks..." 
-              className="w-full bg-surface border border-border rounded-md px-3 py-1.5 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent block transition-all"
+              className="pl-9"
             />
           </div>
-          <button className="bg-surface hover:bg-surface-secondary border border-border text-text-secondary text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5">
+          <Button variant="outline" className="gap-1.5 px-3">
             Project <Filter className="w-3.5 h-3.5" />
-          </button>
-          <button className="bg-surface hover:bg-surface-secondary border border-border text-text-secondary text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5">
+          </Button>
+          <Button variant="outline" className="gap-1.5 px-3">
             Status <Filter className="w-3.5 h-3.5" />
-          </button>
-          <button className="bg-surface hover:bg-surface-secondary border border-border text-text-secondary text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5">
+          </Button>
+          <Button variant="outline" className="gap-1.5 px-3">
             Assignee <Filter className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -76,15 +197,16 @@ export function TasksView() {
           <thead>
             <tr className="bg-surface-secondary text-xs uppercase tracking-wider text-text-tertiary border-b border-border">
               <th className="px-4 py-3 font-semibold w-10"></th>
-              <th className="px-4 py-3 font-semibold w-24">ID</th>
-              <th className="px-4 py-3 font-semibold">Title</th>
-              <th className="px-4 py-3 font-semibold w-32">Project</th>
-              <th className="px-4 py-3 font-semibold w-24">Status</th>
-              <th className="px-4 py-3 font-semibold w-40">Assignee</th>
+              <th className="px-4 py-3 font-semibold w-24"><button type="button" onClick={() => toggleSort('id')} className="inline-flex items-center gap-1">ID {renderSortIcon('id')}</button></th>
+              <th className="px-4 py-3 font-semibold"><button type="button" onClick={() => toggleSort('title')} className="inline-flex items-center gap-1">Title {renderSortIcon('title')}</button></th>
+              <th className="px-4 py-3 font-semibold w-32"><button type="button" onClick={() => toggleSort('project')} className="inline-flex items-center gap-1">Project {renderSortIcon('project')}</button></th>
+              <th className="px-4 py-3 font-semibold w-24"><button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-1">Status {renderSortIcon('status')}</button></th>
+              <th className="px-4 py-3 font-semibold w-28"><button type="button" onClick={() => toggleSort('priority')} className="inline-flex items-center gap-1">Priority {renderSortIcon('priority')}</button></th>
+              <th className="px-4 py-3 font-semibold w-40"><button type="button" onClick={() => toggleSort('assignee')} className="inline-flex items-center gap-1">Assignee {renderSortIcon('assignee')}</button></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {sortedTasks.map(task => {
+            {visibleTasks.map(task => {
               const project = projects.find(p => p.id === task.projectId);
               const agent = agents.find(a => a.id === task.assigneeId);
               
@@ -101,11 +223,7 @@ export function TasksView() {
                     {task.id}
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-text-primary">
-                    <span className="truncate flex items-center gap-2 max-w-sm xl:max-w-md">
-                      {task.title}
-                      {task.priority === 'critical' && <span className="text-[10px] text-red-600 bg-red-50 p-0.5 rounded font-bold uppercase ring-1 ring-red-200">Critical</span>}
-                      {task.priority === 'high' && <span className="text-[10px] text-amber-600 bg-amber-50 p-0.5 rounded font-bold uppercase ring-1 ring-amber-200">High</span>}
-                    </span>
+                    <span className="truncate flex items-center gap-2 max-w-sm xl:max-w-md">{task.title}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-text-secondary truncate">
                     {project?.name || '—'}
@@ -123,6 +241,11 @@ export function TasksView() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
+                    <Badge variant="secondary" className={getPriorityBadgeClass(task.priority)}>
+                      {task.priority}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
                     {agent ? (
                       <div className="flex items-center gap-1.5 text-sm font-medium text-text-secondary group-hover:text-text-primary transition-colors">
                         <Bot className="w-4 h-4 text-text-tertiary group-hover:text-accent transition-colors" />
@@ -135,6 +258,13 @@ export function TasksView() {
                 </tr>
               );
             })}
+            {visibleTasks.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-text-tertiary">
+                  No tasks match the current search.
+                </td>
+              </tr>
+            )}
           </tbody>
           </table>
         </div>
