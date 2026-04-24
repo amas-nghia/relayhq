@@ -3,6 +3,8 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import type { ProjectFrontmatter, VaultDocument } from "./repository";
+import { readSharedVaultCollections } from "./read";
+import { VAULT_COLLECTION_DIRECTORIES } from "./repository";
 import {
   acquireVaultFileLock,
   DEFAULT_LOCK_TTL_MS,
@@ -37,6 +39,10 @@ export interface SyncProjectRequest {
 export interface SyncProjectResult extends VaultDocument<ProjectFrontmatter> {
   readonly filePath: string;
   readonly previous: ProjectFrontmatter;
+}
+
+export interface DeleteProjectResult {
+  readonly deletedPaths: ReadonlyArray<string>;
 }
 
 function toIso(date: Date): string {
@@ -294,6 +300,23 @@ export async function syncProjectDocument(request: SyncProjectRequest): Promise<
   } finally {
     await fileLock.release();
   }
+}
+
+export async function deleteProjectDocuments(vaultRoot: string, projectId: string): Promise<DeleteProjectResult> {
+  const collections = await readSharedVaultCollections(vaultRoot);
+  const project = collections.projects.find((entry) => entry.frontmatter.id === projectId);
+  if (project === undefined) {
+    throw new Error(`Project ${projectId} was not found.`);
+  }
+
+  const deletedPaths = [
+    join(vaultRoot, project.sourcePath),
+    ...collections.boards.filter((entry) => entry.frontmatter.project_id === projectId).map((entry) => join(vaultRoot, entry.sourcePath)),
+    ...collections.columns.filter((entry) => entry.frontmatter.project_id === projectId).map((entry) => join(vaultRoot, entry.sourcePath)),
+  ];
+
+  await Promise.all(deletedPaths.map((filePath) => rm(filePath, { force: true })));
+  return { deletedPaths };
 }
 
 export { VaultSchemaError };

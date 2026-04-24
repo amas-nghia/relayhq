@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 import { join } from "node:path";
 
-import { readProjectDocument, syncProjectDocument } from "../../../services/vault/project-write";
+import { deleteProjectDocuments, readProjectDocument, syncProjectDocument } from "../../../services/vault/project-write";
 import { resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 
 function readOptionalString(value: unknown): string | null | undefined {
@@ -89,6 +89,9 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
   const projectFilePath = join(resolveSharedVaultPath(vaultRoot), "projects", `${projectId}.md`);
   const current = await readProjectDocument(projectFilePath);
   const name = readOptionalString(patch.name);
+  if (name !== undefined && name !== null && name.length === 0) {
+    throw createError({ statusCode: 400, statusMessage: "name must not be empty when provided." });
+  }
   const description = readOptionalString(patch.description);
   const status = readOptionalString(patch.status);
   const codebaseRoot = readOptionalString(patch.codebase_root);
@@ -127,8 +130,22 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
   };
 }
 
+export async function deleteProject(projectId: string, options: { vaultRoot?: string } = {}) {
+  const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
+  try {
+    const result = await deleteProjectDocuments(vaultRoot, projectId);
+    await writeProjectAuditNote(projectId, "@relayhq-web", `Deleted project ${projectId}`, vaultRoot, new Date());
+    return { success: true, deletedPaths: result.deletedPaths };
+  } catch (error) {
+    if (error instanceof Error && error.message === `Project ${projectId} was not found.`) {
+      throw createError({ statusCode: 404, statusMessage: error.message });
+    }
+    throw error;
+  }
+}
+
 export default defineEventHandler(async (event) => {
-  if (event.method !== "PATCH") {
+  if (event.method !== "PATCH" && event.method !== "DELETE") {
     throw createError({ statusCode: 405, statusMessage: "Method not allowed." });
   }
 
@@ -138,10 +155,13 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    if (event.method === "DELETE") {
+      return await deleteProject(projectId);
+    }
     return await updateProjectMetadata(projectId, await readBody(event));
   } catch (error) {
     throw createError({
-      statusCode: error instanceof Error && error.name === "VaultSchemaError" ? 400 : 500,
+      statusCode: typeof error === "object" && error !== null && "statusCode" in error ? Number((error as { statusCode: number }).statusCode) : error instanceof Error && error.name === "VaultSchemaError" ? 400 : 500,
       statusMessage: error instanceof Error ? error.message : "Unable to update project.",
     });
   }

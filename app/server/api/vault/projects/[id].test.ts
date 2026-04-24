@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { updateProjectMetadata } from "./[id]";
+import { deleteProject, updateProjectMetadata } from "./[id]";
 
 const roots: string[] = [];
 
@@ -16,6 +16,8 @@ async function createRoot() {
   const root = await mkdtemp(join(tmpdir(), "relayhq-project-update-"));
   roots.push(root);
   await mkdir(join(root, "vault", "shared", "projects"), { recursive: true });
+  await mkdir(join(root, "vault", "shared", "boards"), { recursive: true });
+  await mkdir(join(root, "vault", "shared", "columns"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "audit"), { recursive: true });
   await writeFile(join(root, "vault", "shared", "projects", "project-demo.md"), [
     "---",
@@ -34,6 +36,32 @@ async function createRoot() {
     "",
     "## Status",
     "Active",
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(join(root, "vault", "shared", "boards", "board-demo.md"), [
+    "---",
+    'id: "board-demo"',
+    'type: "board"',
+    'workspace_id: "ws-demo"',
+    'project_id: "project-demo"',
+    'name: "Demo Board"',
+    'created_at: "2026-04-23T00:00:00Z"',
+    'updated_at: "2026-04-23T00:00:00Z"',
+    "---",
+    "",
+  ].join("\n"), "utf8");
+  await writeFile(join(root, "vault", "shared", "columns", "column-demo.md"), [
+    "---",
+    'id: "column-demo"',
+    'type: "column"',
+    'workspace_id: "ws-demo"',
+    'project_id: "project-demo"',
+    'board_id: "board-demo"',
+    'name: "Todo"',
+    'position: 0',
+    'created_at: "2026-04-23T00:00:00Z"',
+    'updated_at: "2026-04-23T00:00:00Z"',
+    "---",
     "",
   ].join("\n"), "utf8");
   return root;
@@ -70,5 +98,31 @@ describe("PATCH /api/vault/projects/[id]", () => {
     expect(auditFiles).toHaveLength(1);
     const auditDocument = await readFile(join(root, "vault", "shared", "audit", auditFiles[0]!), "utf8");
     expect(auditDocument).toContain("Updated project metadata for Renamed Project");
+  });
+
+  test("rejects empty names in patch payload", async () => {
+    const root = await createRoot();
+
+    await expect(updateProjectMetadata("project-demo", {
+      actorId: "agent-claude-code",
+      patch: { name: "   " },
+    }, { vaultRoot: root })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test("deletes the project and related board and column files", async () => {
+    const root = await createRoot();
+
+    const response = await deleteProject("project-demo", { vaultRoot: root });
+    expect(response.success).toBe(true);
+    expect(response.deletedPaths).toHaveLength(3);
+
+    await expect(readFile(join(root, "vault", "shared", "projects", "project-demo.md"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(root, "vault", "shared", "boards", "board-demo.md"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(root, "vault", "shared", "columns", "column-demo.md"), "utf8")).rejects.toThrow();
+  });
+
+  test("returns 404 when deleting a missing project", async () => {
+    const root = await createRoot();
+    await expect(deleteProject("missing-project", { vaultRoot: root })).rejects.toMatchObject({ statusCode: 404 });
   });
 });
