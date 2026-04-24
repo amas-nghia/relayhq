@@ -1,6 +1,7 @@
 import { useAppStore } from '../store/appStore';
 import { Check, X, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
+import { useState } from 'react';
 
 export function ApprovalsView() {
   const tasks = useAppStore(state => state.tasks);
@@ -9,7 +10,11 @@ export function ApprovalsView() {
   const pendingApprovals = tasks.filter(t => t.status === 'waiting-approval');
   const approveTask = useAppStore(state => state.approveTask);
   const rejectTask = useAppStore(state => state.rejectTask);
+  const isMutating = useAppStore(state => state.isMutating);
+  const mutationError = useAppStore(state => state.mutationError);
   const openDetail = useAppStore(state => state.openTaskDetail);
+  const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col h-full gap-6">
@@ -70,13 +75,14 @@ export function ApprovalsView() {
                   
                   <div className="flex items-center gap-3">
                     <button 
-                      onClick={() => approveTask(task.id)}
+                      onClick={() => void approveTask(task.id)}
+                      disabled={isMutating}
                       className="bg-status-done hover:bg-green-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                       <Check className="w-4 h-4" /> Approve
                     </button>
                     <button 
-                      onClick={() => rejectTask(task.id, task.approvalReason || 'Rejected from approvals view')}
+                      onClick={() => { setRejectingTaskId(task.id); setRejectReason(task.approvalReason || '') }}
                       className="bg-status-blocked hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                       <X className="w-4 h-4" /> Reject
@@ -90,10 +96,27 @@ export function ApprovalsView() {
                       </button>
                     </div>
                   </div>
+                  {rejectingTaskId === task.id && (
+                    <div className="mt-3 flex flex-col gap-3 rounded-md border border-border bg-surface-secondary p-3">
+                      <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} className="px-3 py-2 bg-surface border border-border rounded-md text-sm" placeholder="Reason for rejection" />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => void rejectTask(task.id, rejectReason || 'Rejected from approvals view').then(() => { setRejectingTaskId(null); setRejectReason('') })}
+                          disabled={isMutating || rejectReason.trim().length === 0}
+                          className="bg-status-blocked hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
+                        >
+                          Confirm reject
+                        </button>
+                        <button onClick={() => { setRejectingTaskId(null); setRejectReason('') }} className="bg-surface border border-border text-text-secondary text-sm font-medium py-2 px-4 rounded-md transition-colors">Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
 
           <div className="flex items-start">
             <button className="text-sm text-text-secondary font-medium hover:text-text-primary flex items-center gap-1">

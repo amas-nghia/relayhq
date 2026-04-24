@@ -1,14 +1,18 @@
 import { X, ExternalLink, Bot, Check, Clock } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
+import { useState } from 'react';
 
 export function DetailPanel({ taskId }: { taskId: string }) {
   const task = useAppStore(state => state.tasks.find(t => t.id === taskId));
   const closeDetail = useAppStore(state => state.closeTaskDetail);
   const approveTask = useAppStore(state => state.approveTask);
   const rejectTask = useAppStore(state => state.rejectTask);
-  const agent = useAppStore(state => state.agents.find(a => a.id === taskId ? undefined : task?.assigneeId));
+  const agent = useAppStore(state => state.agents.find(a => a.id === task?.assigneeId));
   const project = useAppStore(state => state.projects.find(p => p.id === task?.projectId));
+  const isMutating = useAppStore(state => state.isMutating);
+  const mutationError = useAppStore(state => state.mutationError);
+  const [rejectReason, setRejectReason] = useState(task?.approvalReason || '')
 
   if (!task) return null;
 
@@ -104,18 +108,22 @@ export function DetailPanel({ taskId }: { taskId: string }) {
             <p className="text-xs text-amber-800/70">Requested by {agent?.name} · {task.requestedApprovalTime}</p>
             <div className="flex gap-2 mt-2">
               <button 
-                onClick={() => approveTask(task.id)}
+                onClick={() => void approveTask(task.id)}
+                disabled={isMutating}
                 className="flex-1 bg-status-done hover:bg-green-700 text-white text-sm font-medium py-2 rounded-md transition-colors flex justify-center items-center gap-1"
               >
                 <Check className="w-4 h-4" /> Approve
               </button>
+              <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} className="hidden" readOnly />
               <button 
-                onClick={() => rejectTask(task.id, task.approvalReason || 'Rejected from detail panel')}
+                onClick={() => void rejectTask(task.id, rejectReason || task.approvalReason || 'Rejected from detail panel')}
+                disabled={isMutating}
                 className="flex-1 bg-status-blocked hover:bg-red-700 text-white text-sm font-medium py-2 rounded-md transition-colors flex justify-center items-center gap-1"
               >
                 <X className="w-4 h-4" /> Reject
               </button>
             </div>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} className="mt-3 w-full rounded-md border border-border bg-surface-secondary px-3 py-2 text-sm" placeholder="Reason for rejection" />
           </div>
         )}
 
@@ -167,6 +175,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
             )}
           </div>
         </div>
+        {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
       </div>
 
       {/* Footer */}

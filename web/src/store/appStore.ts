@@ -15,6 +15,8 @@ interface AppState {
   selectedProjectId: string | null
   isLoading: boolean
   error: string | null
+  isMutating: boolean
+  mutationError: string | null
   refreshIntervalId: number | null
 
   setSelectedProjectId: (id: string | null) => void
@@ -132,6 +134,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedProjectId: null,
   isLoading: false,
   error: null,
+  isMutating: false,
+  mutationError: null,
   refreshIntervalId: null,
 
   setSelectedProjectId: (id) => set({ selectedProjectId: id }),
@@ -182,30 +186,48 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addTask: async (payload) => {
-    await relayhqApi.createTask({
-      title: payload.title,
-      projectId: payload.projectId,
-      boardId: payload.boardId,
-      column: 'todo',
-      priority: payload.priority,
-      assignee: payload.assigneeId ?? 'human-user',
-      objective: payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`,
-      acceptanceCriteria: ['Task is created in the canonical vault', 'Task is visible to the React web app'],
-      contextFiles: ['web/src/api/client.ts'],
-    })
-    await get().loadData()
-    set({ isNewTaskModalOpen: false })
+    set({ isMutating: true, mutationError: null })
+    try {
+      await relayhqApi.createTask({
+        title: payload.title,
+        projectId: payload.projectId,
+        boardId: payload.boardId,
+        column: 'todo',
+        priority: payload.priority,
+        assignee: payload.assigneeId ?? 'human-user',
+        objective: payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`,
+        acceptanceCriteria: ['Task is created in the canonical vault', 'Task is visible to the React web app'],
+        contextFiles: ['web/src/api/client.ts'],
+      })
+      await get().loadData()
+      set({ isNewTaskModalOpen: false, isMutating: false })
+    } catch (error) {
+      set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to create task.' })
+      throw error
+    }
   },
 
   approveTask: async (taskId) => {
-    await relayhqApi.approveTask(taskId, 'human-user')
-    await get().loadData()
-    set({ selectedTaskId: null, isDetailPanelOpen: false })
+    set({ isMutating: true, mutationError: null })
+    try {
+      await relayhqApi.approveTask(taskId, 'human-user')
+      await get().loadData()
+      set({ selectedTaskId: null, isDetailPanelOpen: false, isMutating: false })
+    } catch (error) {
+      set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to approve task.' })
+      throw error
+    }
   },
 
   rejectTask: async (taskId, reason) => {
-    await relayhqApi.rejectTask(taskId, 'human-user', reason)
-    await get().loadData()
-    set({ selectedTaskId: null, isDetailPanelOpen: false })
+    set({ isMutating: true, mutationError: null })
+    try {
+      await relayhqApi.rejectTask(taskId, 'human-user', reason)
+      await get().loadData()
+      set({ selectedTaskId: null, isDetailPanelOpen: false, isMutating: false })
+    } catch (error) {
+      set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to reject task.' })
+      throw error
+    }
   },
 }))

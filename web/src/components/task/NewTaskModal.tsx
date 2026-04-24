@@ -7,6 +7,8 @@ export function NewTaskModal() {
   const isNewTaskModalOpen = useAppStore(state => state.isNewTaskModalOpen);
   const closeNewTaskModal = useAppStore(state => state.closeNewTaskModal);
   const addTask = useAppStore(state => state.addTask);
+  const isMutating = useAppStore(state => state.isMutating);
+  const mutationError = useAppStore(state => state.mutationError);
   const projects = useAppStore(state => state.projects);
   const agents = useAppStore(state => state.agents);
 
@@ -24,11 +26,11 @@ export function NewTaskModal() {
 
   if (!isNewTaskModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    addTask({ title, description, projectId, boardId: 'board-demo', assigneeId, priority });
+    await addTask({ title, description, projectId, boardId: 'board-demo', assigneeId, priority });
     closeNewTaskModal();
     // Reset form
     setTitle('');
@@ -158,11 +160,13 @@ export function NewTaskModal() {
             >
               Cancel
             </button>
+            {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
             <button 
               type="submit"
+              disabled={isMutating}
               className="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent/90 focus:ring-2 focus:ring-accent/50 focus:outline-none rounded-md transition-colors"
             >
-              Create Task
+              {isMutating ? 'Creating...' : 'Create Task'}
             </button>
           </div>
         </form>
