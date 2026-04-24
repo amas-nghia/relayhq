@@ -36,6 +36,9 @@ describe("GET /api/settings/scan-agents", () => {
           detected: true,
           alreadyRegistered: true,
           configPath: join(home, ".claude", "settings.json"),
+          snippet: expect.objectContaining({
+            configFilePath: join(home, ".claude", "settings.json"),
+          }),
         },
         {
           id: "cursor",
@@ -43,6 +46,9 @@ describe("GET /api/settings/scan-agents", () => {
           detected: true,
           alreadyRegistered: false,
           configPath: join(home, ".cursor", "mcp.json"),
+          snippet: expect.objectContaining({
+            configFilePath: join(home, ".cursor", "mcp.json"),
+          }),
         },
         {
           id: "copilot",
@@ -50,6 +56,9 @@ describe("GET /api/settings/scan-agents", () => {
           detected: false,
           alreadyRegistered: false,
           configPath: join(home, ".copilot", "mcp-config.json"),
+          snippet: expect.objectContaining({
+            configFilePath: join(home, ".copilot", "mcp-config.json"),
+          }),
         },
       ]));
     } finally {

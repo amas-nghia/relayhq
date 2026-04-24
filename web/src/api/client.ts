@@ -125,6 +125,21 @@ export interface RelayHQBrowseDirectoriesResponse {
   readonly entries: ReadonlyArray<RelayHQBrowseDirectoryEntry>
 }
 
+export interface RelayHQToolSnippet {
+  readonly snippet: string
+  readonly configFilePath: string
+  readonly instruction: string
+}
+
+export interface RelayHQScannedAgentTool {
+  readonly id: string
+  readonly name: string
+  readonly detected: boolean
+  readonly alreadyRegistered: boolean
+  readonly configPath: string
+  readonly snippet: RelayHQToolSnippet
+}
+
 export interface VaultTaskPatchPayload {
   readonly actorId: string
   readonly patch: Record<string, unknown>
@@ -163,6 +178,10 @@ export interface VaultDocPatchPayload {
   }
 }
 
+export interface RegisterAgentsPayload {
+  readonly toolIds: ReadonlyArray<string>
+}
+
 export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
   getActiveAgents: () => request<ReadonlyArray<ActiveAgentSession>>('/api/agent/active'),
@@ -181,6 +200,11 @@ export const relayhqApi = {
     body: JSON.stringify(payload),
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
+  registerAgents: (payload: RegisterAgentsPayload) => request<{ created: ReadonlyArray<{ id: string; sourcePath: string }>; skipped: ReadonlyArray<{ id: string; reason: 'not-detected' | 'already-registered' }> }>('/api/settings/register-agents', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
 
   createTask: (payload: VaultTaskCreatePayload) => request<{ taskId: string; boardId: string; sourcePath: string }>('/api/vault/tasks', {
     method: 'POST',

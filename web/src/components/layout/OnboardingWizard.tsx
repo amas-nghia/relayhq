@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Check, ChevronLeft, ClipboardCheck, ClipboardCopy, Folder, FolderOpen, Sparkles, Terminal, X } from 'lucide-react'
 
-import { relayhqApi, type RelayHQBrowseDirectoriesResponse } from '../../api/client'
+import { relayhqApi, type RelayHQBrowseDirectoriesResponse, type RelayHQScannedAgentTool } from '../../api/client'
 import { useAppStore } from '../../store/appStore'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -43,6 +43,11 @@ export function OnboardingWizard() {
   const [shellWriteStatus, setShellWriteStatus] = useState<ShellWriteStatus>('idle')
   const [shellWritePath, setShellWritePath] = useState<string | null>(null)
   const [snippetCopied, setSnippetCopied] = useState(false)
+  const [discoveredTools, setDiscoveredTools] = useState<ReadonlyArray<RelayHQScannedAgentTool>>([])
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set())
+  const [registeredToolIds, setRegisteredToolIds] = useState<Set<string>>(new Set())
+  const [isScanningAgents, setIsScanningAgents] = useState(false)
+  const [isRegisteringAgents, setIsRegisteringAgents] = useState(false)
   const [wizardError, setWizardError] = useState<string | null>(null)
   const [stepOverride, setStepOverride] = useState<WizardStep | null>(null)
   const [pickerTarget, setPickerTarget] = useState<'create' | 'existing' | null>(null)
@@ -89,12 +94,44 @@ export function OnboardingWizard() {
 
   const cliSnippet = `export RELAYHQ_BASE_URL="http://127.0.0.1:44210"\nexport RELAYHQ_VAULT_ROOT="${activeVaultRoot}"`
 
+  const hasDetectedTools = discoveredTools.some(tool => tool.detected)
+  const selectedTools = discoveredTools.filter(tool => registeredToolIds.has(tool.id) || selectedToolIds.has(tool.id))
+
   useEffect(() => {
     setStepOverride(current => {
       if (current === null) return null
       return current < detectedStep ? detectedStep : current
     })
   }, [detectedStep])
+
+  useEffect(() => {
+    if (currentStep !== 3 || activeVaultRoot.length === 0) return
+    let cancelled = false
+
+    async function runScan() {
+      setIsScanningAgents(true)
+      setWizardError(null)
+      try {
+        const response = await relayhqApi.scanAgents()
+        if (cancelled) return
+        setDiscoveredTools(response.discovered)
+        setSelectedToolIds(new Set(response.discovered.filter(tool => tool.detected && !tool.alreadyRegistered).map(tool => tool.id)))
+      } catch (error) {
+        if (!cancelled) {
+          setWizardError(error instanceof Error ? error.message : 'Unable to scan installed tools.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsScanningAgents(false)
+        }
+      }
+    }
+
+    void runScan()
+    return () => {
+      cancelled = true
+    }
+  }, [activeVaultRoot, currentStep])
 
   if (!showOnboarding || settings === null) {
     return null
@@ -155,6 +192,33 @@ export function OnboardingWizard() {
       setShellWriteStatus('error')
       setWizardError(error instanceof Error ? error.message : 'Unable to write shell profile.')
     }
+  }
+
+  async function handleRegisterAgents() {
+    const toolIds = [...selectedToolIds]
+    if (toolIds.length === 0) return
+
+    setIsRegisteringAgents(true)
+    setWizardError(null)
+    try {
+      const result = await relayhqApi.registerAgents({ toolIds })
+      const createdIds = new Set(result.created.map(entry => entry.id))
+      setRegisteredToolIds(current => new Set([...current, ...createdIds]))
+      setDiscoveredTools(current => current.map(tool => createdIds.has(tool.id) ? { ...tool, alreadyRegistered: true } : tool))
+    } catch (error) {
+      setWizardError(error instanceof Error ? error.message : 'Unable to register selected agents.')
+    } finally {
+      setIsRegisteringAgents(false)
+    }
+  }
+
+  function toggleToolSelection(toolId: string) {
+    setSelectedToolIds(current => {
+      const next = new Set(current)
+      if (next.has(toolId)) next.delete(toolId)
+      else next.add(toolId)
+      return next
+    })
   }
 
   function handlePreviousStep() {
@@ -318,93 +382,121 @@ export function OnboardingWizard() {
 
             {currentStep === 3 && (
               <div className="flex flex-col gap-5">
-                <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                  <button
-                    type="button"
-                    onClick={() => setConnectTab('claude-code')}
-                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'claude-code' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Claude Code
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConnectTab('cli')}
-                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'cli' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                  >
-                    <Terminal className="h-3.5 w-3.5" />
-                    CLI / Shell
-                  </button>
-                </div>
-
-                {connectTab === 'claude-code' && (
-                  <div className="flex flex-col gap-4">
-                    <p className="text-sm text-text-secondary">
-                      Add RelayHQ to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code>.
-                      Once added, every Claude Code session will have <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">relayhq_*</code> tools available automatically — no per-project setup needed.
-                    </p>
-                    <div className="relative rounded-xl border border-border bg-slate-950 p-4">
-                      <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{mcpSnippet}</pre>
-                      <button
-                        type="button"
-                        onClick={() => void handleCopySnippet()}
-                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700"
-                      >
-                        {snippetCopied ? (
-                          <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
-                        ) : (
-                          <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>
-                        )}
-                      </button>
-                    </div>
-                    <ol className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">1</span> Copy the snippet above</li>
-                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">2</span> Paste it into <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code> (merging with any existing <code className="rounded bg-surface-secondary px-1 py-0.5 text-xs font-mono text-text-primary">mcpServers</code> key)</li>
-                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">3</span> Restart Claude Code — done</li>
-                    </ol>
+                {isScanningAgents ? (
+                  <div className="rounded-xl border border-border bg-surface-secondary px-4 py-6 text-sm text-text-secondary">
+                    Scanning installed AI tools...
                   </div>
-                )}
-
-                {connectTab === 'cli' && (
+                ) : hasDetectedTools ? (
                   <div className="flex flex-col gap-4">
                     <p className="text-sm text-text-secondary">
-                      Export these variables into your shell profile. Any terminal session opened after that will have the RelayHQ CLI ready without additional setup.
+                      RelayHQ found AI tools on this machine. Select the ones you want to register in the vault, then copy the generated snippets into each tool's config file.
                     </p>
-                    <div className="relative rounded-xl border border-border bg-slate-950 p-4">
-                      <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{cliSnippet}</pre>
-                      <button
-                        type="button"
-                        onClick={() => void handleCopySnippet()}
-                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700"
-                      >
-                        {snippetCopied ? (
-                          <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
-                        ) : (
-                          <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>
-                        )}
-                      </button>
+                    <div className="space-y-2 rounded-xl border border-border bg-surface p-3">
+                      {discoveredTools.filter(tool => tool.detected).map(tool => (
+                        <label key={tool.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-secondary px-3 py-3 text-sm">
+                          <span className="flex min-w-0 items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedToolIds.has(tool.id) || registeredToolIds.has(tool.id)}
+                              disabled={tool.alreadyRegistered}
+                              onChange={() => toggleToolSelection(tool.id)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block font-medium text-text-primary">{tool.name}</span>
+                              <span className="block truncate text-xs text-text-tertiary">{tool.snippet.configFilePath}</span>
+                            </span>
+                          </span>
+                          {tool.alreadyRegistered && <Badge variant="secondary">Registered</Badge>}
+                        </label>
+                      ))}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        disabled={shellWriteStatus === 'writing'}
-                        onClick={() => void handleWriteShellProfile('zshrc')}
-                      >
-                        Write to ~/.zshrc
-                      </Button>
-                      <Button
-                        variant="outline"
-                        disabled={shellWriteStatus === 'writing'}
-                        onClick={() => void handleWriteShellProfile('bashrc')}
-                      >
-                        Write to ~/.bashrc
+                      <Button type="button" disabled={selectedToolIds.size === 0 || isRegisteringAgents} onClick={() => void handleRegisterAgents()}>
+                        Add selected agents
                       </Button>
                     </div>
-                    {shellWriteStatus === 'done' && shellWritePath && (
-                      <p className="flex items-center gap-2 text-sm text-emerald-600">
-                        <Check className="h-4 w-4" />
-                        Added to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">{shellWritePath}</code> — run <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">source {shellWritePath}</code>
-                      </p>
+
+                    {selectedTools.length > 0 && (
+                      <div className="space-y-4">
+                        {selectedTools.map(tool => (
+                          <div key={tool.id} className="rounded-xl border border-border bg-surface-secondary p-4">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold text-text-primary">{tool.name}</div>
+                                <div className="text-xs text-text-tertiary">{tool.snippet.instruction}</div>
+                              </div>
+                              <Button type="button" variant="outline" size="sm" onClick={async () => { await navigator.clipboard.writeText(tool.snippet.snippet); setSnippetCopied(true); setTimeout(() => setSnippetCopied(false), 2000) }}>
+                                {snippetCopied ? <ClipboardCheck className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />} Copy
+                              </Button>
+                            </div>
+                            <div className="rounded-xl border border-border bg-slate-950 p-4">
+                              <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{tool.snippet.snippet}</pre>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
+                      <button
+                        type="button"
+                        onClick={() => setConnectTab('claude-code')}
+                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'claude-code' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Claude Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConnectTab('cli')}
+                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'cli' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                      >
+                        <Terminal className="h-3.5 w-3.5" />
+                        CLI / Shell
+                      </button>
+                    </div>
+                    {connectTab === 'claude-code' && (
+                      <div className="flex flex-col gap-4">
+                        <p className="text-sm text-text-secondary">
+                          Add RelayHQ to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code>.
+                        </p>
+                        <div className="relative rounded-xl border border-border bg-slate-950 p-4">
+                          <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{mcpSnippet}</pre>
+                          <button type="button" onClick={() => void handleCopySnippet()} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700">
+                            {snippetCopied ? <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</> : <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {connectTab === 'cli' && (
+                      <div className="flex flex-col gap-4">
+                        <p className="text-sm text-text-secondary">
+                          Export these variables into your shell profile. Any terminal session opened after that will have the RelayHQ CLI ready without additional setup.
+                        </p>
+                        <div className="relative rounded-xl border border-border bg-slate-950 p-4">
+                          <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{cliSnippet}</pre>
+                          <button type="button" onClick={() => void handleCopySnippet()} className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700">
+                            {snippetCopied ? <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</> : <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" disabled={shellWriteStatus === 'writing'} onClick={() => void handleWriteShellProfile('zshrc')}>
+                            Write to ~/.zshrc
+                          </Button>
+                          <Button variant="outline" disabled={shellWriteStatus === 'writing'} onClick={() => void handleWriteShellProfile('bashrc')}>
+                            Write to ~/.bashrc
+                          </Button>
+                        </div>
+                        {shellWriteStatus === 'done' && shellWritePath && (
+                          <p className="flex items-center gap-2 text-sm text-emerald-600">
+                            <Check className="h-4 w-4" />
+                            Added to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">{shellWritePath}</code> — run <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">source {shellWritePath}</code>
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
