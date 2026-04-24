@@ -381,6 +381,7 @@ function parseAgentFrontmatter(record: Record<string, unknown>, filePath: string
     type: "agent" as const,
     name: requireString(record, "name", filePath),
     role: requireString(record, "role", filePath),
+    roles: record.roles === undefined ? [requireString(record, "role", filePath)] : [...requireStringArray(record, "roles", filePath)].sort(compareText),
     provider: requireString(record, "provider", filePath),
     model: requireString(record, "model", filePath),
     capabilities: [...requireStringArray(record, "capabilities", filePath)].sort(compareText),

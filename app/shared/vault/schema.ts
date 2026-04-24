@@ -89,6 +89,7 @@ export interface AgentFrontmatter {
   readonly type: "agent";
   readonly name: string;
   readonly role: string;
+  readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly model: string;
   readonly capabilities: ReadonlyArray<string>;
@@ -496,6 +497,7 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
 
   requireStringField(input, "name", issues);
   requireStringField(input, "role", issues);
+  requireStringArrayField(input, "roles", issues);
   requireStringField(input, "provider", issues);
   requireStringField(input, "model", issues);
   requireStringArrayField(input, "capabilities", issues);

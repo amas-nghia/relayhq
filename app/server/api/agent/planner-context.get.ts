@@ -1,6 +1,7 @@
 import { defineEventHandler, getQuery } from "h3";
 
 import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../models/read-model";
+import { filterDocsForAgent, resolveAgentDocumentAccessContext, writeDeniedDocAccessAudit } from "../../services/authz/doc-access";
 import { countTokens, computeSaving, recordTokenSaving } from "../../services/metrics/tracker";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
@@ -37,6 +38,7 @@ export interface PlannerContextAgentSummary {
   readonly id: string;
   readonly name: string;
   readonly capabilities: ReadonlyArray<string>;
+  readonly roles: ReadonlyArray<string>;
   readonly status: string;
 }
 
@@ -118,6 +120,7 @@ function toPlannerContextResponse(readModel: VaultReadModel): PlannerContextResp
       id: agent.id,
       name: agent.name,
       capabilities: agent.capabilities,
+      roles: agent.roles,
       status: agent.status,
     })),
     openTaskSummary: readModel.tasks
@@ -143,6 +146,7 @@ function toPlannerContextResponse(readModel: VaultReadModel): PlannerContextResp
 
 export async function readPlannerContext(
   dependencies: ReadPlannerContextDependencies = {},
+  options: { agentId?: string | null; requestedRoles?: ReadonlyArray<string> } = {},
 ): Promise<PlannerContextResponse> {
   let filteredReadModel: VaultReadModel;
   if (dependencies.preloadedReadModel !== undefined) {
@@ -158,12 +162,26 @@ export async function readPlannerContext(
       : filterVaultReadModelByWorkspaceId(readModel, configuredWorkspaceId);
   }
 
-  return toPlannerContextResponse(filteredReadModel);
+  const shouldFilterDocs = (options.agentId ?? null) !== null || (options.requestedRoles?.length ?? 0) > 0;
+  const context = resolveAgentDocumentAccessContext(filteredReadModel, options.agentId ?? null, options.requestedRoles ?? []);
+  const filteredDocs = !shouldFilterDocs
+    ? { allowed: filteredReadModel.docs, denied: [] as typeof filteredReadModel.docs }
+    : filterDocsForAgent(filteredReadModel, context);
+  if (shouldFilterDocs && context.agentId !== null && filteredDocs.denied.length > 0) {
+    await writeDeniedDocAccessAudit({
+      vaultRoot: dependencies.resolveRoot?.() ?? resolveVaultWorkspaceRoot(),
+      agentId: context.agentId,
+      deniedDocIds: filteredDocs.denied.map((doc) => doc.id),
+    });
+  }
+  return toPlannerContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed });
 }
 
 export default defineEventHandler(async (event) => {
-  const agent = String(getQuery(event).agent ?? "anonymous");
-  const response = await readPlannerContext();
+  const query = getQuery(event);
+  const agent = String(query.agent ?? query.agent_id ?? "anonymous");
+  const requestedRoles = typeof query.roles === "string" ? query.roles.split(",") : [];
+  const response = await readPlannerContext({}, { agentId: typeof query.agent_id === "string" ? query.agent_id : null, requestedRoles });
   const responseTokens = countTokens(response);
   const { baselineTokens, savedTokens } = computeSaving("planner-context", responseTokens);
   recordTokenSaving({ timestamp: new Date().toISOString(), agent, endpoint: "planner-context", responseTokens, baselineTokens, savedTokens });

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { listVaultDocs } from "./index.get";
 import { createVaultDoc } from "./index.post";
 import { updateVaultDoc } from "./[id].patch";
 
@@ -116,6 +117,77 @@ describe("vault docs API", () => {
       expect(file).toContain('sensitive: true');
       expect(file).toContain('tags: ["design","vault"]');
       expect(file).toContain('New body');
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+    }
+  });
+
+  test("GET /api/vault/docs filters access=mine for agents", async () => {
+    const root = await createRoot();
+    process.env.RELAYHQ_VAULT_ROOT = root;
+    try {
+      await writeFile(join(root, "vault", "shared", "docs", "doc-open.md"), [
+        "---",
+        'id: "doc-open"',
+        'type: "doc"',
+        'doc_type: "brief"',
+        'workspace_id: "ws-demo"',
+        'project_id: "project-demo"',
+        'title: "Open doc"',
+        'status: "draft"',
+        'visibility: "project"',
+        'access_roles: ["all"]',
+        'sensitive: false',
+        'created_at: "2026-04-24T00:00:00Z"',
+        'updated_at: "2026-04-24T00:00:00Z"',
+        'tags: ["docs"]',
+        "---",
+        "Visible",
+      ].join("\n"), "utf8");
+      await writeFile(join(root, "vault", "shared", "docs", "doc-human.md"), [
+        "---",
+        'id: "doc-human"',
+        'type: "doc"',
+        'doc_type: "policy"',
+        'workspace_id: "ws-demo"',
+        'project_id: "project-demo"',
+        'title: "Human doc"',
+        'status: "active"',
+        'visibility: "workspace"',
+        'access_roles: ["human-only"]',
+        'sensitive: false',
+        'created_at: "2026-04-24T00:00:00Z"',
+        'updated_at: "2026-04-24T00:00:00Z"',
+        'tags: ["ops"]',
+        "---",
+        "Hidden",
+      ].join("\n"), "utf8");
+      await mkdir(join(root, "vault", "shared", "agents"), { recursive: true });
+      await writeFile(join(root, "vault", "shared", "agents", "agent-claude-code.md"), [
+        "---",
+        'id: "agent-claude-code"',
+        'type: "agent"',
+        'name: "Claude Code"',
+        'role: "implementation"',
+        'roles: ["implementation"]',
+        'provider: "claude"',
+        'model: "claude-sonnet-4-6"',
+        'capabilities: []',
+        'task_types_accepted: []',
+        'approval_required_for: []',
+        'cannot_do: []',
+        'accessible_by: []',
+        'skill_file: "skills/claude-code.md"',
+        'status: "available"',
+        'workspace_id: "ws-demo"',
+        'created_at: "2026-04-24T00:00:00Z"',
+        'updated_at: "2026-04-24T00:00:00Z"',
+        "---",
+      ].join("\n"), "utf8");
+
+      const response = await listVaultDocs({ access: "mine", agent_id: "agent-claude-code" }, { vaultRoot: root });
+      expect(response.data.map((doc) => doc.id)).toContain("doc-open");
+      expect(response.data.map((doc) => doc.id)).not.toContain("doc-human");
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
     }

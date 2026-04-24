@@ -43,6 +43,7 @@ const agent: AgentFrontmatter = {
   type: "agent",
   name: "Backend Developer",
   role: "implementation",
+  roles: ["implementation"],
   provider: "claude",
   model: "claude-sonnet-4-6",
   capabilities: ["write-go-code"],

@@ -1,6 +1,7 @@
 import { defineEventHandler, getQuery } from "h3";
 
 import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../models/read-model";
+import { filterDocsForAgent, resolveAgentDocumentAccessContext, writeDeniedDocAccessAudit } from "../../services/authz/doc-access";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, readExposedVaultRoot, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 import { countTokens, computeSaving, recordTokenSaving } from "../../services/metrics/tracker";
@@ -41,6 +42,7 @@ export interface AgentContextResponse {
   readonly openTaskCount: number;
   readonly pendingApprovalCount: number;
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>;
+  readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>;
   readonly activeSessions: ReadonlyArray<ActiveSession>;
 }
 
@@ -75,6 +77,14 @@ function toAgentContextResponse(readModel: VaultReadModel, activeSessions: Reado
     })),
     openTaskCount: readModel.tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").length,
     pendingApprovalCount: readModel.approvals.filter((approval) => approval.status === "pending").length,
+    docs: readModel.docs.map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      doc_type: doc.docType,
+      status: doc.status,
+      visibility: doc.visibility,
+      updatedAt: doc.updatedAt,
+    })),
     activeSessions,
     boardSummary: readModel.boards.map((board) => ({
       id: board.id,
@@ -92,6 +102,7 @@ function toAgentContextResponse(readModel: VaultReadModel, activeSessions: Reado
 
 export async function readAgentContext(
   dependencies: ReadAgentContextDependencies = {},
+  options: { agentId?: string | null; requestedRoles?: ReadonlyArray<string> } = {},
 ): Promise<AgentContextResponse> {
   const sessionStore = dependencies.sessionStore ?? defaultSessionStore;
   const now = dependencies.now?.() ?? new Date();
@@ -109,12 +120,29 @@ export async function readAgentContext(
       : filterVaultReadModelByWorkspaceId(readModel, configuredWorkspaceId);
   }
 
-  return toAgentContextResponse(filteredReadModel, sessionStore.getActiveSessions(now));
+  const shouldFilterDocs = (options.agentId ?? null) !== null || (options.requestedRoles?.length ?? 0) > 0;
+  const context = resolveAgentDocumentAccessContext(filteredReadModel, options.agentId ?? null, options.requestedRoles ?? []);
+  const filteredDocs = !shouldFilterDocs
+    ? { allowed: filteredReadModel.docs, denied: [] as typeof filteredReadModel.docs }
+    : filterDocsForAgent(filteredReadModel, context);
+
+  if (shouldFilterDocs && context.agentId !== null && filteredDocs.denied.length > 0) {
+    await writeDeniedDocAccessAudit({
+      vaultRoot: dependencies.resolveRoot?.() ?? resolveVaultWorkspaceRoot(),
+      agentId: context.agentId,
+      deniedDocIds: filteredDocs.denied.map((doc) => doc.id),
+      now,
+    });
+  }
+
+  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now));
 }
 
 export default defineEventHandler(async (event) => {
-  const agent = String(getQuery(event).agent ?? "anonymous");
-  const response = await readAgentContext();
+  const query = getQuery(event);
+  const agent = String(query.agent ?? query.agent_id ?? "anonymous");
+  const requestedRoles = typeof query.roles === "string" ? query.roles.split(",") : [];
+  const response = await readAgentContext({}, { agentId: typeof query.agent_id === "string" ? query.agent_id : null, requestedRoles });
   const responseTokens = countTokens(response);
   const { baselineTokens, savedTokens } = computeSaving("context", responseTokens);
   recordTokenSaving({ timestamp: new Date().toISOString(), agent, endpoint: "context", responseTokens, baselineTokens, savedTokens });

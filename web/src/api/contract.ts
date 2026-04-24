@@ -204,6 +204,7 @@ export interface ReadModelAgent {
   readonly workspaceId: string
   readonly name: string
   readonly role: string
+  readonly roles: ReadonlyArray<string>
   readonly provider: string
   readonly model: string
   readonly capabilities: ReadonlyArray<string>
@@ -260,6 +261,7 @@ export interface AgentContextResponse {
   readonly openTaskCount: number
   readonly pendingApprovalCount: number
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>
+  readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>
   readonly activeSessions: ReadonlyArray<ActiveAgentSession>
 }
 

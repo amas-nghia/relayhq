@@ -55,6 +55,7 @@ describe("POST /api/vault/agents", () => {
           type: "agent",
           name: "Backend Developer",
           role: "backend-developer",
+          roles: ["backend-developer"],
           provider: "anthropic",
           model: "claude-sonnet-4-6",
           capabilities: [],

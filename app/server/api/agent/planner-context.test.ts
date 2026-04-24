@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
 import { describe, expect, test } from "bun:test";
 
 import type { VaultReadModel } from "../../models/read-model";
@@ -248,6 +252,9 @@ function createReadModel(workspaceBody = "## Tech Stack\n\n- Nuxt 3"): VaultRead
         projectId: "project-demo",
         title: "Project feature doc",
         status: "draft",
+        visibility: "project",
+        accessRoles: ["all"],
+        sensitive: false,
         createdAt: "2026-04-23T00:00:00Z",
         updatedAt: "2026-04-23T01:00:00Z",
         tags: ["docs"],
@@ -262,6 +269,9 @@ function createReadModel(workspaceBody = "## Tech Stack\n\n- Nuxt 3"): VaultRead
         projectId: null,
         title: "Workspace research doc",
         status: "active",
+        visibility: "workspace",
+        accessRoles: ["role:implementation"],
+        sensitive: false,
         createdAt: "2026-04-23T00:00:00Z",
         updatedAt: "2026-04-23T02:00:00Z",
         tags: ["research"],
@@ -278,6 +288,7 @@ function createReadModel(workspaceBody = "## Tech Stack\n\n- Nuxt 3"): VaultRead
         workspaceId: "ws-demo",
         name: "Claude Code",
         role: "implementation",
+        roles: ["implementation"],
         provider: "claude",
         model: "sonnet",
         capabilities: ["write-typescript", "write-tests"],
@@ -331,6 +342,7 @@ describe("GET /api/agent/planner-context", () => {
         id: "agent-claude-code",
         name: "Claude Code",
         capabilities: ["write-typescript", "write-tests"],
+        roles: ["implementation"],
         status: "available",
       },
     ]);
@@ -385,6 +397,7 @@ describe("GET /api/agent/planner-context", () => {
             id: "agent-planner",
             name: "Planner",
             capabilities: ["plan-work", "create-tasks"],
+            roles: ["planner"],
             status: "busy",
           },
         ],
@@ -398,8 +411,72 @@ describe("GET /api/agent/planner-context", () => {
         id: "agent-planner",
         name: "Planner",
         capabilities: ["plan-work", "create-tasks"],
+        roles: ["planner"],
         status: "busy",
       },
     ]);
+  });
+
+  test("filters docs by access rules and records denied access in audit", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-planner-access-"));
+    await mkdir(join(root, "vault", "shared", "audit"), { recursive: true });
+
+    try {
+      const baseReadModel = createReadModel();
+      const response = await readPlannerContext({
+        readModelReader: async () => ({
+          ...baseReadModel,
+          docs: [
+            ...baseReadModel.docs,
+            {
+              id: "doc-sensitive",
+              type: "doc",
+              docType: "budget",
+              workspaceId: "ws-demo",
+              projectId: "project-demo",
+              title: "Sensitive budget",
+              status: "draft",
+              visibility: "project",
+              accessRoles: ["agent-claude-code"],
+              sensitive: true,
+              createdAt: "2026-04-23T00:00:00Z",
+              updatedAt: "2026-04-23T03:00:00Z",
+              tags: ["finance"],
+              body: "hidden budget body",
+              sourcePath: "vault/shared/docs/doc-sensitive.md",
+            },
+            {
+              id: "doc-human-only",
+              type: "doc",
+              docType: "policy",
+              workspaceId: "ws-demo",
+              projectId: "project-demo",
+              title: "Human notes",
+              status: "active",
+              visibility: "workspace",
+              accessRoles: ["human-only"],
+              sensitive: false,
+              createdAt: "2026-04-23T00:00:00Z",
+              updatedAt: "2026-04-23T04:00:00Z",
+              tags: ["ops"],
+              body: "hidden human body",
+              sourcePath: "vault/shared/docs/doc-human-only.md",
+            },
+          ],
+        }),
+        resolveRoot: () => root,
+        workspaceIdReader: () => null,
+      }, { agentId: "agent-claude-code" });
+
+      expect(response.docs.map((doc) => doc.id)).toEqual(["doc-project", "doc-workspace", "doc-sensitive"]);
+      expect(JSON.stringify(response.docs)).not.toContain("doc-human-only");
+
+      const auditFiles = await readdir(join(root, "vault", "shared", "audit"));
+      expect(auditFiles).toHaveLength(1);
+      const auditContent = await readFile(join(root, "vault", "shared", "audit", auditFiles[0]!), "utf8");
+      expect(auditContent).toContain("doc-human-only");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

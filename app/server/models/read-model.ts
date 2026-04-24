@@ -36,6 +36,7 @@ export interface ReadModelAgent {
   readonly workspaceId: string;
   readonly name: string;
   readonly role: string;
+  readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly model: string;
   readonly capabilities: ReadonlyArray<string>;
@@ -536,6 +537,7 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     workspaceId: document.frontmatter.workspace_id,
     name: document.frontmatter.name,
     role: document.frontmatter.role,
+    roles: [...document.frontmatter.roles].sort(),
     provider: document.frontmatter.provider,
     model: document.frontmatter.model,
     capabilities: sortStrings(document.frontmatter.capabilities),

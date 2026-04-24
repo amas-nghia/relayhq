@@ -24,7 +24,7 @@ describe("GET /api/settings/scan-agents", () => {
       await mkdir(join(home, ".cursor"), { recursive: true });
       await writeFile(join(home, ".claude", "settings.json"), "{}", "utf8");
       await writeFile(join(home, ".cursor", "mcp.json"), "{}", "utf8");
-      await writeFile(join(root, "vault", "shared", "agents", "claude-code.md"), `---\nid: "claude-code"\ntype: agent\nname: "Claude Code"\nrole: "implementation"\nprovider: "claude"\nmodel: "claude-sonnet-4-6"\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: "skills/claude-code.md"\nstatus: "available"\nworkspace_id: "ws-demo"\ncreated_at: "2026-04-25T00:00:00Z"\nupdated_at: "2026-04-25T00:00:00Z"\n---\n`, "utf8");
+      await writeFile(join(root, "vault", "shared", "agents", "claude-code.md"), `---\nid: "claude-code"\ntype: agent\nname: "Claude Code"\nrole: "implementation"\nroles: ["implementation"]\nprovider: "claude"\nmodel: "claude-sonnet-4-6"\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: "skills/claude-code.md"\nstatus: "available"\nworkspace_id: "ws-demo"\ncreated_at: "2026-04-25T00:00:00Z"\nupdated_at: "2026-04-25T00:00:00Z"\n---\n`, "utf8");
 
       const response = await scanAgents({ vaultRoot: root, homeDirectory: home });
 

@@ -55,6 +55,7 @@ export async function registerVaultAgent(
     type: "agent",
     name: String(body.name).trim(),
     role: String(body.role).trim(),
+    roles: [String(body.role).trim()],
     provider: String(body.provider).trim(),
     model: String(body.model).trim(),
     capabilities: [],
@@ -69,7 +70,7 @@ export async function registerVaultAgent(
     updated_at: timestamp,
   };
   assertAgentFrontmatter(frontmatter);
-  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\nrole: ${JSON.stringify(frontmatter.role)}\nprovider: ${JSON.stringify(frontmatter.provider)}\nmodel: ${JSON.stringify(frontmatter.model)}\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\nstatus: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
+  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\nrole: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\nmodel: ${JSON.stringify(frontmatter.model)}\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\nstatus: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
   await writeFile(filePath, markdown, { flag: "wx" });
   return {
     agent: frontmatter,

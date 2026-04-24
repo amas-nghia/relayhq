@@ -281,8 +281,65 @@ function createReadModel(): VaultReadModel {
       },
     ],
     auditNotes: [],
-    docs: [],
-    agents: [],
+    docs: [
+      {
+        id: "doc-visible",
+        type: "doc",
+        docType: "brief",
+        workspaceId: "ws-alpha",
+        projectId: "project-alpha",
+        title: "Visible doc",
+        status: "draft",
+        visibility: "project",
+        accessRoles: ["all"],
+        sensitive: false,
+        createdAt: "2026-04-19T10:00:00Z",
+        updatedAt: "2026-04-19T10:00:00Z",
+        tags: ["brief"],
+        body: "visible body should never leak",
+        sourcePath: "vault/shared/docs/doc-visible.md",
+      },
+      {
+        id: "doc-human-only",
+        type: "doc",
+        docType: "policy",
+        workspaceId: "ws-alpha",
+        projectId: "project-alpha",
+        title: "Human doc",
+        status: "active",
+        visibility: "workspace",
+        accessRoles: ["human-only"],
+        sensitive: false,
+        createdAt: "2026-04-19T10:00:00Z",
+        updatedAt: "2026-04-19T10:00:00Z",
+        tags: ["policy"],
+        body: "human body should never leak",
+        sourcePath: "vault/shared/docs/doc-human-only.md",
+      },
+    ],
+    agents: [
+      {
+        id: "agent-claude-code",
+        type: "agent",
+        workspaceId: "ws-alpha",
+        name: "Claude Code",
+        role: "implementation",
+        roles: ["implementation"],
+        provider: "claude",
+        model: "sonnet",
+        capabilities: ["write-typescript"],
+        taskTypesAccepted: ["feature-implementation"],
+        approvalRequiredFor: [],
+        cannotDo: [],
+        accessibleBy: ["@owner"],
+        skillFile: "skills/claude-code.md",
+        status: "available",
+        createdAt: "2026-04-19T10:00:00Z",
+        updatedAt: "2026-04-19T10:00:00Z",
+        body: "agent body should never leak",
+        sourcePath: "vault/shared/agents/agent-claude-code.md",
+      },
+    ],
   };
 }
 
@@ -297,7 +354,7 @@ describe("GET /api/agent/context", () => {
       sessionStore,
       workspaceIdReader: () => null,
       now: () => new Date("2026-04-19T10:00:00Z"),
-    });
+    }, { agentId: 'agent-claude-code' });
 
     expect(response).toEqual(expect.objectContaining({
       workspaceId: "ws-alpha",
@@ -338,6 +395,16 @@ describe("GET /api/agent/context", () => {
           ],
         },
       ],
+      docs: [
+        {
+          id: "doc-visible",
+          title: "Visible doc",
+          doc_type: "brief",
+          status: "draft",
+          visibility: "project",
+          updatedAt: "2026-04-19T10:00:00Z",
+        },
+      ],
     }));
 
     const payload = JSON.stringify(response);
@@ -345,6 +412,7 @@ describe("GET /api/agent/context", () => {
     expect(payload).not.toContain("internal execution note");
     expect(payload).not.toContain("sensitive approval reason");
     expect(payload).not.toContain("private result text");
+    expect(payload).not.toContain("human body should never leak");
     expect(payload).not.toContain("sourcePath");
     expect(payload).not.toContain("body");
   });

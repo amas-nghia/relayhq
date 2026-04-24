@@ -10,6 +10,7 @@ import { readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "./runtime"
 export interface CreateAgentInput {
   readonly name: string;
   readonly role: string;
+  readonly roles?: ReadonlyArray<string>;
   readonly provider: string;
   readonly model: string;
   readonly capabilities?: ReadonlyArray<string>;
@@ -134,6 +135,7 @@ function buildAgentFrontmatter(input: {
   readonly id: string;
   readonly name: string;
   readonly role: string;
+  readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly model: string;
   readonly workspaceId: string;
@@ -152,6 +154,7 @@ function buildAgentFrontmatter(input: {
     type: "agent",
     name: input.name,
     role: input.role,
+    roles: input.roles,
     provider: input.provider,
     model: input.model,
     capabilities: input.capabilities,
@@ -170,6 +173,7 @@ function buildAgentFrontmatter(input: {
 export async function createVaultAgent(input: CreateAgentInput): Promise<CreateAgentResult> {
   const name = normalizeRequiredString(input.name, "name");
   const role = normalizeRequiredString(input.role, "role");
+  const roles = input.roles === undefined || input.roles.length === 0 ? [role] : [...new Set(input.roles.map((entry) => entry.trim()).filter((entry) => entry.length > 0))];
   const provider = normalizeRequiredString(input.provider, "provider");
   const model = normalizeRequiredString(input.model, "model");
   const capabilities = input.capabilities ?? [];
@@ -188,6 +192,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     id,
     name,
     role,
+    roles,
     provider,
     model,
     workspaceId,
