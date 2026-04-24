@@ -1,6 +1,8 @@
 import { defineEventHandler, getQuery } from "h3";
+import { execSync } from "node:child_process";
 
 import { filterVaultReadModelByWorkspaceId } from "../../models/read-model";
+import { createVaultAgent } from "../../services/vault/agent-create";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, readExposedVaultRoot, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 import { countTokens, computeSaving, recordTokenSaving } from "../../services/metrics/tracker";
@@ -54,6 +56,7 @@ interface ReadAgentSessionDependencies {
   readonly workspaceIdReader?: typeof readConfiguredWorkspaceId;
   readonly sessionStore?: SessionStore;
   readonly now?: () => Date;
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export interface AgentSessionProtocol {
@@ -64,6 +67,61 @@ export interface AgentSessionProtocol {
 function normalizeWorkspaceBrief(body: string | null | undefined): string | null {
   const brief = body?.trim() ?? "";
   return brief.length > 0 ? brief : null;
+}
+
+function readAgentDisplayName(agentId: string, env: NodeJS.ProcessEnv): string {
+  try {
+    const name = execSync("git config user.name", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    if (name.length > 0) return name;
+  } catch {
+    // ignore local git config lookup failures
+  }
+
+  return env.USER || agentId;
+}
+
+function readAgentRuntime(env: NodeJS.ProcessEnv): string {
+  if (env.CLAUDE_CODE_SESSION) return "claude-code";
+  if (env.CURSOR_TRACE_ID) return "cursor";
+  if (env.TERM_PROGRAM) return env.TERM_PROGRAM;
+  return "terminal";
+}
+
+function readAgentModel(env: NodeJS.ProcessEnv): string {
+  return env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+}
+
+function readAgentProvider(runtime: string): string {
+  if (runtime === "cursor") return "cursor";
+  if (runtime === "claude-code") return "claude";
+  return "relayhq";
+}
+
+function buildPortrait(agentId: string): string {
+  const portraits = ["mage", "pilot", "forge", "navigator", "wave", "circuit"];
+  const hash = [...agentId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return portraits[hash % portraits.length] ?? "mage";
+}
+
+async function autoRegisterAgent(vaultRoot: string, agentId: string, env: NodeJS.ProcessEnv, now: Date) {
+  const runtime = readAgentRuntime(env);
+  const role = runtime === "cursor" ? "implementation" : "implementation";
+
+  await createVaultAgent({
+    id: agentId,
+    name: readAgentDisplayName(agentId, env),
+    role,
+    roles: [role],
+    provider: readAgentProvider(runtime),
+    model: readAgentModel(env),
+    capabilities: ["write-code", "run-tests"],
+    taskTypesAccepted: ["feature-implementation", "bug-fix"],
+    skillFile: `skills/${agentId}.md`,
+    body: `# ${agentId}\n\nRegistered automatically from session-start.\n\n- runtime: ${runtime}\n- portrait: ${buildPortrait(agentId)}`,
+    now,
+    vaultRoot,
+    env,
+  }).catch(() => undefined);
 }
 
 export function computeSessionEtag(snapshot: Pick<AgentSessionFullResponse, "protocol" | "context" | "tasks">): string {
@@ -87,11 +145,16 @@ export async function readAgentSession(
   const workspaceIdReader = dependencies.workspaceIdReader ?? readConfiguredWorkspaceId;
   const sessionStore = dependencies.sessionStore ?? defaultSessionStore;
   const now = dependencies.now?.() ?? new Date();
+  const env = dependencies.env ?? process.env;
   const providedSessionToken = options.sessionToken?.trim();
   const activeSession = providedSessionToken ? sessionStore.touch(providedSessionToken, now) : null;
   const sessionToken = activeSession === null ? sessionStore.issue(options.agent, now) : providedSessionToken!;
   const vaultRoot = resolveRoot();
-  const readModel = await readModelReader(vaultRoot);
+  let readModel = await readModelReader(vaultRoot);
+  if (!readModel.agents.some((agent) => agent.id === options.agent)) {
+    await autoRegisterAgent(vaultRoot, options.agent, env, now);
+    readModel = await readModelReader(vaultRoot);
+  }
   const workspaceId = normalizeConfiguredWorkspaceId(workspaceIdReader(), readModel.workspaces);
   const filteredReadModel = workspaceId === null
     ? readModel

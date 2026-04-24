@@ -8,6 +8,7 @@ import { readSharedVaultCollections } from "./read";
 import { readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "./runtime";
 
 export interface CreateAgentInput {
+  readonly id?: string;
   readonly name: string;
   readonly role: string;
   readonly roles?: ReadonlyArray<string>;
@@ -182,7 +183,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   const cannotDo = input.cannotDo ?? [];
   const accessibleBy = input.accessibleBy ?? [];
   const skillFile = input.skillFile ?? `skills/${slugifyAgentId(name)}.md`;
-  const id = slugifyAgentId(name);
+  const id = input.id === undefined ? slugifyAgentId(name) : slugifyAgentId(input.id);
   const now = input.now ?? new Date();
   const env = input.env ?? process.env;
   const vaultRoot = input.vaultRoot ?? resolveVaultWorkspaceRoot(process.cwd(), env);

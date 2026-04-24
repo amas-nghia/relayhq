@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
 import { describe, expect, test } from "bun:test";
 
 import type { VaultReadModel } from "../../models/read-model";
@@ -316,5 +320,38 @@ describe("GET /api/agent/session", () => {
       lastSeenAt: "2026-04-23T12:31:00.000Z",
       etag: fullResponse.etag,
     });
+  });
+
+  test("auto-registers a missing agent on first session start", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-session-auto-agent-"));
+    const sessionStore = new SessionStore({ tokenFactory: () => "sess-auto0001" });
+
+    try {
+      await mkdir(join(root, "vault", "shared", "workspaces"), { recursive: true });
+      await writeFile(join(root, "vault", "shared", "workspaces", "ws-demo.md"), [
+        "---",
+        'id: "ws-demo"',
+        'type: "workspace"',
+        'name: "Demo Workspace"',
+        'owner_ids: ["@owner"]',
+        'member_ids: ["@owner"]',
+        'created_at: "2026-04-23T12:00:00Z"',
+        'updated_at: "2026-04-23T12:00:00Z"',
+        "---",
+        "",
+      ].join("\n"), "utf8");
+
+      await readAgentSession({ agent: "agent-claude-code" }, {
+        resolveRoot: () => root,
+        sessionStore,
+        workspaceIdReader: () => null,
+        now: () => new Date("2026-04-23T12:00:00Z"),
+        env: { ...process.env, USER: "Relay Tester", CLAUDE_CODE_SESSION: "session-1" },
+      });
+
+      await expect(readFile(join(root, "vault", "shared", "agents", "agent-claude-code.md"), "utf8")).resolves.toContain("portrait:");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
