@@ -8,6 +8,9 @@ runs/*
 !runs/.gitkeep
 .idea/
 .opencode/
+.claude/
+.relayhq/
+.tmp/
 backend/bin/
 frontend/node_modules/
 frontend/dist/
