@@ -1,4 +1,4 @@
-import { createError, defineEventHandler, getRouterParam } from "h3";
+import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
 import { readCanonicalVaultReadModel } from "../../../../../services/vault/read";
 import { resolveVaultWorkspaceRoot } from "../../../../../services/vault/runtime";
@@ -20,7 +20,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     const storage = getKiokuStorage();
-    const result = indexProjectCodebase(project, vaultRoot, storage);
+    const body = await readBody(event).catch(() => null);
+    const codebaseName = typeof body?.codebaseName === "string" && body.codebaseName.trim().length > 0
+      ? body.codebaseName.trim()
+      : undefined;
+    const result = indexProjectCodebase(project, vaultRoot, storage, codebaseName);
     return {
       indexedFiles: result.indexedFiles,
       resolvedPaths: result.resolvedPaths,

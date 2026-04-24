@@ -14,6 +14,17 @@ export interface ProjectCodeIndexStatus {
   readonly warnings: ReadonlyArray<string>;
 }
 
+export interface ProjectCodebaseIndexStatus {
+  readonly name: string;
+  readonly path: string;
+  readonly resolvedPath: string;
+  readonly status: "missing-path" | "not-indexed" | "indexed";
+  readonly fileCount: number;
+  readonly lastIndexedAt: string | null;
+  readonly primary: boolean;
+  readonly tech?: string;
+}
+
 function selectPrimaryCodebase(project: Pick<ReadModelProject, "codebases">) {
   return project.codebases.find((entry) => entry.primary) ?? project.codebases[0] ?? null;
 }
@@ -34,8 +45,65 @@ function listProjectCodeDocuments(storage: Pick<KiokuStorage, "listEntityIds" | 
     .filter((document) => document.entityType === "document" && document.projectId === projectId);
 }
 
+function listCodebaseDocuments(
+  storage: Pick<KiokuStorage, "listEntityIds" | "fetchById">,
+  projectId: string,
+  codebaseName: string,
+) {
+  return listProjectCodeDocuments(storage, projectId).filter((document) => document.codebaseName === codebaseName);
+}
+
 function listConfiguredCodebases(project: Pick<ReadModelProject, "codebases">) {
   return project.codebases;
+}
+
+export function listProjectCodebaseStatuses(
+  project: Pick<ReadModelProject, "id" | "codebases">,
+  vaultRoot: string,
+  storage: Pick<KiokuStorage, "listEntityIds" | "fetchById">,
+): ReadonlyArray<ProjectCodebaseIndexStatus> {
+  return listConfiguredCodebases(project).map((codebase) => {
+    const resolvedPath = isAbsolute(codebase.path) ? codebase.path : resolve(vaultRoot, codebase.path);
+    const documents = listCodebaseDocuments(storage, project.id, codebase.name);
+
+    if (!existsSync(resolvedPath) || !statSync(resolvedPath).isDirectory()) {
+      return {
+        name: codebase.name,
+        path: codebase.path,
+        resolvedPath,
+        status: "missing-path",
+        fileCount: documents.length,
+        lastIndexedAt: documents[0]?.updatedAt ?? null,
+        primary: codebase.primary ?? false,
+        ...(codebase.tech === undefined ? {} : { tech: codebase.tech }),
+      };
+    }
+
+    if (documents.length === 0) {
+      return {
+        name: codebase.name,
+        path: codebase.path,
+        resolvedPath,
+        status: "not-indexed",
+        fileCount: 0,
+        lastIndexedAt: null,
+        primary: codebase.primary ?? false,
+        ...(codebase.tech === undefined ? {} : { tech: codebase.tech }),
+      };
+    }
+
+    const lastIndexedAt = [...documents].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]?.updatedAt ?? null;
+    return {
+      name: codebase.name,
+      path: codebase.path,
+      resolvedPath,
+      status: "indexed",
+      fileCount: documents.length,
+      lastIndexedAt,
+      primary: codebase.primary ?? false,
+      ...(codebase.tech === undefined ? {} : { tech: codebase.tech }),
+    };
+  });
 }
 
 export function readProjectCodeIndexStatus(
@@ -67,10 +135,15 @@ export function indexProjectCodebase(
   project: Pick<ReadModelProject, "id" | "workspaceId" | "codebases">,
   vaultRoot: string,
   storage: Pick<KiokuStorage, "upsert" | "fetchById">,
+  codebaseName?: string,
 ): { readonly indexedFiles: number; readonly resolvedPaths: ReadonlyArray<string>; readonly warnings: ReadonlyArray<string> } {
-  const codebases = listConfiguredCodebases(project);
+  const codebases = codebaseName === undefined
+    ? listConfiguredCodebases(project)
+    : listConfiguredCodebases(project).filter((entry) => entry.name === codebaseName);
   if (codebases.length === 0) {
-    throw new Error(`Project ${project.id} does not have any codebases configured.`);
+    throw new Error(codebaseName === undefined
+      ? `Project ${project.id} does not have any codebases configured.`
+      : `Project ${project.id} does not have a codebase named ${codebaseName}.`);
   }
 
   const warnings: string[] = [];

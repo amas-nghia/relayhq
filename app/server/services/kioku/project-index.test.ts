@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { createKiokuStorage } from "./storage";
-import { indexProjectCodebase, readProjectCodeIndexStatus } from "./project-index";
+import { indexProjectCodebase, listProjectCodebaseStatuses, readProjectCodeIndexStatus } from "./project-index";
 
 const roots: string[] = [];
 const storages: ReturnType<typeof createKiokuStorage>[] = [];
@@ -79,5 +79,41 @@ describe("project code indexing", () => {
     expect(result.warnings).toEqual([`Skipping missing codebase path for missing: ${join(root, "missing")}`]);
     expect(storage.fetchById("project-demo:frontend:page.ts")?.codebaseName).toBe("frontend");
     expect(storage.fetchById("project-demo:backend:service.ts")?.codebaseName).toBe("backend");
+  });
+
+  test("reports status per codebase and allows indexing one named codebase", async () => {
+    const root = await createRoot();
+    const storage = withStorage();
+
+    const frontendRoot = join(root, "frontend");
+    const backendRoot = join(root, "backend");
+    await mkdir(frontendRoot, { recursive: true });
+    await writeFile(join(frontendRoot, "page.ts"), "export const page = true\n", "utf8");
+    await mkdir(backendRoot, { recursive: true });
+    await writeFile(join(backendRoot, "service.ts"), "export const service = true\n", "utf8");
+
+    const project = {
+      id: "project-demo",
+      workspaceId: "ws-demo",
+      codebases: [
+        { name: "frontend", path: "frontend", primary: true, tech: "Nuxt" },
+        { name: "backend", path: "backend", tech: "Go" },
+      ],
+    };
+
+    const before = listProjectCodebaseStatuses(project, root, storage);
+    expect(before.map((entry) => [entry.name, entry.status])).toEqual([
+      ["frontend", "not-indexed"],
+      ["backend", "not-indexed"],
+    ]);
+
+    const result = indexProjectCodebase(project, root, storage, "frontend");
+    expect(result.indexedFiles).toBe(1);
+
+    const after = listProjectCodebaseStatuses(project, root, storage);
+    expect(after.map((entry) => [entry.name, entry.status])).toEqual([
+      ["frontend", "indexed"],
+      ["backend", "not-indexed"],
+    ]);
   });
 });
