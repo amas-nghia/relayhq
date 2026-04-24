@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Bell, Bot, CheckSquare, ChevronRight, FileClock, FolderKanban, KanbanSquare, Hourglass, User2 } from 'lucide-react';
+import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, User2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -36,11 +36,9 @@ export function Sidebar() {
   );
 
   const navItems = [
-    { name: 'Board', path: '/boards/main', icon: KanbanSquare },
-    { name: 'Tasks', path: '/tasks', icon: CheckSquare },
+    { name: 'Board', path: '/', icon: KanbanSquare },
     { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-surface' },
     { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-surface' },
-    { name: 'Audit', path: '/audit', icon: FileClock },
   ];
 
   return (
