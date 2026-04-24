@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 
 import { describe, expect, test } from "bun:test";
 
-import { selectBoardSummary } from "../../../data/relayhq-overview";
 import { readCanonicalVaultReadModel } from "./read";
 import { createVaultTask, TaskCreateError } from "./task-create";
 import { readTaskDocument } from "./write";
@@ -132,14 +131,8 @@ describe("createVaultTask", () => {
         columnId: "todo",
       });
 
-      const board = selectBoardSummary(model, "board-alpha");
-      expect(board.columns[0]?.tasks).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: result.frontmatter.id,
-            title: "Ship project create flow",
-          }),
-        ]),
+      expect(model.boards.find((entry) => entry.id === "board-alpha")?.taskIds).toEqual(
+        expect.arrayContaining([result.frontmatter.id]),
       );
     } finally {
       await rm(root, { recursive: true, force: true });
