@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import { useAppStore } from '../store/appStore';
 import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle, ChevronDown, ChevronUp } from 'lucide-react';
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/input';
 
 type SortField = 'id' | 'title' | 'project' | 'status' | 'priority' | 'assignee' | null
 type SortDirection = 'asc' | 'desc' | null
+type FilterMenu = 'project' | 'status' | 'priority' | 'assignee' | null
 
 const STATUS_ORDER: Record<TaskStatus, number> = {
   'waiting-approval': 0,
@@ -72,6 +73,23 @@ export function TasksView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const [openFilterMenu, setOpenFilterMenu] = useState<FilterMenu>(null)
+  const [projectFilters, setProjectFilters] = useState<Set<string>>(new Set())
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set())
+  const [priorityFilters, setPriorityFilters] = useState<Set<string>>(new Set())
+  const [assigneeFilters, setAssigneeFilters] = useState<Set<string>>(new Set())
+  const filterMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setOpenFilterMenu(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const getStatusIcon = (status: TaskStatus) => {
     switch(status) {
@@ -99,7 +117,16 @@ export function TasksView() {
       ? tasks
       : tasks.filter(task => task.title.toLowerCase().includes(normalizedQuery))
 
-    const sortedTasks = [...filteredTasks].sort((left, right) => {
+    const narrowedTasks = filteredTasks.filter(task => {
+      const matchesProject = projectFilters.size === 0 || projectFilters.has(task.projectId)
+      const matchesStatus = statusFilters.size === 0 || statusFilters.has(task.status)
+      const matchesPriority = priorityFilters.size === 0 || priorityFilters.has(task.priority)
+      const assigneeKey = task.assigneeId ?? '__unassigned__'
+      const matchesAssignee = assigneeFilters.size === 0 || assigneeFilters.has(assigneeKey)
+      return matchesProject && matchesStatus && matchesPriority && matchesAssignee
+    })
+
+    const sortedTasks = [...narrowedTasks].sort((left, right) => {
       if (sortField === null || sortDir === null) {
         return STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority] || compareText(left.title, right.title)
       }
@@ -141,7 +168,7 @@ export function TasksView() {
     })
 
     return sortedTasks
-  }, [agents, projects, searchQuery, sortDir, sortField, tasks])
+  }, [agents, assigneeFilters, priorityFilters, projectFilters, projects, searchQuery, sortDir, sortField, statusFilters, tasks])
 
   function toggleSort(field: Exclude<SortField, null>) {
     if (sortField !== field) {
@@ -169,6 +196,48 @@ export function TasksView() {
     return sortDir === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
   }
 
+  function toggleFilterValue(setter: Dispatch<SetStateAction<Set<string>>>, value: string, universeSize: number) {
+    setter(current => {
+      const next = new Set(current)
+      if (next.has(value)) {
+        next.delete(value)
+      } else {
+        next.add(value)
+      }
+
+      return next.size === 0 || next.size === universeSize ? new Set() : next
+    })
+    setOpenFilterMenu(null)
+  }
+
+  function clearAllFilters() {
+    setSearchQuery('')
+    setProjectFilters(new Set())
+    setStatusFilters(new Set())
+    setPriorityFilters(new Set())
+    setAssigneeFilters(new Set())
+  }
+
+  const projectOptions = projects.map(project => ({ value: project.id, label: project.name }))
+  const statusOptions: Array<{ value: TaskStatus; label: string; tone: string }> = [
+    { value: 'todo', label: 'Todo', tone: 'bg-text-tertiary' },
+    { value: 'in-progress', label: 'In progress', tone: 'bg-status-active' },
+    { value: 'blocked', label: 'Blocked', tone: 'bg-status-blocked' },
+    { value: 'waiting-approval', label: 'Waiting approval', tone: 'bg-status-waiting' },
+    { value: 'done', label: 'Done', tone: 'bg-status-done' },
+  ]
+  const priorityOptions: Array<{ value: TaskPriority; label: string; tone: string }> = [
+    { value: 'critical', label: 'Critical', tone: 'bg-status-blocked' },
+    { value: 'high', label: 'High', tone: 'bg-status-waiting' },
+    { value: 'medium', label: 'Medium', tone: 'bg-text-secondary' },
+    { value: 'low', label: 'Low', tone: 'bg-text-tertiary' },
+  ]
+  const assigneeOptions = [
+    { value: '__unassigned__', label: 'Unassigned' },
+    ...agents.map(agent => ({ value: agent.id, label: agent.name })),
+  ]
+  const activeFilterCount = projectFilters.size + statusFilters.size + priorityFilters.size + assigneeFilters.size
+
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-4">
@@ -187,7 +256,7 @@ export function TasksView() {
           </Button>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3" ref={filterMenuRef}>
           <div className="relative flex-1 min-w-[200px] flex items-center gap-2">
             <Search className="w-4 h-4 absolute left-3 text-text-tertiary" />
             <Input
@@ -198,15 +267,74 @@ export function TasksView() {
               className="pl-9"
             />
           </div>
-          <Button variant="outline" className="gap-1.5 px-3">
-            Project <Filter className="w-3.5 h-3.5" />
-          </Button>
-          <Button variant="outline" className="gap-1.5 px-3">
-            Status <Filter className="w-3.5 h-3.5" />
-          </Button>
-          <Button variant="outline" className="gap-1.5 px-3">
-            Assignee <Filter className="w-3.5 h-3.5" />
-          </Button>
+          <div className="relative">
+            <Button variant="outline" className={clsx('gap-1.5 px-3', projectFilters.size > 0 && 'border-accent text-accent')} onClick={() => setOpenFilterMenu(current => current === 'project' ? null : 'project')}>
+              Project{projectFilters.size > 0 ? ` •${projectFilters.size}` : ''} <Filter className="w-3.5 h-3.5" />
+            </Button>
+            {openFilterMenu === 'project' && (
+              <div className="absolute left-0 top-11 z-30 min-w-40 rounded-xl border border-border bg-surface p-2 shadow-panel">
+                <button type="button" onClick={() => { setProjectFilters(new Set()); setOpenFilterMenu(null) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-text-secondary hover:bg-surface-secondary hover:text-text-primary">All Projects</button>
+                {projectOptions.map(option => (
+                  <button key={option.value} type="button" onClick={() => toggleFilterValue(setProjectFilters, option.value, projectOptions.length)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-secondary">
+                    <input type="checkbox" readOnly checked={projectFilters.has(option.value)} className="pointer-events-none" />
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <Button variant="outline" className={clsx('gap-1.5 px-3', statusFilters.size > 0 && 'border-accent text-accent')} onClick={() => setOpenFilterMenu(current => current === 'status' ? null : 'status')}>
+              Status{statusFilters.size > 0 ? ` •${statusFilters.size}` : ''} <Filter className="w-3.5 h-3.5" />
+            </Button>
+            {openFilterMenu === 'status' && (
+              <div className="absolute left-0 top-11 z-30 min-w-40 rounded-xl border border-border bg-surface p-2 shadow-panel">
+                {statusOptions.map(option => (
+                  <button key={option.value} type="button" onClick={() => toggleFilterValue(setStatusFilters, option.value, statusOptions.length)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-secondary">
+                    <input type="checkbox" readOnly checked={statusFilters.has(option.value)} className="pointer-events-none" />
+                    <span className={clsx('h-2 w-2 rounded-full', option.tone)} />
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <Button variant="outline" className={clsx('gap-1.5 px-3', priorityFilters.size > 0 && 'border-accent text-accent')} onClick={() => setOpenFilterMenu(current => current === 'priority' ? null : 'priority')}>
+              Priority{priorityFilters.size > 0 ? ` •${priorityFilters.size}` : ''} <Filter className="w-3.5 h-3.5" />
+            </Button>
+            {openFilterMenu === 'priority' && (
+              <div className="absolute left-0 top-11 z-30 min-w-40 rounded-xl border border-border bg-surface p-2 shadow-panel">
+                {priorityOptions.map(option => (
+                  <button key={option.value} type="button" onClick={() => toggleFilterValue(setPriorityFilters, option.value, priorityOptions.length)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-secondary">
+                    <input type="checkbox" readOnly checked={priorityFilters.has(option.value)} className="pointer-events-none" />
+                    <span className={clsx('h-2 w-2 rounded-full', option.tone)} />
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <Button variant="outline" className={clsx('gap-1.5 px-3', assigneeFilters.size > 0 && 'border-accent text-accent')} onClick={() => setOpenFilterMenu(current => current === 'assignee' ? null : 'assignee')}>
+              Assignee{assigneeFilters.size > 0 ? ` •${assigneeFilters.size}` : ''} <Filter className="w-3.5 h-3.5" />
+            </Button>
+            {openFilterMenu === 'assignee' && (
+              <div className="absolute left-0 top-11 z-30 min-w-40 rounded-xl border border-border bg-surface p-2 shadow-panel">
+                {assigneeOptions.map(option => (
+                  <button key={option.value} type="button" onClick={() => toggleFilterValue(setAssigneeFilters, option.value, assigneeOptions.length)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-secondary">
+                    <input type="checkbox" readOnly checked={assigneeFilters.has(option.value)} className="pointer-events-none" />
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" className="px-2" onClick={clearAllFilters}>
+              Clear all
+            </Button>
+          )}
         </div>
       </div>
 
