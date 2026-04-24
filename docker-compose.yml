@@ -1,0 +1,44 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    working_dir: /workspace/app
+    command: bun run dev
+    ports:
+      - "44210:44210"
+    volumes:
+      - ./app:/workspace/app
+      - ./vault:/workspace/vault
+      - app_node_modules:/workspace/app/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:44210/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    working_dir: /workspace/web
+    command: npm run dev
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: http://127.0.0.1:44210
+    ports:
+      - "44211:44211"
+    volumes:
+      - ./web:/workspace/web
+      - web_node_modules:/workspace/web/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:44211 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  app_node_modules:
+  web_node_modules:

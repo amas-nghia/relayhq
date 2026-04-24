@@ -5,7 +5,7 @@
 <h1 align="center">RelayHQ</h1>
 
 <p align="center">
-  <strong>The task board built for human–agent teams. Every task is a file. Git is the history.</strong>
+  <strong>Context that survives the handoff — across tools, models, and people.</strong>
 </p>
 
 <p align="center">
@@ -31,24 +31,27 @@
 
 ## The problem
 
-You have AI agents doing real work — writing code, running tests, opening PRs. But coordinating them is a mess:
+Claude is already good at managing tasks inside a single session. The problem is what happens at the edges.
 
-- **No shared context** — you paste the same background into every agent session
-- **No visibility** — you can't tell which agent is working on what, or whether it's stuck
-- **No guardrails** — agents run database migrations and deploy to production without asking
-- **No history** — when something goes wrong, there's no audit trail
+You switch to a cheaper model to save cost — and have to re-explain everything from scratch. You hand a task to a teammate — and paste the context into Slack. You pick up yesterday's work in a new session — and the thread is gone. You want a second agent to review what the first one did — but there's no shared record.
 
-## What RelayHQ does
+Every AI tool manages context well *within itself*. None of them share it *across* each other.
 
-RelayHQ is a Kanban board where every task, approval, and audit note is a plain Markdown file committed to Git. AI agents read and write the same vault as your team — no special SDKs, no proprietary APIs, no database to operate.
+Token costs are rising. The smartest move isn't to use one expensive model for everything — it's to use the right tool at the right stage, and keep the context alive between them.
+
+**That's what RelayHQ does.**
+
+## How it works
+
+Every task is a Markdown file — with its objective, acceptance criteria, constraints, notes, and history all in one place. When you finish thinking in Claude and hand off execution to a lighter model, a different CLI, a teammate, or your future self, the context comes with it. No copy-pasting. No re-explaining. One `git pull` and anyone — human or agent — is on the same page.
 
 ```
-vault/shared/tasks/task-001.md      ← agent claims this, works, marks done
-vault/shared/approvals/apr-001.md   ← human reviews before risky actions run
-vault/shared/audit/note-001.md      ← every action is recorded
+vault/shared/tasks/task-001.md      ← full context lives here, always
+vault/shared/approvals/apr-001.md   ← human gates risky actions
+vault/shared/audit/note-001.md      ← every move is recorded
 ```
 
-Agents use the CLI or HTTP API. Humans use the web UI or their editor. Both write to the same files.
+Use Claude Opus to analyse and spec. Use a cheaper model to implement. Use a human to approve. Use Obsidian to browse and link everything. They all read and write the same files.
 
 **RelayHQ coordinates work. It does not execute work.**
 
@@ -60,7 +63,7 @@ RelayHQ is designed to work with Claude Code out of the box.
 
 ### 1-minute setup
 
-Add RelayHQ to your Claude Code settings (`~/.claude/settings.json`):
+Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -69,38 +72,35 @@ Add RelayHQ to your Claude Code settings (`~/.claude/settings.json`):
       "command": "npx",
       "args": ["relayhq-mcp"],
       "env": {
-        "RELAYHQ_BASE_URL": "http://127.0.0.1:44210"
+        "RELAYHQ_BASE_URL": "http://127.0.0.1:44210",
+        "RELAYHQ_VAULT_ROOT": "/path/to/your/vault"
       }
     }
   }
 }
 ```
 
+> The onboarding wizard (step 3) generates this snippet with your vault path pre-filled and a copy button.
+
 Restart Claude Code. You now have `relayhq_*` tools in every session:
 
 ```
-relayhq_session_start   → get your task list and workspace context
-relayhq_update_task     → report progress and mark tasks done
-relayhq_heartbeat       → stay visible while working
-relayhq_request_approval → ask a human before doing something risky
+relayhq_session_start    → task list + workspace context
+relayhq_update_task      → report progress and mark done
+relayhq_heartbeat        → stay visible while working
+relayhq_request_approval → ask a human before risky actions
 ```
 
-### Example Claude Code workflow
-
-Add to your project's `CLAUDE.md`:
+Add this to your project's `CLAUDE.md` and Claude Code will pick up tasks automatically:
 
 ```markdown
 ## RelayHQ
-
-At the start of each session, call `relayhq_session_start(agentId="claude-code")` 
-to get the task list and workspace context.
-
-Send a heartbeat every ~10 minutes: `relayhq_heartbeat(taskId, agentId)`.
-
-When done: `relayhq_update_task(taskId, agentId, status="done", result="...")`.
+At session start: `relayhq_session_start(agentId="claude-code")`
+Heartbeat every ~10 min: `relayhq_heartbeat(taskId, agentId)`
+When done: `relayhq_update_task(taskId, agentId, status="done", result="...")`
 ```
 
-Claude Code will now pick up tasks from your board, work on them, and report back — all visible in the UI and auditable in Git.
+**Using OpenCode, Codex, or another tool?** See [docs/connect.md](docs/connect.md) for setup instructions for all supported agents.
 
 ---
 
@@ -117,7 +117,27 @@ npm install -g pm2
 pm2 start ecosystem.config.cjs && pm2 save
 ```
 
-Open [http://localhost:44211](http://localhost:44211) and follow the 3-step onboarding.
+Open [http://localhost:44211](http://localhost:44211) and follow the 3-step onboarding:
+
+1. **Workspace** — create a new vault or connect an existing one
+2. **Project** — name your first project and (optionally) point to the codebase
+3. **Connect** — copy the MCP snippet into `~/.claude/settings.json` for Claude Code, or write the env vars to your shell profile for any CLI agent
+
+### Option 3: Docker
+
+```bash
+docker compose up --build
+```
+
+This starts both services on the usual ports:
+- API: `http://127.0.0.1:44210`
+- Web: `http://127.0.0.1:44211`
+
+Stop and clean up with:
+
+```bash
+docker compose down
+```
 
 <details>
 <summary>Run without PM2</summary>
@@ -146,6 +166,14 @@ An agent refactors an auth system, then calls `request-approval` before touching
 
 **Team with async contributors**
 Humans create tasks in the UI. Agents pick them up, work, and write audit notes. At standup, the board reflects what happened — written by humans and agents alike, all in Git.
+
+**Mixed workflows — humans and agents in the same board**
+Not every task should go to an agent. UI design, real-device testing, client calls, legal review — some things need a human. Assign those tasks to a person instead, drag them across columns, update status by hand. RelayHQ doesn't distinguish between human and agent at the data level: assignee is just a name, status is just a field. The board reflects the full picture of who is doing what, regardless of whether "who" is a person or a model.
+
+**Split thinking from doing — keep costs low**
+Token prices aren't dropping fast enough. Use an expensive model (Claude Opus, GPT-4o) to analyse the problem, write the spec, and break it into tasks. Then hand off to a cheaper model on a different CLI — or a human — to execute. Because every task is a Markdown file, the full context travels with it: objective, acceptance criteria, constraints, prior notes, all of it. No copy-pasting. No re-explaining. The expensive thinking happens once and stays in the vault.
+
+This works across CLI tools, across machines, and across people. A solo dev can brainstorm with Claude in the morning and execute with a lighter model in the afternoon. A team can sync the entire vault through a shared Git repo — one `git pull` and everyone, human or agent, is on the same page. Prefer a visual knowledge base? Open the vault folder in [Obsidian](https://obsidian.md/) — tasks, docs, meeting notes, and audit logs are all plain Markdown, fully navigable and linkable.
 
 ---
 
