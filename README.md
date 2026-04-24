@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://relayhq.gitbook.io">Docs</a> ·
+  <a href="https://amas.gitbook.io/relayhq">Docs</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#agent-protocol">Agent Protocol</a> ·
   <a href="#roadmap">Roadmap</a>
@@ -186,17 +186,16 @@ RelayHQ/
 
 ## Documentation
 
-Full docs at **[relayhq.gitbook.io](https://relayhq.gitbook.io)** (or `docs/`):
+Canonical docs live at **[https://amas.gitbook.io/relayhq](https://amas.gitbook.io/relayhq)**.
 
-| Doc | Description |
-|-----|-------------|
-| [Vision](docs/vision.md) | What RelayHQ is and why |
-| [Architecture](docs/architecture.md) | Three-layer model and boundaries |
-| [Vault Structure](docs/vault/structure.md) | How vault files are organized |
-| [Vault Schema](docs/vault/schema.md) | YAML frontmatter field reference |
-| [Agent Definitions](docs/agents/definitions.md) | Agent registry format |
-| [Agent Protocol](docs/agents/protocol.md) | How agents interact with RelayHQ |
-| [Roadmap](docs/roadmap.md) | Phased growth plan |
+Use GitBook for:
+
+- product overview and architecture
+- vault schema and structure
+- agent protocol and integration guidance
+- roadmap and implementation references
+
+The `docs/` directory in this repo is supporting source material, but GitBook is the primary documentation surface to share from GitHub.
 
 ## Roadmap
 

@@ -31,13 +31,16 @@ RelayHQ-vault-first/
 │   │   ├── pages/              # TasksView, BoardView, ApprovalsView, AgentsView, AuditView
 │   │   ├── components/         # layout (Shell, Sidebar, TopBar), ui, task, live-world
 │   │   ├── store/              # Zustand app store
-│   │   └── api/                # typed API client (calls app/ on port 44210)
+│   │   ├── api/                # typed API client (calls app/ on port 44210)
+│   │   ├── mock/               # dev-time mock data for UI development
+│   │   └── types/              # shared TypeScript types for the web client
 │   └── package.json            # React 19, React Router, Tailwind CSS v4, PixiJS, Motion
 ├── backend/
 │   ├── go.mod                  # module: relayhq/backend
 │   └── internal/vault/
 │       ├── schema.go           # canonical Go types + validation helpers
 │       └── schema_test.go
+├── go.work                     # Go workspace: backend/ module
 ├── cli/
 │   └── relayhq.ts              # minimal agent CLI using the same local HTTP APIs as the UI
 ├── docs/
@@ -102,6 +105,8 @@ go test ./...                          # all tests
 go test ./internal/vault/...           # vault package only
 go test -race ./...                    # with race detector
 ```
+
+> A `go.work` file at the repo root declares the Go workspace. Run Go commands from `backend/` or use `go work` from the root.
 
 ### CLI (repo root)
 
@@ -177,23 +182,28 @@ Shared task files live at `vault/shared/tasks/*.md` relative to the resolved roo
 
 Vault task lifecycle (`app/server/api/vault/`):
 - `GET /api/vault/read-model`
-- `POST /api/vault/tasks`
-- `PATCH /api/vault/tasks/[id]`
-- `POST /api/vault/tasks/[id]/claim`
-- `POST /api/vault/tasks/[id]/heartbeat`
-- `POST /api/vault/tasks/[id]/request-approval`
-- `POST /api/vault/tasks/[id]/approve`
-- `POST /api/vault/tasks/[id]/reject`
+- `POST /api/vault/tasks`, `PATCH /api/vault/tasks/[id]`
+- `POST /api/vault/tasks/[id]/claim|heartbeat|request-approval|approve|reject`
+- `GET /api/vault/audit-notes`
+- `GET /api/vault/agents`, `POST /api/vault/agents`
+- `GET /api/vault/projects`, `POST /api/vault/projects`, `GET/PATCH /api/vault/projects/[id]`
+- `GET /api/vault/docs`, `POST /api/vault/docs`, `GET/PATCH /api/vault/docs/[id]`
+- `GET /api/vault/issues/[id]`
+- `POST /api/vault/init` — seed an empty vault with scaffolding
+- `GET /api/health`, `GET /api/metrics`
+- `GET /api/settings`, `POST /api/settings`
 
 Agent coordination (`app/server/api/agent/`):
 - `GET /api/agent/session` — workspace context + task list for session start
 - `GET /api/agent/context` — full task bootstrap pack
 - `GET /api/agent/planner-context` — planning-scoped context
-- `POST /api/agent/tasks` — create task as agent
-- `GET /api/agent/tasks` — list tasks by assignee
+- `POST /api/agent/tasks`, `GET /api/agent/tasks` — create / list tasks as agent
 - `POST /api/agent/tasks/[id]/claim-next` — claim next available task
 - `POST /api/agent/search` — semantic search over vault
+- `GET /api/agent/search-code` — code-aware vault search
 - `GET /api/agent/active` — active agent sessions
+
+`app/server/api/contract-alignment.test.ts` verifies that agent API response shapes match the shapes the web client expects — run this when changing any API response structure.
 
 UI pages (Nuxt, `app/pages/`):
 - `/`, `/projects/[project]`, `/boards/[board]`, `/tasks/[task]`, `/approvals`, `/agents`
