@@ -12,6 +12,13 @@ export interface CreateAgentInput {
   readonly role: string;
   readonly provider: string;
   readonly model: string;
+  readonly capabilities?: ReadonlyArray<string>;
+  readonly taskTypesAccepted?: ReadonlyArray<string>;
+  readonly approvalRequiredFor?: ReadonlyArray<string>;
+  readonly cannotDo?: ReadonlyArray<string>;
+  readonly accessibleBy?: ReadonlyArray<string>;
+  readonly skillFile?: string;
+  readonly body?: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
   readonly env?: NodeJS.ProcessEnv;
@@ -131,6 +138,12 @@ function buildAgentFrontmatter(input: {
   readonly model: string;
   readonly workspaceId: string;
   readonly now: Date;
+  readonly capabilities: ReadonlyArray<string>;
+  readonly taskTypesAccepted: ReadonlyArray<string>;
+  readonly approvalRequiredFor: ReadonlyArray<string>;
+  readonly cannotDo: ReadonlyArray<string>;
+  readonly accessibleBy: ReadonlyArray<string>;
+  readonly skillFile: string;
 }): AgentFrontmatter {
   const timestamp = input.now.toISOString();
 
@@ -141,12 +154,12 @@ function buildAgentFrontmatter(input: {
     role: input.role,
     provider: input.provider,
     model: input.model,
-    capabilities: [],
-    task_types_accepted: [],
-    approval_required_for: [],
-    cannot_do: [],
-    accessible_by: [],
-    skill_file: `skills/${input.id}.md`,
+    capabilities: input.capabilities,
+    task_types_accepted: input.taskTypesAccepted,
+    approval_required_for: input.approvalRequiredFor,
+    cannot_do: input.cannotDo,
+    accessible_by: input.accessibleBy,
+    skill_file: input.skillFile,
     status: "available",
     workspace_id: input.workspaceId,
     created_at: timestamp,
@@ -159,6 +172,12 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   const role = normalizeRequiredString(input.role, "role");
   const provider = normalizeRequiredString(input.provider, "provider");
   const model = normalizeRequiredString(input.model, "model");
+  const capabilities = input.capabilities ?? [];
+  const taskTypesAccepted = input.taskTypesAccepted ?? [];
+  const approvalRequiredFor = input.approvalRequiredFor ?? [];
+  const cannotDo = input.cannotDo ?? [];
+  const accessibleBy = input.accessibleBy ?? [];
+  const skillFile = input.skillFile ?? `skills/${slugifyAgentId(name)}.md`;
   const id = slugifyAgentId(name);
   const now = input.now ?? new Date();
   const env = input.env ?? process.env;
@@ -173,10 +192,16 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     model,
     workspaceId,
     now,
+    capabilities,
+    taskTypesAccepted,
+    approvalRequiredFor,
+    cannotDo,
+    accessibleBy,
+    skillFile,
   });
   const sourcePath = `${VAULT_COLLECTION_DIRECTORIES.agents}/${id}.md`;
   const filePath = join(vaultRoot, sourcePath);
-  const body = `# ${name}\n\nRegistered via RelayHQ web UI.`;
+  const body = input.body ?? `# ${name}\n\nRegistered via RelayHQ web UI.`;
 
   assertAgentFrontmatter(frontmatter);
 
