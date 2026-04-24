@@ -12,6 +12,7 @@ export interface Agent {
 export interface Project {
   id: string
   name: string
+  boardId?: string
   lastActive: boolean
 }
 
@@ -19,17 +20,39 @@ export interface Task {
   id: string
   title: string
   description?: string
-  status: TaskStatus
-  priority: TaskPriority
-  projectId: string
-  boardId: string
-  assigneeId?: string
-  progress: number
-  lastSeen?: string
-  requestedApprovalTime?: string
-  approvalReason?: string
-  blockedReason?: string
-  blockedTime?: string
+   createdBy?: string
+   createdAt?: string
+   updatedAt?: string
+   status: TaskStatus
+   priority: TaskPriority
+   projectId: string
+   boardId: string
+   columnId?: string
+   assigneeId?: string
+   progress: number
+   executionStartedAt?: string
+   executionNotes?: string
+   approvalNeeded?: boolean
+   approvalOutcome?: 'approved' | 'rejected' | 'pending'
+   approvalRequestedBy?: string
+   approvedBy?: string
+   approvedAt?: string
+   result?: string
+   completedAt?: string
+   parentTaskId?: string
+   sourceIssueId?: string
+   dependsOn?: string[]
+   links?: Array<{ projectId: string; threadId: string }>
+   lockedBy?: string
+   lockedAt?: string
+   lockExpiresAt?: string
+   isStale?: boolean
+   approvalIds?: string[]
+   lastSeen?: string
+   requestedApprovalTime?: string
+   approvalReason?: string
+   blockedReason?: string
+   blockedTime?: string
   tags: string[]
 }
 

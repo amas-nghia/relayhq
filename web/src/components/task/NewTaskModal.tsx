@@ -18,6 +18,7 @@ export function NewTaskModal() {
   const [assigneeId, setAssigneeId] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const selectedProject = projects.find(project => project.id === projectId)
 
   React.useEffect(() => {
     if (!projectId && projects[0]) setProjectId(projects[0].id)
@@ -30,7 +31,7 @@ export function NewTaskModal() {
     e.preventDefault();
     if (!title.trim()) return;
 
-    await addTask({ title, description, projectId, boardId: 'board-demo', assigneeId, priority });
+    await addTask({ title, description, projectId, boardId: selectedProject?.boardId, assigneeId, priority });
     closeNewTaskModal();
     // Reset form
     setTitle('');
@@ -93,7 +94,7 @@ export function NewTaskModal() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Board *</label>
               <select className="px-3 py-2 bg-surface-secondary border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent w-full transition-all">
-                <option>Main Board</option>
+                <option>{selectedProject ? `${selectedProject.name} Board` : 'Project Board'}</option>
               </select>
             </div>
           </div>

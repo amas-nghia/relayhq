@@ -71,6 +71,60 @@ export interface VaultTaskCreatePayload {
   readonly dependsOn?: ReadonlyArray<string>
 }
 
+export interface RelayHQWorkspaceOption {
+  readonly id: string
+  readonly name: string
+}
+
+export interface RelayHQSettingsResponse {
+  readonly vaultRoot: string | null
+  readonly resolvedRoot: string
+  readonly isValid: boolean
+  readonly invalidReason: string | null
+  readonly activeWorkspaceId: string | null
+  readonly activeWorkspaceName: string | null
+  readonly availableWorkspaces: ReadonlyArray<RelayHQWorkspaceOption>
+}
+
+export interface RelayHQVaultInitPayload {
+  readonly vaultRoot: string
+  readonly workspaceName: string
+}
+
+export interface RelayHQVaultInitResponse {
+  readonly created: ReadonlyArray<string>
+  readonly vaultRoot: string
+  readonly workspaceId: string
+}
+
+export interface RelayHQSettingsSavePayload {
+  readonly vaultRoot: string
+  readonly workspaceId: string | null
+}
+
+export interface RelayHQProjectCreatePayload {
+  readonly name: string
+  readonly codebaseRoot?: string | null
+}
+
+export interface RelayHQProjectCreateResponse {
+  readonly project: { id: string; name: string; codebaseRoot: string | null }
+  readonly board: { id: string; name: string }
+  readonly columns: ReadonlyArray<{ id: string; name: string }>
+}
+
+export interface RelayHQBrowseDirectoryEntry {
+  readonly name: string
+  readonly path: string
+  readonly isVaultRoot: boolean
+}
+
+export interface RelayHQBrowseDirectoriesResponse {
+  readonly currentPath: string
+  readonly parentPath: string | null
+  readonly entries: ReadonlyArray<RelayHQBrowseDirectoryEntry>
+}
+
 export interface VaultTaskPatchPayload {
   readonly actorId: string
   readonly patch: Record<string, unknown>
@@ -113,6 +167,20 @@ export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
   getActiveAgents: () => request<ReadonlyArray<ActiveAgentSession>>('/api/agent/active'),
   getAgentContext: () => request<AgentContextResponse>('/api/agent/context'),
+  getSettings: () => request<RelayHQSettingsResponse>('/api/settings'),
+  initVault: (payload: RelayHQVaultInitPayload) => request<RelayHQVaultInitResponse>('/api/vault/init', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  saveSettings: (payload: RelayHQSettingsSavePayload) => request<{ success: true; vaultRoot: string; workspaceId: string | null }>('/api/settings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  createProject: (payload: RelayHQProjectCreatePayload) => request<RelayHQProjectCreateResponse>('/api/vault/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
 
   createTask: (payload: VaultTaskCreatePayload) => request<{ taskId: string; boardId: string; sourcePath: string }>('/api/vault/tasks', {
     method: 'POST',

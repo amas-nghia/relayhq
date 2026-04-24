@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { AlertStrip } from '../ui/AlertStrip';
 import { DetailPanel } from '../task/DetailPanel';
 import { NewTaskModal } from '../task/NewTaskModal';
+import { OnboardingWizard } from './OnboardingWizard';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
 import { useEffect } from 'react';
@@ -15,6 +16,7 @@ export function Shell() {
   const stopPolling = useAppStore(state => state.stopPolling);
   const location = useLocation();
   const closeDetail = useAppStore(state => state.closeTaskDetail);
+  const isBoardRoute = location.pathname.startsWith('/boards/');
 
   useEffect(() => {
     closeDetail();
@@ -26,17 +28,16 @@ export function Shell() {
   }, [startPolling, stopPolling]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface-secondary">
+    <div className="flex h-screen overflow-hidden bg-surface-secondary">
       <TopBar />
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
-        <main className={clsx(
-            "flex flex-1 flex-col overflow-hidden transition-all duration-300 md:ml-14",
-            isDetailPanelOpen && "md:mr-80"
-          )}
-        >
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden md:ml-14">
           <AlertStrip />
-          <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
+          <div className={clsx(
+            'flex min-h-0 flex-1 px-4 py-4 md:px-6 md:py-6',
+            isBoardRoute ? 'overflow-hidden' : 'overflow-y-auto',
+          )}>
             <Outlet />
           </div>
         </main>
@@ -60,6 +61,7 @@ export function Shell() {
         )}
       </div>
       
+      <OnboardingWizard />
       <NewTaskModal />
     </div>
   );

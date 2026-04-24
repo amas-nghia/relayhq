@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 import { relayhqApi } from '../api/client'
+import type { RelayHQSettingsResponse } from '../api/client'
 import type { ActiveAgentSession, ReadModelColumn, VaultReadModel } from '../api/contract'
 import type { Agent, AuditLog, Project, Task } from '../types'
 
@@ -8,7 +9,9 @@ interface AppState {
   tasks: Task[]
   agents: Agent[]
   projects: Project[]
-  columns: ReadModelColumn[]
+  columns: ReadonlyArray<ReadModelColumn>
+  settings: RelayHQSettingsResponse | null
+  showOnboarding: boolean
   auditLogs: AuditLog[]
   selectedTaskId: string | null
   isDetailPanelOpen: boolean
@@ -28,7 +31,18 @@ interface AppState {
   loadData: () => Promise<void>
   startPolling: () => void
   stopPolling: () => void
-  addTask: (payload: { title: string; description?: string; projectId: string; boardId: string; assigneeId?: string; priority: Task['priority'] }) => Promise<void>
+  addTask: (payload: {
+    title: string
+    description?: string
+    projectId: string
+    boardId?: string
+    assigneeId?: string
+    priority: Task['priority']
+    objective?: string
+    acceptanceCriteria?: string[]
+    constraints?: string[]
+    contextFiles?: string[]
+  }) => Promise<void>
   approveTask: (taskId: string) => Promise<void>
   rejectTask: (taskId: string, reason: string) => Promise<void>
 }
@@ -50,12 +64,34 @@ function mapTasks(model: VaultReadModel): Task[] {
     id: task.id,
     title: task.title,
     description: task.body,
+    createdBy: task.createdBy,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
     status: task.status,
     priority: task.priority,
     projectId: task.projectId,
     boardId: task.boardId,
+    columnId: task.columnId,
     assigneeId: task.assignee || undefined,
     progress: task.progress,
+    executionStartedAt: task.executionStartedAt ?? undefined,
+    executionNotes: task.executionNotes ?? undefined,
+    approvalNeeded: task.approvalNeeded,
+    approvalOutcome: task.approvalOutcome,
+    approvalRequestedBy: task.approvalRequestedBy ?? undefined,
+    approvedBy: task.approvedBy ?? undefined,
+    approvedAt: task.approvedAt ?? undefined,
+    result: task.result ?? undefined,
+    completedAt: task.completedAt ?? undefined,
+    parentTaskId: task.parentTaskId ?? undefined,
+    sourceIssueId: task.sourceIssueId ?? undefined,
+    dependsOn: [...task.dependsOn],
+    links: task.links.map(link => ({ projectId: link.projectId, threadId: link.threadId })),
+    lockedBy: task.lockedBy ?? undefined,
+    lockedAt: task.lockedAt ?? undefined,
+    lockExpiresAt: task.lockExpiresAt ?? undefined,
+    isStale: task.isStale,
+    approvalIds: [...task.approvalIds],
     lastSeen: relativeTime(task.heartbeatAt ?? task.updatedAt),
     requestedApprovalTime: task.approvalState.requestedAt ? relativeTime(task.approvalState.requestedAt) : undefined,
     approvalReason: task.approvalState.reason ?? undefined,
@@ -69,6 +105,7 @@ function mapProjects(model: VaultReadModel): Project[] {
   return model.projects.map((project) => ({
     id: project.id,
     name: project.name,
+    boardId: project.boardIds[0],
     lastActive: model.tasks.some((task) => task.projectId === project.id && task.status !== 'done' && task.status !== 'cancelled'),
   }))
 }
@@ -110,17 +147,51 @@ function mapAuditLogs(model: VaultReadModel): AuditLog[] {
 }
 
 async function readSnapshot() {
+  const settings = await relayhqApi.getSettings()
+
+  const emptyModel: VaultReadModel = {
+    workspaces: [],
+    projects: [],
+    boards: [],
+    columns: [],
+    tasks: [],
+    issues: [],
+    approvals: [],
+    auditNotes: [],
+    docs: [],
+    agents: [],
+  }
+
+  if (!settings.isValid) {
+    return {
+      settings,
+      model: emptyModel,
+      tasks: [],
+      projects: [],
+      columns: [],
+      agents: [],
+      auditLogs: [],
+      showOnboarding: true,
+    }
+  }
+
   const [model, sessions] = await Promise.all([
     relayhqApi.getReadModel(),
     relayhqApi.getActiveAgents().catch(() => []),
   ])
 
+  const projects = mapProjects(model)
+  const tasks = mapTasks(model)
+
   return {
+    settings,
     model,
-    tasks: mapTasks(model),
-    projects: mapProjects(model),
+    tasks,
+    projects,
+    columns: model.columns,
     agents: mapAgents(model, sessions),
     auditLogs: mapAuditLogs(model),
+    showOnboarding: settings.availableWorkspaces.length === 0 || projects.length === 0 || tasks.length === 0,
   }
 }
 
@@ -129,6 +200,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   agents: [],
   projects: [],
   columns: [],
+  settings: null,
+  showOnboarding: false,
   auditLogs: [],
   selectedTaskId: null,
   isDetailPanelOpen: false,
@@ -151,15 +224,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const snapshot = await readSnapshot()
       set({
+        settings: snapshot.settings,
         tasks: snapshot.tasks,
         projects: snapshot.projects,
+        columns: snapshot.columns,
         agents: snapshot.agents,
         auditLogs: snapshot.auditLogs,
+        showOnboarding: snapshot.showOnboarding,
         isLoading: false,
       })
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Unable to load RelayHQ data.',
+        settings: null,
+        showOnboarding: false,
         isLoading: false,
       })
     }
@@ -190,16 +268,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   addTask: async (payload) => {
     set({ isMutating: true, mutationError: null })
     try {
+      const project = get().projects.find((entry) => entry.id === payload.projectId)
+      const boardId = payload.boardId || project?.boardId
+      const todoColumnId = get().columns.find((column) => column.boardId === boardId && column.position === 0)?.id
+
+      if (!boardId || !todoColumnId) {
+        throw new Error('Unable to resolve the default board column for this project.')
+      }
+
       await relayhqApi.createTask({
         title: payload.title,
         projectId: payload.projectId,
-        boardId: payload.boardId,
-        columnId: 'todo',
+        boardId,
+        columnId: todoColumnId,
         priority: payload.priority,
         assignee: payload.assigneeId ?? 'human-user',
-        objective: payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`,
-        acceptanceCriteria: ['Task is created in the canonical vault', 'Task is visible to the React web app'],
-        contextFiles: ['web/src/api/client.ts'],
+        objective: payload.objective ?? (payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`),
+        acceptanceCriteria: payload.acceptanceCriteria ?? ['Task is created in the canonical vault', 'Task is visible to the React web app'],
+        constraints: payload.constraints,
+        contextFiles: payload.contextFiles ?? ['web/src/api/client.ts'],
       })
       await get().loadData()
       set({ isNewTaskModalOpen: false, isMutating: false })

@@ -1,14 +1,35 @@
-import { NavLink } from 'react-router-dom';
-import { KanbanSquare, CheckSquare, Hourglass, Bot, FileClock, FolderKanban } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Bell, Bot, CheckSquare, ChevronRight, FileClock, FolderKanban, KanbanSquare, Hourglass, User2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export function Sidebar() {
+  const navigate = useNavigate();
   const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
   const projects = useAppStore(state => state.projects);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
+  const agents = useAppStore(state => state.agents);
+  const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const waitingTasks = useMemo(
+    () => useAppStore.getState().tasks.filter(task => task.status === 'waiting-approval').slice(0, 5),
+    [pendingCount],
+  );
 
   const navItems = [
     { name: 'Board', path: '/boards/main', icon: KanbanSquare },
@@ -70,6 +91,97 @@ export function Sidebar() {
         >
           <FolderKanban className="w-4 h-4" />
         </button>
+      </div>
+
+      <div ref={menuRef} className="relative w-full border-t border-border px-2 pt-3">
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            title="Notifications"
+            onClick={() => setOpenMenu(current => current === 'notifications' ? null : 'notifications')}
+            className="relative flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+          >
+            <Bell className="h-4 w-4" />
+            {pendingCount > 0 && <span className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-status-blocked px-1 text-[10px] font-bold text-white">{pendingCount}</span>}
+          </button>
+
+          <button
+            type="button"
+            title="User and status"
+            onClick={() => setOpenMenu(current => current === 'user' ? null : 'user')}
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+          >
+            <User2 className="h-4 w-4" />
+          </button>
+        </div>
+
+        {openMenu === 'notifications' && (
+          <div className="absolute bottom-0 left-14 z-50 w-80 rounded-xl border border-border bg-surface p-3 shadow-panel">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text-primary">Notifications</div>
+                <div className="text-xs text-text-tertiary">Approval queue and review requests</div>
+              </div>
+              <button type="button" onClick={() => { navigate('/approvals'); setOpenMenu(null); }} className="text-xs font-medium text-accent hover:text-accent/80">
+                Open approvals
+              </button>
+            </div>
+
+            {waitingTasks.length > 0 ? (
+              <div className="space-y-2">
+                {waitingTasks.map(task => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    onClick={() => { navigate('/approvals'); setOpenMenu(null); }}
+                    className="flex w-full items-start justify-between gap-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-left transition-colors hover:bg-surface"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-text-primary">{task.title}</div>
+                      <div className="truncate text-xs text-text-tertiary">{task.id}</div>
+                    </div>
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-waiting">review</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-text-tertiary">
+                No pending notifications.
+              </div>
+            )}
+          </div>
+        )}
+
+        {openMenu === 'user' && (
+          <div className="absolute bottom-0 left-14 z-50 w-80 rounded-xl border border-border bg-surface p-3 shadow-panel">
+            <div className="mb-3 flex items-center gap-3 rounded-lg bg-surface-secondary px-3 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-light text-sm font-bold text-accent">A</div>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">amas</div>
+                <div className="text-xs text-text-tertiary">Workspace operator</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm">
+                <span className="text-text-secondary">Active agents</span>
+                <span className="font-semibold text-text-primary">{activeAgentsCount}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm">
+                <span className="text-text-secondary">Registered agents</span>
+                <span className="font-semibold text-text-primary">{agents.length}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { navigate('/agents'); setOpenMenu(null); }}
+                className="flex w-full items-center justify-between rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface"
+              >
+                View agent status
+                <ChevronRight className="h-4 w-4 text-text-tertiary" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

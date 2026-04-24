@@ -18,6 +18,8 @@ const COLUMNS: { id: TaskStatus; label: string }[] = [
 export function BoardView() {
   const tasks = useAppStore(state => state.tasks);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
+  const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
+  const projects = useAppStore(state => state.projects);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
   const [viewMode, setViewMode] = useState<'board' | 'world'>('board');
@@ -44,6 +46,17 @@ export function BoardView() {
           <div className="flex flex-wrap items-center gap-3 text-sm font-medium">
             <h1 className="text-2xl font-bold text-text-primary">Main Board</h1>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
+            <select
+              value={selectedProjectId ?? ''}
+              onChange={(event) => setSelectedProjectId(event.target.value || null)}
+              className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary outline-none transition-colors hover:bg-surface-secondary"
+            >
+              <option value="">All Projects</option>
+              {projects.map(project => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+            </select>
+            <span className="hidden text-text-tertiary sm:inline-block">•</span>
             <span className="text-text-secondary">{visibleTaskCount} tasks</span>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
             <span className="text-status-active">{activeAgentsCount} agents active</span>
@@ -67,9 +80,6 @@ export function BoardView() {
             </button>
             </div>
 
-            <span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
-              {selectedProjectId ? 'Project filter active' : 'All projects'}
-            </span>
           </div>
         </div>
 
@@ -87,11 +97,11 @@ export function BoardView() {
           <WorldCanvas />
         </Suspense>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {COLUMNS.map(col => {
               const colTasks = getTasksByStatus(col.id);
               return (
-                <section key={col.id} className="flex min-h-0 flex-col rounded-xl border border-border bg-surface p-4 shadow-card">
+                <section key={col.id} className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface p-4 shadow-card">
                   <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
                     <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
                       {col.label} <span className="text-text-tertiary ml-1 font-medium">{colTasks.length}</span>
