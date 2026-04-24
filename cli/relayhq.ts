@@ -1,9 +1,11 @@
+import { readFile, writeFile } from "node:fs/promises";
 import type { ReadModelTask, VaultReadModel } from "../app/server/models/read-model";
 import type { TaskFrontmatter, TaskStatus } from "../app/shared/vault/schema";
 import { indexCodebaseFiles } from "../app/server/services/kioku/code-indexer";
 import { indexProjectCodebase } from "../app/server/services/kioku/project-index";
 import { getKiokuStorage } from "../app/server/services/kioku/storage";
 import { resolveVaultWorkspaceRoot } from "../app/server/services/vault/runtime";
+import { dirname, join } from "node:path";
 
 import {
   createApprovalIntent,
@@ -23,6 +25,12 @@ type FetchLike = typeof fetch;
 
 interface RelayHQCliEnvironment {
   readonly RELAYHQ_BASE_URL?: string;
+  readonly RELAYHQ_VAULT_ROOT?: string;
+}
+
+interface RelayHQDotfileConfig {
+  readonly RELAYHQ_BASE_URL?: string;
+  readonly RELAYHQ_VAULT_ROOT?: string;
 }
 
 interface RelayHQHttpProtocolClientOptions {
@@ -59,6 +67,31 @@ function normalizeBaseUrl(value: string): string {
   }
 
   return normalized;
+}
+
+async function readRelayHQConfig(startDirectory: string): Promise<RelayHQDotfileConfig | null> {
+  let currentDirectory = startDirectory;
+
+  for (;;) {
+    const configPath = join(currentDirectory, ".relayhq");
+    try {
+      const content = await readFile(configPath, "utf8");
+      const entries = content.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#"));
+      const config: Record<string, string> = {};
+      for (const entry of entries) {
+        const [key, ...rest] = entry.split("=");
+        if (!key || rest.length === 0) continue;
+        config[key] = rest.join("=").trim();
+      }
+      return config;
+    } catch {
+      const parent = dirname(currentDirectory);
+      if (parent === currentDirectory) {
+        return null;
+      }
+      currentDirectory = parent;
+    }
+  }
 }
 
 function deriveColumnFromStatus(status: TaskStatus): TaskFrontmatter["column"] | undefined {
@@ -178,12 +211,33 @@ function buildUpdatePatch(request: Parameters<RelayHQProtocolClient["updateTaskS
   };
 }
 
-export function resolveRelayHQBaseUrl(
+export async function resolveRelayHQBaseUrl(
   argv: ReadonlyArray<string>,
   env: RelayHQCliEnvironment = process.env as RelayHQCliEnvironment,
-): string {
+): Promise<string> {
   const invocation = parseRelayHQInvocation(argv);
-  return normalizeBaseUrl(invocation.flags.get("base-url") ?? env.RELAYHQ_BASE_URL ?? DEFAULT_RELAYHQ_BASE_URL);
+  if (invocation.flags.get("base-url") !== undefined) {
+    return normalizeBaseUrl(invocation.flags.get("base-url")!);
+  }
+  if (env.RELAYHQ_BASE_URL !== undefined) {
+    return normalizeBaseUrl(env.RELAYHQ_BASE_URL);
+  }
+  const config = await readRelayHQConfig(process.cwd());
+  if (config?.RELAYHQ_BASE_URL !== undefined) {
+    return normalizeBaseUrl(config.RELAYHQ_BASE_URL);
+  }
+  return DEFAULT_RELAYHQ_BASE_URL;
+}
+
+async function resolveRelayHQVaultRoot(env: RelayHQCliEnvironment = process.env as RelayHQCliEnvironment): Promise<string> {
+  if (env.RELAYHQ_VAULT_ROOT !== undefined) {
+    return env.RELAYHQ_VAULT_ROOT;
+  }
+  const config = await readRelayHQConfig(process.cwd());
+  if (config?.RELAYHQ_VAULT_ROOT !== undefined) {
+    return config.RELAYHQ_VAULT_ROOT;
+  }
+  return resolveVaultWorkspaceRoot();
 }
 
 export function createRelayHQHttpProtocolClient(options: RelayHQHttpProtocolClientOptions): RelayHQProtocolClient {
@@ -277,6 +331,7 @@ export function renderRelayHQHelp(): ReadonlyArray<string> {
     ...RELAYHQ_COMMAND_SURFACE.map((command) => `${command.usage}  # ${command.summary}`),
     "relayhq index <path>  # Index a single codebase path into Kioku",
     "relayhq index --project=<projectId>  # Index all configured codebases for a project",
+    "relayhq init  # Write a local .relayhq file from server settings",
     `Base URL: --base-url=<url> or RELAYHQ_BASE_URL (default: ${DEFAULT_RELAYHQ_BASE_URL})`,
   ];
 }
@@ -300,6 +355,15 @@ export async function executeRelayHQInvocation(
   now: Date = new Date(),
 ): Promise<RelayHQCliResult> {
   const invocation = parseRelayHQInvocation(argv);
+
+  if (invocation.command === "init") {
+    const baseUrl = await resolveRelayHQBaseUrl(argv);
+    const settings = await requestRelayHQ<{ vaultRoot: string | null; resolvedRoot: string }>(fetch, `${baseUrl}/api/settings`, { method: "GET" });
+    const vaultRoot = settings.vaultRoot ?? settings.resolvedRoot;
+    const configPath = join(process.cwd(), ".relayhq");
+    await writeFile(configPath, `RELAYHQ_BASE_URL=${baseUrl}\nRELAYHQ_VAULT_ROOT=${vaultRoot}\n`, "utf8");
+    return { command: "init", payload: { path: configPath, baseUrl, vaultRoot } };
+  }
 
   if (invocation.command === "tasks") {
     const assignee = requireNonEmpty(invocation.flags.get("assignee") ?? "", "assignee is required");
@@ -355,12 +419,12 @@ export async function executeRelayHQInvocation(
     const projectId = invocation.flags.get("project");
 
     if (projectId !== undefined && projectId.trim().length > 0) {
-      const model = await requestRelayHQ<VaultReadModel>(fetchFnForClient(client), `${resolveRelayHQBaseUrl(argv)}/api/vault/read-model`, { method: "GET" });
+      const model = await requestRelayHQ<VaultReadModel>(fetchFnForClient(client), `${await resolveRelayHQBaseUrl(argv)}/api/vault/read-model`, { method: "GET" });
       const project = model.projects.find((entry) => entry.id === projectId.trim());
       if (!project) {
         throw new Error(`Project not found: ${projectId}`);
       }
-      const result = indexProjectCodebase(project, resolveVaultWorkspaceRoot(), storage);
+      const result = indexProjectCodebase(project, await resolveRelayHQVaultRoot(), storage);
       return {
         command: "index",
         payload: {
@@ -396,7 +460,7 @@ export async function main(
   argv: ReadonlyArray<string> = process.argv.slice(2),
   client?: RelayHQProtocolClient,
 ): Promise<RelayHQCliResult> {
-  const result = await executeRelayHQInvocation(client ?? createRelayHQHttpProtocolClient({ baseUrl: resolveRelayHQBaseUrl(argv) }), argv);
+  const result = await executeRelayHQInvocation(client ?? createRelayHQHttpProtocolClient({ baseUrl: await resolveRelayHQBaseUrl(argv) }), argv);
   if (result.command === "help" && Array.isArray(result.payload)) {
     process.stdout.write(`${result.payload.join("\n")}\n`);
   } else {
