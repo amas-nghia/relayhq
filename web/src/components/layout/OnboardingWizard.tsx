@@ -219,7 +219,7 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/70 p-4 backdrop-blur-sm">
       <div className="flex h-[min(760px,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-modal">
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="flex flex-col gap-6">
@@ -248,8 +248,8 @@ export function OnboardingWizard() {
                     >
                       <span className={[
                         'flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-colors',
-                        isComplete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : '',
-                        isCurrent ? 'border-accent bg-accent-light text-accent' : '',
+                        isComplete ? 'border-status-done/20 bg-status-done/10 text-status-done' : '',
+                        isCurrent ? 'border-brand bg-brand-light text-brand' : '',
                         !isComplete && !isCurrent ? 'border-border bg-surface-secondary text-text-tertiary group-hover:text-text-primary' : '',
                       ].join(' ')}>
                         {isComplete ? <Check className="h-4 w-4" /> : step.id}
@@ -258,7 +258,7 @@ export function OnboardingWizard() {
                         <span className={[
                           'text-sm font-medium transition-colors',
                           isCurrent ? 'text-text-primary' : '',
-                          isComplete ? 'text-emerald-700' : '',
+                          isComplete ? 'text-status-done' : '',
                           !isComplete && !isCurrent ? 'text-text-tertiary group-hover:text-text-primary' : '',
                         ].join(' ')}>
                           {step.label}
@@ -272,7 +272,7 @@ export function OnboardingWizard() {
                     {index < WIZARD_STEPS.length - 1 && (
                       <div className={[
                         'hidden h-px w-full md:block',
-                        detectedStep > step.id ? 'bg-emerald-300' : 'bg-border',
+                        detectedStep > step.id ? 'bg-status-done/40' : 'bg-border',
                       ].join(' ')} />
                     )}
                   </div>
@@ -284,20 +284,22 @@ export function OnboardingWizard() {
           {currentStep === 1 && (
             <div className="flex flex-col gap-5">
               <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                <button
+                <Button
                   type="button"
                   onClick={() => setMode('create')}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === 'create' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  variant={mode === 'create' ? 'secondary' : 'ghost'}
+                  className={mode === 'create' ? 'bg-surface text-brand shadow-sm' : ''}
                 >
                   Create new vault
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setMode('existing')}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === 'existing' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  variant={mode === 'existing' ? 'secondary' : 'ghost'}
+                  className={mode === 'existing' ? 'bg-surface text-brand shadow-sm' : ''}
                 >
                   Use existing vault
-                </button>
+                </Button>
               </div>
 
               {mode === 'create' ? (
@@ -387,7 +389,7 @@ export function OnboardingWizard() {
                     </Select>
                   </label>
 
-                  <div className="rounded-lg border border-border bg-surface-secondary px-3 py-3 text-xs text-text-tertiary">
+              <div className="rounded-lg border border-status-active/20 bg-brand-muted px-3 py-3 text-xs text-text-secondary">
                     Objective should be detailed enough to start work. Add at least two acceptance criteria and one context file.
                   </div>
                 </div>
@@ -504,7 +506,7 @@ export function OnboardingWizard() {
                     className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface-secondary"
                   >
                     <span className="inline-flex min-w-0 items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-light text-accent">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-light text-brand">
                         <Folder className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
@@ -513,7 +515,7 @@ export function OnboardingWizard() {
                       </span>
                     </span>
                     {entry.isVaultRoot && (
-                      <Badge variant="success">
+                      <Badge variant="secondary" className="border-status-done/20 bg-status-done/10 text-status-done">
                         vault
                       </Badge>
                     )}
