@@ -1,308 +1,254 @@
-# RelayHQ
+<p align="center">
+  <img src="docs/assets/logo.png" alt="RelayHQ" width="120" />
+</p>
 
-RelayHQ is a Kanban-first control plane for agent-assisted project work.
+<h1 align="center">RelayHQ</h1>
 
-It gives teams one place to manage projects, boards, tasks, ownership, approvals, progress, audit history, and the protocol agents use to keep state current.
+<p align="center">
+  <strong>Vault-first Kanban for humans and AI agents. Git is your database.</strong>
+</p>
 
-## Who it is for
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
+  <a href="https://github.com/amas-nghia/RelayHQ/stargazers"><img src="https://img.shields.io/github/stars/amas-nghia/RelayHQ?style=social" alt="Stars" /></a>
+  <img src="https://img.shields.io/badge/built%20with-Bun%20%2B%20React%20%2B%20Go-blueviolet" alt="Stack" />
+  <img src="https://img.shields.io/badge/vault-Markdown%20%2B%20Git-orange" alt="Vault" />
+</p>
 
-RelayHQ is for teams that need accountable coordination across humans and agents, especially when visibility and traceability matter more than raw automation.
+<p align="center">
+  <a href="https://relayhq.gitbook.io">Docs</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#agent-protocol">Agent Protocol</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-It is useful when you need to coordinate:
+---
 
-- humans working with humans
-- humans working with agents
-- agents handing work back to humans
-- multiple projects at once
+<!-- screenshot placeholder — replace with actual screenshot -->
+<!-- ![RelayHQ board](docs/assets/screenshot.png) -->
 
-## What it solves
+## What is RelayHQ
 
-Teams using agents in real work usually need more than a prompt and a chat window.
+RelayHQ is a **Kanban control plane** where your task board lives in Markdown files committed to Git — no Postgres, no Redis, no proprietary database.
 
-They need:
+It coordinates work across **humans and AI agents** through a shared vault: every task, approval, and audit note is a plain `.md` file with YAML frontmatter. Your editor, your Git history, your rules.
 
-- a stable home for work across multiple projects
-- a visible board that shows where work is in the flow
-- clear handoffs between people and agents
-- explicit approval for risky or expensive actions
-- progress tracking that survives context loss
-- reporting that shows what happened and why
-- feedback loops that improve agent behavior over time
+Agents interact via a minimal CLI or HTTP API. Humans interact via a React web UI. Both read and write the same vault.
 
-RelayHQ exists to provide that coordination layer.
+```
+vault/shared/tasks/task-001.md   ← a task is just a file
+vault/shared/approvals/apr-001.md
+vault/shared/audit/note-001.md
+```
 
-## Product vision
+## Why vault-first
 
-RelayHQ should grow into a workspace for ongoing agent-assisted operations, centered on project boards and work flowing across them.
+Most agent coordination tools bolt a database on the side. RelayHQ flips the model:
 
-Planned capability areas include:
+- **Git is the history** — every state change is a commit, auditable forever
+- **Markdown is the API** — any tool that reads files can query the state
+- **No infrastructure to operate** — clone the repo, start the dev server, done
+- **Agents and humans share the same source of truth** — no sync, no drift
 
-- multi-project workspaces
-- boards and columns
-- plans
-- task breakdowns
-- chat
-- reminders
-- progress tracking
-- customer reporting
-- agent improvement loops
+## Features
 
-That vision is intentionally broad, but the repository starts with the smallest useful Kanban-first control plane first.
+- **Kanban board** — visual task flow with drag-and-drop columns
+- **Task lifecycle API** — claim, heartbeat, request-approval, complete
+- **Approval workflow** — humans gate risky agent actions before they run
+- **Audit trail** — every action writes a note, persisted in the vault
+- **Agent registry** — define capabilities, approval requirements, and task types per agent
+- **CLI for agents** — any agent runtime can interact without a custom SDK
 
-## Phase 1
+## Quick Start
 
-Phase 1 is the smallest useful version of RelayHQ.
+**Prerequisites:** [Bun](https://bun.sh) · [Node.js 18+](https://nodejs.org)
 
-### Included
+```bash
+git clone https://github.com/amas-nghia/RelayHQ.git
+cd RelayHQ
 
-- project registry
-- task board
-- board structure and column flow
-- human and agent assignment
-- approvals
-- audit notes
+# Start the API server (port 4310) and web UI (port 3001)
+npm install -g pm2
+pm2 start ecosystem.config.cjs
 
-### Not included
+# Open http://localhost:3001
+```
 
-- full automation platform
-- marketplace for third-party agents
-- advanced analytics
-- billing
+Or run individually:
 
-## Human-facing and machine-facing usage
+```bash
+# API server
+cd app && bun install && bun run dev   # → http://localhost:4310
 
-RelayHQ is meant to support both audiences.
+# Web UI (separate terminal)
+cd web && bun install && bun run dev   # → http://localhost:3001
+```
 
-### Human-facing
+## Agent Protocol
 
-Humans use RelayHQ to:
+Any agent runtime can interact with RelayHQ using the CLI or HTTP API.
 
-- create and review projects
-- organize work on boards
-- break work into tasks
-- move tasks across workflow stages
-- assign work to people or agents
-- approve important actions
-- review progress and history
+```bash
+# 1. Find tasks assigned to you
+bun run ./cli/relayhq.ts tasks --assignee=my-agent
 
-### Machine-facing
+# 2. Claim a task to start work
+bun run ./cli/relayhq.ts claim task-001 --assignee=my-agent
 
-Agents use RelayHQ as the coordination surface for:
+# 3. Send heartbeats while working
+bun run ./cli/relayhq.ts heartbeat task-001 --assignee=my-agent
 
-- receiving assigned tasks
-- reporting status
-- moving work through the board when appropriate
-- requesting approval
-- writing audit notes
-- feeding back outcomes for future improvement
+# 4. Request human approval before risky actions
+bun run ./cli/relayhq.ts request-approval task-001 \
+  --assignee=my-agent \
+  --reason="About to run database migration"
 
-RelayHQ is not the agent runtime. It is the control plane around it.
+# 5. Mark done with a result
+bun run ./cli/relayhq.ts update task-001 \
+  --assignee=my-agent \
+  --status=done \
+  --result="Migration complete. PR #42 opened."
+```
+
+Under the hood, each of these writes a Markdown file to `vault/shared/`. No magic.
+
+Override the server URL:
+
+```bash
+RELAYHQ_BASE_URL=http://your-server:4310 bun run ./cli/relayhq.ts tasks
+```
 
 ## Architecture
 
-RelayHQ is built around three layers:
-
-1. **Domain model** — workspace, project, board, column, task, assignment, approval, audit note
-2. **Vault-first storage** — Markdown files + YAML frontmatter + Git history
-3. **API + UI** — Nuxt 3 app with TypeScript and Bun for coordination and visibility
-
-Agent execution stays outside RelayHQ.
-
-## What RelayHQ is
-
-RelayHQ is:
-
-- a project registry
-- a Kanban-style task coordination layer
-- a board and workflow surface
-- a human/agent assignment system
-- an approval workflow
-- an audit trail
-- a foundation for incremental orchestration
-
-## What RelayHQ is not
-
-RelayHQ is not:
-
-- a full automation platform
-- a marketplace for third-party agents
-- an advanced analytics product
-- a billing system
-- a replacement for the tools that actually do the work
-
-## Current repository state
-
-This repository is currently an early scaffold.
-
-That means:
-
-- the product direction is defined
-- the scope is intentionally small
-- the app shell is in place
-- the current implementation is still task/status based and will need to evolve toward a fuller board/column model
-- the docs are the source of truth for now
-
-The product runtime is still a work in progress, but the app structure now exists.
-
-## Installation and setup
-
-RelayHQ is a monorepo with a Nuxt 3 app, TypeScript, and Bun, backed by vault files.
-
-### Prerequisites
-
-- Bun
-- Node.js (optional compatibility)
-
-### Fresh clone
-
-```bash
-git clone <repo-url>
-cd RelayHQ
+```
+┌─────────────────────────────────────────────────┐
+│                    Vault (Git)                  │
+│  vault/shared/tasks/     ← task state           │
+│  vault/shared/approvals/ ← approval records     │
+│  vault/shared/audit/     ← audit notes          │
+│  vault/shared/agents/    ← agent registry       │
+└────────────────┬────────────────────────────────┘
+                 │ read / write
+       ┌─────────┴─────────┐
+       │                   │
+  ┌────▼────┐         ┌────▼────────────┐
+  │  API    │         │   React Web UI  │
+  │ Nuxt 3  │         │   (port 3001)   │
+  │ :4310   │         │  Kanban Board   │
+  └────┬────┘         └─────────────────┘
+       │
+  ┌────▼────────────┐
+  │  Agent CLI      │
+  │  Any Runtime    │
+  │  (Claude, GPT…) │
+  └─────────────────┘
 ```
 
-### App
+**RelayHQ coordinates work. It does not execute work.**
 
-```bash
-cd app
-bun install
-bun run dev
+The agent runtime (Claude Code, OpenAI Assistants, your custom loop) handles execution. RelayHQ handles ownership, approval, traceability, and progress.
+
+## Vault file shape
+
+Each task is a Markdown file with YAML frontmatter:
+
+```markdown
+---
+id: task-001
+type: task
+version: 1
+title: Implement login endpoint
+status: in-progress
+column: in-progress
+priority: high
+assignee: agent-backend-dev
+approval_needed: false
+progress: 40
+heartbeat_at: 2026-04-24T10:30:00Z
+execution_started_at: 2026-04-24T09:00:00Z
+---
+
+Implement JWT-based login for `/api/auth/login`.
+Acceptance: returns 200 with token on valid credentials.
 ```
-
-### CLI
-
-CLI commands talk to the local app API.
-
-From the repo root:
-
-```bash
-bun run ./cli/relayhq.ts tasks --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts claim task-001 --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=done --result="PR #42"
-bun run ./cli/relayhq.ts request-approval task-001 --assignee=agent-backend-dev --reason="Need prod access"
-```
-
-Configuration:
-
-- default base URL: `http://127.0.0.1:3000`
-- override with `RELAYHQ_BASE_URL=http://127.0.0.1:3000`
-- or pass `--base-url=http://127.0.0.1:3000`
-
-Common commands:
-
-- `bun run ./cli/relayhq.ts tasks --assignee=<caller>`
-- `bun run ./cli/relayhq.ts claim <task-id> --assignee=<caller>`
-- `bun run ./cli/relayhq.ts update <task-id> --assignee=<caller> --status=in-progress`
-- `bun run ./cli/relayhq.ts heartbeat <task-id> --assignee=<caller>`
-- `bun run ./cli/relayhq.ts request-approval <task-id> --assignee=<caller> --reason="..."`
-
-## Documentation
-
-Start here:
-
-- `docs/index.md`
-- `docs/vision.md`
-- `docs/architecture.md`
-- `docs/vault/structure.md`
-- `docs/vault/schema.md`
-- `docs/agents/definitions.md`
-- `docs/agents/protocol.md`
-- `docs/roadmap.md`
-
-Then read the docs below to understand the direction and scope.
-
-## Development expectations
-
-Because this is still a scaffold:
-
-- keep work within the documented scope
-- keep changes small and easy to review
-- update docs when scope changes
-- avoid building runtime features outside Phase 1
 
 ## Repository layout
 
-```text
+```
 RelayHQ/
-├─ README.md
-├─ LICENSE
-├─ Makefile
-├─ go.work
-├─ backend/
-│  ├─ cmd/relayhq-api/
-│  ├─ internal/
-│  └─ go.mod
-├─ frontend/
-│  ├─ index.html
-│  ├─ package.json
-│  ├─ src/
-│  └─ tsconfig.json
-├─ docs/
-│  ├─ index.md
-│  ├─ vision.md
-│  ├─ architecture.md
-│  ├─ roadmap.md
-│  ├─ relayhq-scope.md
-│  ├─ decision-log.md
-│  ├─ scope/
-│  │  └─ phase-1.md
-│  ├─ domain/
-│  │  ├─ glossary.md
-│  │  └─ model.md
-│  ├─ workflows/
-│  │  ├─ project-registry.md
-│  │  ├─ task-board.md
-│  │  ├─ assignment.md
-│  │  ├─ approvals.md
-│  │  └─ audit-notes.md
-│  ├─ decisions/
-│  │  └─ log.md
-│  └─ capabilities/
-│     ├─ plans.md
-│     ├─ chat.md
-│     ├─ reminders.md
-│     ├─ progress-tracking.md
-│     ├─ customer-reporting.md
-│     └─ agent-improvement-loops.md
-└─ .gitignore
+├── app/          # Nuxt 3 API server — task lifecycle routes (port 4310)
+├── web/          # React + Vite UI — Kanban board, approvals, audit (port 3001)
+├── backend/      # Go validation library (canonical schema types)
+├── cli/          # Agent CLI (relayhq.ts)
+├── vault/        # Demo vault — seeded tasks, approvals, agents
+└── docs/         # Documentation (GitBook)
 ```
 
-## Docs
+## Documentation
 
-- `docs/index.md` - documentation hub and reading order
-- `docs/vision.md` - product definition and long-term vision
-- `docs/scope/phase-1.md` - current Phase 1 scope and non-goals
-- `docs/domain/glossary.md` - canonical product vocabulary
-- `docs/domain/model.md` - core entities and relationships
-- `docs/workflows/*.md` - how the control plane behaves
-- `docs/decisions/log.md` - durable decisions and rationale
-- `docs/roadmap.md` - phased growth after Phase 1
-- `docs/capabilities/*.md` - future capability definitions
+Full docs at **[relayhq.gitbook.io](https://relayhq.gitbook.io)** (or `docs/`):
 
-## Design principles
+| Doc | Description |
+|-----|-------------|
+| [Vision](docs/vision.md) | What RelayHQ is and why |
+| [Architecture](docs/architecture.md) | Three-layer model and boundaries |
+| [Vault Structure](docs/vault/structure.md) | How vault files are organized |
+| [Vault Schema](docs/vault/schema.md) | YAML frontmatter field reference |
+| [Agent Definitions](docs/agents/definitions.md) | Agent registry format |
+| [Agent Protocol](docs/agents/protocol.md) | How agents interact with RelayHQ |
+| [Roadmap](docs/roadmap.md) | Phased growth plan |
 
-RelayHQ should optimize for:
+## Roadmap
 
-- clarity over cleverness
-- traceability over hidden state
-- small increments over large rewrites
-- usable workflow over abstract architecture
-- explicit ownership over implied responsibility
-- simple coordination primitives over broad abstraction
+- [x] Phase 1 — Core Kanban: tasks, boards, columns, assignment, approvals, audit
+- [ ] Phase 2 — Plans and task breakdowns (structured execution plans)
+- [ ] Phase 3 — Chat (coordination threads tied to work)
+- [ ] Phase 4 — Reminders (stale and blocked work nudges)
+- [ ] Phase 5 — Progress tracking (status over time, project health)
+- [ ] Phase 6 — Customer reporting (client-facing delivery summaries)
+- [ ] Phase 7 — Agent improvement loops (outcome feedback, quality signals)
 
-## Questions RelayHQ should answer
+## API routes
 
-A good RelayHQ implementation should make these easy to answer:
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/vault/read-model` | Full board state |
+| POST | `/api/vault/tasks` | Create a task |
+| PATCH | `/api/vault/tasks/[id]` | Update task fields |
+| POST | `/api/vault/tasks/[id]/claim` | Claim a task |
+| POST | `/api/vault/tasks/[id]/heartbeat` | Send heartbeat |
+| POST | `/api/vault/tasks/[id]/request-approval` | Request approval |
+| POST | `/api/vault/tasks/[id]/approve` | Approve a task |
+| POST | `/api/vault/tasks/[id]/reject` | Reject a task |
 
-- What is being worked on right now?
-- Where is this work in the flow?
-- What is blocked on the board?
-- Who owns this task?
-- Why was this approved?
-- What did the agent do?
-- What changed, and when?
-- What needs attention next?
+## Contributing
+
+Contributions are welcome. Please open an issue first to discuss what you would like to change.
+
+```bash
+git checkout -b feature/my-feature
+# make changes
+git commit -m "feat: my feature"
+git push origin feature/my-feature
+# open a pull request
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Self-hosting
+
+RelayHQ works anywhere you can run Node.js / Bun. Point `RELAYHQ_VAULT_ROOT` at any directory to use a custom vault location:
+
+```bash
+RELAYHQ_VAULT_ROOT=/data/my-vault pm2 start ecosystem.config.cjs
+```
 
 ## License
 
-See `LICENSE`.
+MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  Made for teams that coordinate humans and agents across real work.
+</p>

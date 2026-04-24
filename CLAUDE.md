@@ -204,4 +204,4 @@ Phase 1 verification already covers:
 | Vault file shape | `docs/vault/schema.md` + `backend/internal/vault/schema.go` |
 | Agent behavior | `docs/agents/protocol.md` |
 | Product direction | `README.md`, `docs/vision.md`, `docs/architecture.md` |
-| Build plan | `docs/relayhq-build-plan.md` |
+| Product direction | `docs/roadmap.md` |
