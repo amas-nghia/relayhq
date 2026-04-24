@@ -181,8 +181,9 @@ export function WorldCanvas() {
         const sprite = new PIXI.Container();
         const avatar = new PIXI.Graphics();
         avatar.circle(0, 0, 16);
-        avatar.fill({ color: 0x2563eb }); // blue center
-        avatar.stroke({ width: 3, color: 0x60a5fa });
+        const isStale = agent.state === 'stale'
+        avatar.fill({ color: isStale ? 0x64748b : 0x2563eb });
+        avatar.stroke({ width: 3, color: isStale ? 0x94a3b8 : 0x60a5fa });
         sprite.addChild(avatar);
 
         const initials = agent.name.slice(0, 2).toUpperCase();
@@ -301,10 +302,10 @@ export function WorldCanvas() {
                targetY = taskSprite.y + 12;
 
                // Bop animation for working
-               if (activeTask.status === 'in-progress') {
-                 sprite.scale.y = 1 + Math.sin(performance.now() * 0.015) * 0.1;
-                 sprite.scale.x = 1 - Math.sin(performance.now() * 0.015) * 0.05;
-               } else {
+                if (activeTask.status === 'in-progress' && agent.state !== 'stale') {
+                  sprite.scale.y = 1 + Math.sin(performance.now() * 0.015) * 0.1;
+                  sprite.scale.x = 1 - Math.sin(performance.now() * 0.015) * 0.05;
+                } else {
                  sprite.scale.set(1);
                }
              }
@@ -317,7 +318,7 @@ export function WorldCanvas() {
           sprite.y += (targetY - sprite.y) * 0.15 * dt;
 
           // Bob if moving
-          if (Math.abs(targetX - sprite.x) > 2 || Math.abs(targetY - sprite.y) > 2) {
+          if (agent.state !== 'stale' && (Math.abs(targetX - sprite.x) > 2 || Math.abs(targetY - sprite.y) > 2)) {
             sprite.y += Math.sin(performance.now() * 0.02) * 2;
           }
         });
