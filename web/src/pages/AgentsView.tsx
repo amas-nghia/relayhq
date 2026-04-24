@@ -2,6 +2,67 @@ import { ArrowRight, Circle, Play } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore } from '../store/appStore';
 
+function AgentFeedPanel() {
+  const agents = useAppStore(state => state.agents)
+  const tasks = useAppStore(state => state.tasks)
+  const projects = useAppStore(state => state.projects)
+  const activeAgents = agents.filter(agent => agent.state !== 'idle')
+
+  if (activeAgents.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-surface px-5 py-8 text-center text-sm text-text-tertiary">
+        No active agents right now. When an agent claims work, its live feed card will show up here.
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      {activeAgents.map(agent => {
+        const task = tasks.find(t => t.assigneeId === agent.id && t.status !== 'done' && t.status !== 'cancelled')
+        const project = task ? projects.find(entry => entry.id === task.projectId) : null
+        const pulseTone = agent.state === 'active' ? 'bg-status-done' : agent.state === 'stale' ? 'bg-status-waiting' : 'bg-status-waiting'
+
+        return (
+          <div key={agent.id} className="rounded-2xl border border-border bg-surface p-4 shadow-card">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3 w-3">
+                  <span className={clsx('absolute inset-0 animate-pulse-agent rounded-full opacity-60', pulseTone)} />
+                  <span className={clsx('relative h-3 w-3 rounded-full', pulseTone)} />
+                </span>
+                <div>
+                  <div className="text-sm font-semibold text-text-primary">{agent.name}</div>
+                  <div className="text-xs text-text-tertiary">{agent.state}</div>
+                </div>
+              </div>
+              <span className="text-xs text-text-secondary">{agent.lastHeartbeat}</span>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Current task</div>
+                <div className="mt-1 text-sm text-text-primary">{task?.title || 'No claimed task'}</div>
+                <div className="text-xs text-text-secondary">{project?.name || 'No project context'}</div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs text-text-secondary">
+                  <span>Progress</span>
+                  <span>{task?.progress ?? 0}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-border">
+                  <div className="h-2 rounded-full bg-status-active" style={{ width: `${task?.progress ?? 0}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AgentsView() {
   const agents = useAppStore(state => state.agents);
   const tasks = useAppStore(state => state.tasks);
@@ -20,6 +81,13 @@ export function AgentsView() {
       </div>
 
       <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          <h3 className="px-1 text-xs font-bold uppercase tracking-wider text-text-tertiary">
+            AGENT ACTIVITY
+          </h3>
+          <AgentFeedPanel />
+        </div>
+
         <div className="flex flex-col gap-3">
           <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider px-1">
             ACTIVE AGENTS
