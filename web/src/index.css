@@ -69,3 +69,30 @@
     color: var(--color-text-primary);
   }
 }
+
+@layer utilities {
+  .lane-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
+  }
+
+  .lane-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .lane-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .lane-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.7);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .lane-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.9);
+    background-clip: padding-box;
+  }
+}

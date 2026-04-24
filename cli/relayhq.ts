@@ -17,7 +17,7 @@ import {
 } from "../app/server/services/agents/commands";
 import { TASK_STATUSES } from "../app/shared/vault/schema";
 
-const DEFAULT_RELAYHQ_BASE_URL = "http://127.0.0.1:3000";
+const DEFAULT_RELAYHQ_BASE_URL = "http://127.0.0.1:44210";
 
 type FetchLike = typeof fetch;
 

@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 
 import { relayhqApi } from '../api/client'
-import type { ActiveAgentSession, VaultReadModel } from '../api/contract'
+import type { ActiveAgentSession, ReadModelColumn, VaultReadModel } from '../api/contract'
 import type { Agent, AuditLog, Project, Task } from '../types'
 
 interface AppState {
   tasks: Task[]
   agents: Agent[]
   projects: Project[]
+  columns: ReadModelColumn[]
   auditLogs: AuditLog[]
   selectedTaskId: string | null
   isDetailPanelOpen: boolean
@@ -127,6 +128,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   tasks: [],
   agents: [],
   projects: [],
+  columns: [],
   auditLogs: [],
   selectedTaskId: null,
   isDetailPanelOpen: false,
@@ -192,7 +194,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         title: payload.title,
         projectId: payload.projectId,
         boardId: payload.boardId,
-        column: 'todo',
+        columnId: 'todo',
         priority: payload.priority,
         assignee: payload.assigneeId ?? 'human-user',
         objective: payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`,

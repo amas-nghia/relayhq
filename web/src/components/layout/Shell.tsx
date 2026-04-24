@@ -26,17 +26,17 @@ export function Shell() {
   }, [startPolling, stopPolling]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-surface-secondary">
+    <div className="flex min-h-screen flex-col bg-surface-secondary">
       <TopBar />
-      <div className="flex flex-1 mt-14 overflow-hidden relative">
+      <div className="relative flex flex-1 overflow-hidden">
         <Sidebar />
         <main className={clsx(
-            "flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 md:ml-14",
+            "flex flex-1 flex-col overflow-hidden transition-all duration-300 md:ml-14",
             isDetailPanelOpen && "md:mr-80"
           )}
         >
           <AlertStrip />
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
             <Outlet />
           </div>
         </main>
@@ -44,7 +44,7 @@ export function Shell() {
         {/* Right side panel */}
         <div 
           className={clsx(
-            "fixed top-14 bottom-0 right-0 w-full md:w-80 bg-surface border-l border-border shadow-panel transition-transform duration-300 z-40 transform",
+            "fixed top-14 bottom-0 right-0 z-40 w-full transform border-l border-border bg-surface shadow-panel transition-transform duration-300 md:w-80",
             isDetailPanelOpen ? "translate-x-0" : "translate-x-full"
           )}
         >

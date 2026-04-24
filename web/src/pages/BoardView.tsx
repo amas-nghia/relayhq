@@ -21,6 +21,9 @@ export function BoardView() {
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
   const [viewMode, setViewMode] = useState<'board' | 'world'>('board');
+  const visibleTaskCount = selectedProjectId
+    ? tasks.filter(task => task.projectId === selectedProjectId).length
+    : tasks.length;
 
   const getTasksByStatus = (status: TaskStatus) => {
     let filteredTasks = tasks;
@@ -35,12 +38,19 @@ export function BoardView() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-4 text-sm font-medium">
-          <h1 className="text-lg font-bold text-text-primary">Main Board</h1>
-          
-          <div className="flex bg-surface-secondary border border-border rounded-md p-0.5 ml-2">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+      <div className="shrink-0 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm font-medium">
+            <h1 className="text-2xl font-bold text-text-primary">Main Board</h1>
+            <span className="hidden text-text-tertiary sm:inline-block">•</span>
+            <span className="text-text-secondary">{visibleTaskCount} tasks</span>
+            <span className="hidden text-text-tertiary sm:inline-block">•</span>
+            <span className="text-status-active">{activeAgentsCount} agents active</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border bg-surface-secondary p-0.5">
             <button 
               onClick={() => setViewMode('board')} 
               className={clsx("p-1.5 rounded", viewMode === 'board' ? "bg-surface text-accent shadow-sm" : "text-text-tertiary hover:text-text-secondary")}
@@ -55,42 +65,50 @@ export function BoardView() {
             >
               <Globe className="w-4 h-4" />
             </button>
-          </div>
+            </div>
 
-          <span className="text-text-tertiary hidden sm:inline-block">•</span>
-          <span className="text-text-secondary">{tasks.length} tasks</span>
-          <span className="text-text-tertiary hidden sm:inline-block">•</span>
-          <span className="text-status-active">{activeAgentsCount} agents active</span>
+            <span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
+              {selectedProjectId ? 'Project filter active' : 'All projects'}
+            </span>
+          </div>
         </div>
+
         <button 
           onClick={openNewTaskModal}
-          className="bg-accent hover:bg-accent/90 text-white text-sm font-medium py-1.5 px-3 rounded-md transition-colors flex items-center gap-1.5 shadow-sm"
+          className="inline-flex items-center justify-center gap-1.5 self-start rounded-md bg-accent px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent/90"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Task</span>
+          <span>New Task</span>
         </button>
       </div>
 
       {viewMode === 'world' ? (
-        <Suspense fallback={<div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-surface text-sm text-text-secondary">Loading world…</div>}>
+        <Suspense fallback={<div className="flex min-h-[420px] flex-1 items-center justify-center rounded-xl border border-border bg-surface text-sm text-text-secondary">Loading world…</div>}>
           <WorldCanvas />
         </Suspense>
       ) : (
-        <div className="flex-1 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex flex-nowrap h-full gap-4 md:gap-6 min-w-max md:min-w-0">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {COLUMNS.map(col => {
               const colTasks = getTasksByStatus(col.id);
               return (
-                <div key={col.id} className="flex flex-col w-72 md:flex-1 shrink-0 bg-transparent h-full">
-                  <div className="flex items-center justify-between mb-3 px-1 shrink-0">
+                <section key={col.id} className="flex min-h-0 flex-col rounded-xl border border-border bg-surface p-4 shadow-card">
+                  <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
                     <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
                       {col.label} <span className="text-text-tertiary ml-1 font-medium">{colTasks.length}</span>
                     </h3>
+                    {col.id === 'todo' && (
+                      <button 
+                        onClick={openNewTaskModal}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-secondary hover:text-text-primary"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add
+                      </button>
+                    )}
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto pr-1 pb-2 flex flex-col gap-3 rounded-lg mr-[-4px]">
+                  <div className="lane-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
                     {colTasks.length === 0 ? (
-                      <div className="border-2 border-dashed border-border rounded-lg h-32 flex flex-col items-center justify-center p-4 text-center">
+                      <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-4 text-center">
                         <span className="text-sm text-text-tertiary">No tasks</span>
                       </div>
                     ) : (
@@ -109,19 +127,10 @@ export function BoardView() {
                         ))}
                       </AnimatePresence>
                     )}
-                    {col.id === 'todo' && (
-                      <button 
-                        onClick={openNewTaskModal}
-                        className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-border/50 py-2 px-3 rounded-lg transition-colors border border-transparent border-dashed hover:border-border mt-1"
-                      >
-                        <Plus className="w-4 h-4" /> Add task
-                      </button>
-                    )}
                   </div>
-                </div>
+                </section>
               );
             })}
-          </div>
         </div>
       )}
     </div>

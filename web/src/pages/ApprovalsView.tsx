@@ -1,5 +1,5 @@
 import { useAppStore } from '../store/appStore';
-import { Check, X, ArrowRight } from 'lucide-react';
+import { Check, X, ArrowRight, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 
@@ -17,7 +17,7 @@ export function ApprovalsView() {
   const [rejectReason, setRejectReason] = useState('')
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-full gap-6">
+    <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold text-text-primary">Approvals</h1>
         <p className="text-sm text-text-secondary">
@@ -53,15 +53,15 @@ export function ApprovalsView() {
                 <div key={task.id} className="bg-surface border border-amber-200 rounded-lg p-5 shadow-sm hover:shadow-hover transition-shadow relative overflow-hidden flex flex-col gap-4">
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-status-waiting" />
                   
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-text-primary">{task.id}</span>
                         <span className="text-text-tertiary text-sm">•</span>
                         <span className="text-lg font-medium text-text-primary leading-tight">{task.title}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-text-secondary">
-                        <span className="font-medium">🤖 {agent?.name || 'Unknown'}</span>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                        <span className="inline-flex items-center gap-1 font-medium"><Bot className="w-3.5 h-3.5 text-accent" /> {agent?.name || 'Unknown'}</span>
                         <span>•</span>
                         <span>{project?.name || 'Unknown project'}</span>
                       </div>
@@ -73,7 +73,7 @@ export function ApprovalsView() {
                     <p className="text-xs text-amber-800/70">Requested {task.requestedApprovalTime}</p>
                   </div>
                   
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center">
                     <button 
                       onClick={() => void approveTask(task.id)}
                       disabled={isMutating}
@@ -87,7 +87,7 @@ export function ApprovalsView() {
                     >
                       <X className="w-4 h-4" /> Reject
                     </button>
-                    <div className="flex-1 flex justify-end">
+                    <div className="flex md:flex-1 md:justify-end">
                       <button 
                         onClick={() => openDetail(task.id)}
                         className="text-accent hover:bg-accent-light px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"

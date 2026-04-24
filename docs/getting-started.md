@@ -21,12 +21,12 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser.
+Open [http://localhost:44211](http://localhost:44211) in your browser.
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Web UI | 3001 | React Kanban board |
-| API server | 4310 | Nuxt 3 task lifecycle routes |
+| Web UI | 44211 | React Kanban board |
+| API server | 44210 | Nuxt 3 task lifecycle routes |
 
 ## Option 2: Manual
 
@@ -38,7 +38,7 @@ Run each service in a separate terminal.
 cd app
 bun install
 bun run dev
-# → http://localhost:4310
+# → http://localhost:44210
 ```
 
 **Terminal 2 — Web UI:**
@@ -47,19 +47,19 @@ bun run dev
 cd web
 bun install
 bun run dev
-# → http://localhost:3001
+# → http://localhost:44211
 ```
 
 ## Verify the setup
 
-Once both services are running, open the board at [http://localhost:3001](http://localhost:3001).
+Once both services are running, open the board at [http://localhost:44211](http://localhost:44211).
 
 You should see the demo vault loaded with seeded tasks in the Kanban columns.
 
 To verify the API directly:
 
 ```bash
-curl http://localhost:4310/api/vault/read-model | jq '.tasks | length'
+curl http://localhost:44210/api/vault/read-model | jq '.tasks | length'
 ```
 
 ## Create your first task via CLI

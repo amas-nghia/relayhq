@@ -563,7 +563,7 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     status: document.frontmatter.status,
     priority: document.frontmatter.priority,
     title: document.frontmatter.title,
-    assignee: document.frontmatter.assignee,
+    assignee: document.frontmatter.assignee ?? "",
     createdBy: document.frontmatter.created_by,
     createdAt: document.frontmatter.created_at,
     updatedAt: document.frontmatter.updated_at,

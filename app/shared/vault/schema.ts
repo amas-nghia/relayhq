@@ -52,7 +52,7 @@ export interface TaskFrontmatter {
   readonly workspace_id: string;
   readonly project_id: string;
   readonly board_id: string;
-  readonly column: TaskColumn;
+  readonly column: string;
   readonly status: TaskStatus;
   readonly priority: TaskPriority;
   readonly title: string;
@@ -408,7 +408,7 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   requireStringField(input, "project_id", issues);
   requireStringField(input, "board_id", issues);
 
-  requireEnumField(input, "column", TASK_COLUMNS, issues);
+  requireStringField(input, "column", issues);
   requireEnumField(input, "status", TASK_STATUSES, issues);
   requireEnumField(input, "priority", TASK_PRIORITIES, issues);
 

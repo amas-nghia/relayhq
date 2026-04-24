@@ -10,7 +10,7 @@ title: Planner lacks issue-aware reporting path
 reported_by: "@relayhq-web"
 discovered_during_task_id: null
 linked_task_ids: []
-tags: [issues, planner]
+tags: ["issues", "planner"]
 created_at: 2026-04-23T05:00:00Z
 updated_at: 2026-04-23T05:00:00Z
 ---

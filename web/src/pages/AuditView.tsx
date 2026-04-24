@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/appStore';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, CheckCircle2 } from 'lucide-react';
 
 export function AuditView() {
   const auditLogs = useAppStore(state => state.auditLogs);
@@ -26,8 +26,8 @@ export function AuditView() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-full">
-      <div className="mb-6 flex items-center gap-4">
+    <div className="flex min-h-full w-full flex-col gap-6">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold text-text-primary">Audit Trail</h1>
         <span className="text-text-tertiary">—</span>
         <span className="text-sm font-medium text-text-secondary">Live vault-backed timeline</span>
@@ -50,17 +50,17 @@ export function AuditView() {
                     <div className="absolute -left-[27px] top-1 bg-surface border-2 border-border rounded-full p-0.5">
                       {actionIcon(log)}
                     </div>
-                    <div className="flex items-start gap-4">
-                      <span className="text-sm font-semibold text-text-tertiary w-16 shrink-0 pt-0.5">{log.time}</span>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+                      <span className="w-16 shrink-0 pt-0.5 text-sm font-semibold text-text-tertiary">{log.time}</span>
                       <div className="flex-1 flex flex-col gap-1">
                         <div className="text-sm">
                           {log.agentId ? (
-                            <><span className="font-semibold text-text-primary">🤖 {agent?.name || log.agentId}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
+                            <><span className="font-semibold text-text-primary">{agent?.name || log.agentId}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
                           ) : (
-                            <><span className="font-semibold text-status-done">✓ {log.userId || 'human-user'}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
+                            <><span className="inline-flex items-center gap-1 font-semibold text-status-done"><CheckCircle2 className="w-3.5 h-3.5" /> {log.userId || 'human-user'}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
                           )}
                         </div>
-                        <div className="text-sm text-text-secondary/80 bg-surface-secondary p-2 rounded max-w-lg border border-border/50">
+                        <div className="max-w-3xl rounded border border-border/50 bg-surface-secondary p-2 text-sm text-text-secondary/80">
                           {log.description}
                         </div>
                       </div>

@@ -100,7 +100,7 @@ describe("task frontmatter validation", () => {
       workspace_id: "ws-acme",
       project_id: "project-auth",
       board_id: "board-auth-main",
-      column: "broken",
+      column: "",
       status: "broken",
       priority: "urgent",
       title: "Implement password reset API",

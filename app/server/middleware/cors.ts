@@ -1,7 +1,7 @@
 import { defineEventHandler, getHeader, setHeader, setResponseStatus } from 'h3'
 
 function readAllowedOrigins(): ReadonlySet<string> {
-  const raw = process.env.CORS_ORIGIN || 'http://localhost:3001,http://127.0.0.1:3001'
+  const raw = process.env.CORS_ORIGIN || 'http://localhost:44211,http://127.0.0.1:44211'
   return new Set(raw.split(',').map((value) => value.trim()).filter(Boolean))
 }
 

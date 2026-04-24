@@ -11,7 +11,7 @@ export function AgentsView() {
   const idleAgents = agents.filter(a => a.state === 'idle');
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-full gap-6">
+    <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold text-text-primary">Agents</h1>
         <p className="text-sm text-text-secondary">
@@ -34,8 +34,8 @@ export function AgentsView() {
               const isRed = agent.state === 'stale';
 
               return (
-                <div key={agent.id} className="p-4 hover:bg-surface-secondary transition-colors group cursor-pointer flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
+                <div key={agent.id} className="flex cursor-pointer flex-col gap-2 p-4 transition-colors group hover:bg-surface-secondary">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <div className="relative flex">
                         <Circle className={clsx("w-3 h-3 fill-current", isGreen ? "text-status-done" : isYellow ? "text-status-waiting" : isRed ? "text-status-blocked" : "text-text-tertiary")} />
@@ -61,7 +61,7 @@ export function AgentsView() {
                     <div className="flex items-start gap-4">
                       <div className="w-5 shrink-0" />
                       <div className="flex flex-col gap-2 flex-1">
-                        <div className="flex items-center gap-2 text-sm text-text-primary font-medium">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-text-primary">
                           {task.title} <span className="text-text-tertiary font-normal">•</span> <span className="text-text-secondary font-normal">{project?.name}</span>
                         </div>
                         

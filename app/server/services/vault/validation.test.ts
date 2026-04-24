@@ -52,6 +52,7 @@ function createProject(overrides: Partial<ProjectFrontmatter> = {}): ProjectFron
     type: "project",
     workspace_id: "ws-acme",
     name: "Authentication",
+    codebases: [{ name: "app", path: "/workspace/app", primary: true }],
     created_at: "2026-04-14T10:00:00Z",
     updated_at: "2026-04-14T10:00:00Z",
     ...overrides,

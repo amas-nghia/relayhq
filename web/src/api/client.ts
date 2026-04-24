@@ -8,7 +8,7 @@ import type {
   VaultReadModel,
 } from './contract'
 
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:4310'
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:44210'
 
 export class RelayHQApiError extends Error {
   readonly statusCode?: number
@@ -60,7 +60,7 @@ export interface VaultTaskCreatePayload {
   readonly title: string
   readonly projectId: string
   readonly boardId: string
-  readonly column: string
+  readonly columnId: string
   readonly priority: string
   readonly assignee: string
   readonly objective?: string

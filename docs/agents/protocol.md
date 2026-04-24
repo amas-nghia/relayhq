@@ -52,7 +52,7 @@ If blocked or failed, write:
 ## Stale detection
 If `heartbeat_at` is too old, RelayHQ should mark the task as stale and surface it for recovery.
 
-The minimal CLI talks to the same local HTTP write APIs as the UI. By default it uses `http://127.0.0.1:3000`, and agents can override that with `RELAYHQ_BASE_URL` or `--base-url=<url>`.
+The minimal CLI talks to the same local HTTP write APIs as the UI. By default it uses `http://127.0.0.1:44210`, and agents can override that with `RELAYHQ_BASE_URL` or `--base-url=<url>`.
 
 ## CLI expectation
 Any runtime agent should be able to call a CLI or writeback protocol such as:

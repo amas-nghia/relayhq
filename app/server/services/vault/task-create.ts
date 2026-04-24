@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  TASK_COLUMNS,
   TASK_PRIORITIES,
   VAULT_SCHEMA_VERSION,
-  type TaskColumn,
   type TaskFrontmatter,
   type TaskPriority,
 } from "../../../shared/vault/schema";
@@ -15,18 +13,18 @@ import { createTaskDocument, type CreateTaskDocumentResult } from "./write";
 
 const DEFAULT_CREATED_BY = "@relayhq-web" as const;
 
-const TASK_STATUS_BY_COLUMN: Readonly<Record<TaskColumn, TaskFrontmatter["status"]>> = {
-  todo: "todo",
-  "in-progress": "in-progress",
-  review: "waiting-approval",
-  done: "done",
-} as const;
+function statusFromColumnPosition(position: number): TaskFrontmatter["status"] {
+  if (position === 0) return "todo";
+  if (position === 1) return "in-progress";
+  if (position === 2) return "waiting-approval";
+  return "done";
+}
 
 export interface CreateTaskInput {
   readonly title: string;
   readonly projectId: string;
   readonly boardId: string;
-  readonly column: TaskColumn;
+  readonly columnId: string;
   readonly priority: TaskPriority;
   readonly assignee: string;
   readonly tags?: ReadonlyArray<string>;
@@ -70,12 +68,6 @@ function normalizeStringArray(values: ReadonlyArray<string> | undefined, field: 
   return [...new Set(normalizedValues)].sort((left, right) => left.localeCompare(right));
 }
 
-function assertAllowedColumn(value: string): asserts value is TaskColumn {
-  if (!TASK_COLUMNS.includes(value as TaskColumn)) {
-    throw new TaskCreateError(400, `column must be one of: ${TASK_COLUMNS.join(", ")}.`);
-  }
-}
-
 function assertAllowedPriority(value: string): asserts value is TaskPriority {
   if (!TASK_PRIORITIES.includes(value as TaskPriority)) {
     throw new TaskCreateError(400, `priority must be one of: ${TASK_PRIORITIES.join(", ")}.`);
@@ -88,7 +80,8 @@ function buildTaskFrontmatter(input: {
   readonly workspaceId: string;
   readonly projectId: string;
   readonly boardId: string;
-  readonly column: TaskColumn;
+  readonly columnId: string;
+  readonly columnPosition: number;
   readonly priority: TaskPriority;
   readonly title: string;
   readonly assignee: string;
@@ -97,7 +90,7 @@ function buildTaskFrontmatter(input: {
   readonly sourceIssueId: string | null;
 }): TaskFrontmatter {
   const timestamp = input.now.toISOString();
-  const status = TASK_STATUS_BY_COLUMN[input.column];
+  const status = statusFromColumnPosition(input.columnPosition);
 
   return {
     id: input.id,
@@ -106,7 +99,7 @@ function buildTaskFrontmatter(input: {
     workspace_id: input.workspaceId,
     project_id: input.projectId,
     board_id: input.boardId,
-    column: input.column,
+    column: input.columnId,
     status,
     priority: input.priority,
     title: input.title,
@@ -144,12 +137,11 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
   const projectId = normalizeString(input.projectId, "projectId");
   const boardId = normalizeString(input.boardId, "boardId");
   const assignee = normalizeString(input.assignee, "assignee");
-  const columnValue = normalizeString(input.column, "column");
+  const columnId = normalizeString(input.columnId, "columnId");
   const priorityValue = normalizeString(input.priority, "priority");
   const tags = normalizeStringArray(input.tags, "tags");
   const dependsOn = normalizeStringArray(input.dependsOn, "dependsOn");
 
-  assertAllowedColumn(columnValue);
   assertAllowedPriority(priorityValue);
 
   const now = input.now ?? new Date();
@@ -170,9 +162,9 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     throw new TaskCreateError(400, `Board ${board.id} does not belong to project ${project.id}.`);
   }
 
-  const column = collections.columns.find((entry) => entry.frontmatter.id === columnValue)?.frontmatter;
+  const column = collections.columns.find((entry) => entry.frontmatter.id === columnId)?.frontmatter;
   if (column === undefined) {
-    throw new TaskCreateError(404, `Column ${columnValue} was not found.`);
+    throw new TaskCreateError(404, `Column ${columnId} was not found.`);
   }
 
   if (column.board_id !== board.id || column.project_id !== project.id) {
@@ -193,7 +185,8 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     workspaceId: project.workspace_id,
     projectId: project.id,
     boardId: board.id,
-    column: columnValue,
+    columnId,
+    columnPosition: column.position,
     priority: priorityValue,
     title,
     assignee,

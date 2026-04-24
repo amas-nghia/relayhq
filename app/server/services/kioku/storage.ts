@@ -169,10 +169,24 @@ function initializeSchema(database: SqliteDatabase): void {
   `);
 }
 
+function ensureColumn(database: SqliteDatabase, tableName: string, columnName: string, definition: string): void {
+  const rows = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name?: string }>;
+  const hasColumn = rows.some((row) => row.name === columnName);
+
+  if (!hasColumn) {
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+function migrateSchema(database: SqliteDatabase): void {
+  ensureColumn(database, "kioku_documents", "codebase_name", "TEXT");
+}
+
 export function createKiokuStorage(dbPath: string = DEFAULT_KIOKU_DB_PATH): KiokuStorage {
   const resolvedPath = resolveKiokuDbPath(dbPath);
   const database = createSqliteDatabase(resolvedPath);
   initializeSchema(database);
+  migrateSchema(database);
 
   const upsertRow = database.prepare(`
     INSERT INTO kioku_documents (

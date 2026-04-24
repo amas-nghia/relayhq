@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readBody } from "h3";
 
-import type { TaskColumn, TaskPriority } from "../../../shared/vault/schema";
+import type { TaskPriority } from "../../../shared/vault/schema";
 import { formatTaskInputIssues, validateTaskInput } from "../../services/vault/task-input";
 import { VaultSchemaError } from "../../services/vault/write";
 import { createVaultTask, TaskCreateError } from "../../services/vault/task-create";
@@ -41,7 +41,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     "title",
     "projectId",
     "boardId",
-    "column",
+    "columnId",
     "priority",
     "assignee",
     "tags",
@@ -63,13 +63,13 @@ export async function createVaultTaskFromBody(body: unknown) {
     typeof body.title !== "string" ||
     typeof body.projectId !== "string" ||
     typeof body.boardId !== "string" ||
-    typeof body.column !== "string" ||
+    typeof body.columnId !== "string" ||
     typeof body.priority !== "string" ||
     typeof body.assignee !== "string"
   ) {
     throw createError({
       statusCode: 400,
-      statusMessage: "title, projectId, boardId, column, priority, and assignee are required.",
+      statusMessage: "title, projectId, boardId, columnId, priority, and assignee are required.",
     });
   }
 
@@ -98,7 +98,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     title: body.title,
     projectId: body.projectId,
     boardId: body.boardId,
-    column: body.column as TaskColumn,
+    columnId: body.columnId as string,
     priority: body.priority as TaskPriority,
     assignee: body.assignee,
     tags: body.tags,

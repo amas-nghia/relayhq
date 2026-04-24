@@ -12,18 +12,27 @@ Current branch `vault-first-rebuild` now contains a seeded Phase 1 implementatio
 
 ```
 RelayHQ-vault-first/
-├── app/                        # Nuxt 3 frontend + server routes (Bun)
+├── app/                        # Nuxt 3 API server (Bun) — port 44210
 │   ├── components/             # UI surfaces: board, approvals, tasks, nav, empty states
 │   ├── data/                   # UI selectors/projections over the canonical read model
 │   ├── pages/                  # overview, project, board, task, approvals, agents
 │   ├── server/
-│   │   ├── api/                # read-model and task lifecycle HTTP routes
+│   │   ├── api/
+│   │   │   ├── vault/          # vault task lifecycle routes (read-model, tasks, claim, etc.)
+│   │   │   └── agent/          # agent session, context, search, planner-context, bootstrap
 │   │   ├── models/             # canonical read model projection
 │   │   └── services/           # vault read/write, agents, security, kioku integration
 │   ├── shared/vault/           # TS schema + layout helpers for vault records
 │   ├── test/                   # seeded-vault regression coverage
 │   ├── nuxt.config.ts
 │   └── package.json
+├── web/                        # React 19 + Vite board UI (Bun) — port 44211
+│   ├── src/
+│   │   ├── pages/              # TasksView, BoardView, ApprovalsView, AgentsView, AuditView
+│   │   ├── components/         # layout (Shell, Sidebar, TopBar), ui, task, live-world
+│   │   ├── store/              # Zustand app store
+│   │   └── api/                # typed API client (calls app/ on port 44210)
+│   └── package.json            # React 19, React Router, Tailwind CSS v4, PixiJS, Motion
 ├── backend/
 │   ├── go.mod                  # module: relayhq/backend
 │   └── internal/vault/
@@ -56,22 +65,33 @@ RelayHQ-vault-first/
 │   │   └── threads/
 │   ├── users/                  # private overlays, must stay gitignored
 │   └── system/                 # schema/template assets when introduced
-├── ecosystem.config.cjs        # PM2 config
+├── ecosystem.config.cjs        # PM2: relayhq-api (44210) + relayhq-web (44211)
 └── CLAUDE.md
 ```
 
 ## Commands
 
-### Frontend (app/)
+### Nuxt API server (app/)
 
 ```bash
 cd app
 bun install
-bun run dev          # dev server on port 3000
+bun run dev          # dev server on port 44210
 bun run build
 bun run preview
 bun run typecheck
 bun test
+bun test --test-name-pattern "pattern"   # run a single test by name
+```
+
+### React web UI (web/)
+
+```bash
+cd web
+npm install
+npm run dev          # dev server on port 44211 (proxies API to port 44210)
+npm run build
+npm run lint         # tsc --noEmit
 ```
 
 ### Backend (backend/)
@@ -94,7 +114,7 @@ bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=d
 ```
 
 CLI transport notes:
-- default base URL: `http://127.0.0.1:3000`
+- default base URL: `http://127.0.0.1:44210`
 - override with `RELAYHQ_BASE_URL`
 - or pass `--base-url=<url>`
 
@@ -113,7 +133,7 @@ Claude commands: `/pm2-all`, `/pm2-3000`, `/pm2-logs`, `/pm2-status`
 
 1. **Domain model** — workspace → project → board → column → task; plus assignment, approval, audit note
 2. **Vault-first storage** — `vault/shared/**` is committed Git state (authoritative); `vault/users/**` is per-user private overlay (must be gitignored); `vault/system/**` holds schema/template assets
-3. **API + UI** — Nuxt 3 reads/writes the vault; Vue coordinates human work
+3. **API + UI** — Nuxt 3 (`app/`) serves the API and server-rendered pages; React (`web/`) is the board UI consuming that API
 
 ### Core boundary
 
@@ -155,7 +175,7 @@ Shared task files live at `vault/shared/tasks/*.md` relative to the resolved roo
 
 ### Active HTTP Routes
 
-Current Phase 1 task lifecycle routes:
+Vault task lifecycle (`app/server/api/vault/`):
 - `GET /api/vault/read-model`
 - `POST /api/vault/tasks`
 - `PATCH /api/vault/tasks/[id]`
@@ -165,13 +185,21 @@ Current Phase 1 task lifecycle routes:
 - `POST /api/vault/tasks/[id]/approve`
 - `POST /api/vault/tasks/[id]/reject`
 
-Current Phase 1 routes in the UI:
-- `/`
-- `/projects/[project]`
-- `/boards/[board]`
-- `/tasks/[task]`
-- `/approvals`
-- `/agents`
+Agent coordination (`app/server/api/agent/`):
+- `GET /api/agent/session` — workspace context + task list for session start
+- `GET /api/agent/context` — full task bootstrap pack
+- `GET /api/agent/planner-context` — planning-scoped context
+- `POST /api/agent/tasks` — create task as agent
+- `GET /api/agent/tasks` — list tasks by assignee
+- `POST /api/agent/tasks/[id]/claim-next` — claim next available task
+- `POST /api/agent/search` — semantic search over vault
+- `GET /api/agent/active` — active agent sessions
+
+UI pages (Nuxt, `app/pages/`):
+- `/`, `/projects/[project]`, `/boards/[board]`, `/tasks/[task]`, `/approvals`, `/agents`
+
+React web UI pages (`web/src/pages/`):
+- TasksView, BoardView, ApprovalsView, AgentsView, AuditView
 
 ### Agent protocol (summary)
 

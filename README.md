@@ -67,21 +67,21 @@ Most agent coordination tools bolt a database on the side. RelayHQ flips the mod
 git clone https://github.com/amas-nghia/RelayHQ.git
 cd RelayHQ
 
-# Start the API server (port 4310) and web UI (port 3001)
+# Start the API server (port 44210) and web UI (port 44211)
 npm install -g pm2
 pm2 start ecosystem.config.cjs
 
-# Open http://localhost:3001
+# Open http://localhost:44211
 ```
 
 Or run individually:
 
 ```bash
 # API server
-cd app && bun install && bun run dev   # → http://localhost:4310
+cd app && bun install && bun run dev   # → http://localhost:44210
 
 # Web UI (separate terminal)
-cd web && bun install && bun run dev   # → http://localhost:3001
+cd web && bun install && bun run dev   # → http://localhost:44211
 ```
 
 ## Agent Protocol
@@ -115,7 +115,7 @@ Under the hood, each of these writes a Markdown file to `vault/shared/`. No magi
 Override the server URL:
 
 ```bash
-RELAYHQ_BASE_URL=http://your-server:4310 bun run ./cli/relayhq.ts tasks
+RELAYHQ_BASE_URL=http://your-server:44210 bun run ./cli/relayhq.ts tasks
 ```
 
 ## Architecture
@@ -133,8 +133,8 @@ RELAYHQ_BASE_URL=http://your-server:4310 bun run ./cli/relayhq.ts tasks
        │                   │
   ┌────▼────┐         ┌────▼────────────┐
   │  API    │         │   React Web UI  │
-  │ Nuxt 3  │         │   (port 3001)   │
-  │ :4310   │         │  Kanban Board   │
+  │ Nuxt 3  │         │  (port 44211)   │
+  │ :44210  │         │  Kanban Board   │
   └────┬────┘         └─────────────────┘
        │
   ┌────▼────────────┐
@@ -176,8 +176,8 @@ Acceptance: returns 200 with token on valid credentials.
 
 ```
 RelayHQ/
-├── app/          # Nuxt 3 API server — task lifecycle routes (port 4310)
-├── web/          # React + Vite UI — Kanban board, approvals, audit (port 3001)
+├── app/          # Nuxt 3 API server — task lifecycle routes (port 44210)
+├── web/          # React + Vite UI — Kanban board, approvals, audit (port 44211)
 ├── backend/      # Go validation library (canonical schema types)
 ├── cli/          # Agent CLI (relayhq.ts)
 ├── vault/        # Demo vault — seeded tasks, approvals, agents

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nuxt dev --port 4310 --host 0.0.0.0",
+    "dev": "nuxt dev --port 44210 --host 0.0.0.0",
     "build": "nuxt build",
     "preview": "nuxt preview",
     "prepare": "nuxt prepare",

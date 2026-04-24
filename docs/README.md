@@ -22,8 +22,8 @@ RelayHQ is for teams that:
 ## How it works
 
 1. **Tasks** live in `vault/shared/tasks/` as Markdown files
-2. The **Nuxt API** (port 4310) reads and writes those files
-3. The **React web UI** (port 3001) renders the Kanban board
+2. The **Nuxt API** (port 44210) reads and writes those files
+3. The **React web UI** (port 44211) renders the Kanban board
 4. **Agents** interact via CLI or HTTP — claim tasks, send heartbeats, request approvals, mark done
 5. **Git** preserves the full history of every state change
 

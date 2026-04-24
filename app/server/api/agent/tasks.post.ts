@@ -182,7 +182,7 @@ export async function createAgentTasks(
         title: proposal.title,
         projectId: board.projectId,
         boardId: board.id,
-        column: columnId as any,
+        columnId,
         priority: proposal.priority,
         assignee: proposal.assignee ?? "agent-claude-code",
         body: taskBody,

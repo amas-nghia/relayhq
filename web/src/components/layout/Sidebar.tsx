@@ -1,9 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import { KanbanSquare, CheckSquare, Hourglass, Bot, FileClock } from 'lucide-react';
+import { KanbanSquare, CheckSquare, Hourglass, Bot, FileClock, FolderKanban } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
-import { motion } from 'motion/react';
-import { useMemo } from 'react';
 
 export function Sidebar() {
   const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length);
@@ -11,12 +9,9 @@ export function Sidebar() {
   const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
   const projects = useAppStore(state => state.projects);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
-  const auditLogs = useAppStore(state => state.auditLogs);
-  const openTaskDetail = useAppStore(state => state.openTaskDetail);
-  const recentAuditLogs = useMemo(() => auditLogs.slice(0, 5), [auditLogs]);
 
   const navItems = [
-    { name: 'Board', path: '/', icon: KanbanSquare },
+    { name: 'Board', path: '/boards/main', icon: KanbanSquare },
     { name: 'Tasks', path: '/tasks', icon: CheckSquare },
     { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-white' },
     { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-white' },
@@ -71,31 +66,11 @@ export function Sidebar() {
         })}
         <button 
           title="New Project"
-          className="w-10 h-10 rounded-md border text-xl border-dashed border-border flex items-center justify-center text-text-tertiary hover:text-text-primary hover:border-text-tertiary transition-colors mt-1"
+          className="w-10 h-10 rounded-md border border-dashed border-border flex items-center justify-center text-text-tertiary hover:text-text-primary hover:border-text-tertiary transition-colors mt-1"
         >
-          +
+          <FolderKanban className="w-4 h-4" />
         </button>
       </div>
-
-      <div className="w-full border-t border-border px-3 py-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary mb-2">Activity</h3>
-        <div className="flex flex-col gap-2">
-          {recentAuditLogs.map((log, index) => (
-            <motion.button
-              key={log.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.2, delay: index * 0.04 }}
-              onClick={() => log.taskId && openTaskDetail(log.taskId)}
-              className="w-full rounded-md border border-border bg-surface-secondary px-2 py-2 text-left text-[11px] text-text-secondary hover:bg-surface"
-            >
-              <div className="font-medium text-text-primary truncate">{log.action}</div>
-              <div className="truncate">{log.description}</div>
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
     </aside>
   );
 }

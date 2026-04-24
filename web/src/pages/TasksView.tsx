@@ -37,13 +37,13 @@ export function TasksView() {
   });
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col h-full gap-6">
+    <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
           <button 
             onClick={openNewTaskModal}
-            className="bg-accent hover:bg-accent/90 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors flex items-center gap-1.5 shadow-sm"
+            className="inline-flex items-center gap-1.5 self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent/90"
           >
             <Plus className="w-4 h-4" /> New Task
           </button>
@@ -70,8 +70,9 @@ export function TasksView() {
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-lg overflow-hidden flex-1 overflow-y-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="flex-1 overflow-hidden rounded-lg border border-border bg-surface">
+        <div className="h-full overflow-auto">
+          <table className="min-w-[860px] w-full border-collapse text-left">
           <thead>
             <tr className="bg-surface-secondary text-xs uppercase tracking-wider text-text-tertiary border-b border-border">
               <th className="px-4 py-3 font-semibold w-10"></th>
@@ -135,7 +136,8 @@ export function TasksView() {
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -105,7 +105,7 @@ describe("POST /api/agent/tasks/claim-next", () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-claim-next-filtered-"));
     try {
       await seedVaultRoot(root);
-      await writeTask(root, createTask("task-unassigned", { assignee: "", board_id: "board-beta", priority: "critical" }));
+      await writeTask(root, createTask("task-unassigned", { assignee: null, board_id: "board-beta", priority: "critical" }));
       await writeTask(root, createTask("task-alpha", { board_id: "board-alpha", priority: "critical" }));
 
       const response = await claimNextAgentTask({ agentId: "agent-claude-code", boardId: "board-beta", priority: "critical" }, { vaultRoot: root });

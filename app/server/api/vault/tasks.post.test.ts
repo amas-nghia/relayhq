@@ -29,7 +29,7 @@ describe("POST /api/vault/tasks validation", () => {
         title: "Thin task",
         projectId: "project-demo",
         boardId: "board-demo",
-        column: "todo",
+        columnId: "todo",
         priority: "high",
         assignee: "agent-claude-code",
         objective: "too short",
