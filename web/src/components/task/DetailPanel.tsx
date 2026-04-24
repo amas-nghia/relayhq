@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/appStore'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader } from '../ui/card'
+import { Textarea } from '../ui/textarea'
 
 function readSection(body: string | undefined, heading: string): string | null {
   if (!body) return null
@@ -46,6 +47,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function EmptyCopy({ children }: { children: ReactNode }) {
   return <p className="text-sm leading-6 text-text-tertiary">{children}</p>
+}
+
+const statusClasses: Record<string, string> = {
+  'in-progress': 'border-status-active/20 bg-brand-muted text-status-active',
+  'waiting-approval': 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+  blocked: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+  done: 'border-status-done/20 bg-status-done/10 text-status-done',
+  todo: 'border-border bg-surface-secondary text-status-todo',
+  cancelled: 'border-border bg-surface-secondary text-text-secondary',
+}
+
+const priorityClasses: Record<string, string> = {
+  critical: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+  high: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+  medium: 'border-status-active/20 bg-brand-muted text-status-active',
+  low: 'border-border bg-surface-secondary text-text-secondary',
+}
+
+const approvalClasses: Record<string, string> = {
+  approved: 'border-status-done/20 bg-status-done/10 text-status-done',
+  rejected: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+  pending: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
 }
 
 export function DetailPanel({ taskId }: { taskId: string }) {
@@ -103,28 +126,14 @@ export function DetailPanel({ taskId }: { taskId: string }) {
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-text-primary">{task.title}</h2>
                 <div className="flex flex-wrap gap-2">
-                  <span className={clsx(
-                    'rounded-sm px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider',
-                    task.status === 'in-progress' && 'bg-blue-50 text-status-active',
-                    task.status === 'waiting-approval' && 'bg-amber-50 text-status-waiting',
-                    task.status === 'blocked' && 'bg-red-50 text-status-blocked',
-                    task.status === 'done' && 'bg-green-50 text-status-done',
-                    task.status === 'todo' && 'bg-slate-100 text-status-todo',
-                    task.status === 'cancelled' && 'bg-slate-200 text-text-secondary',
-                  )}>
+                  <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', statusClasses[task.status] ?? 'border-border bg-surface-secondary text-text-secondary')}>
                     {task.status.replace('-', ' ')}
                   </span>
-                  <span className={clsx(
-                    'rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider',
-                    task.priority === 'critical' ? 'border-red-200 bg-red-50 text-status-blocked' :
-                    task.priority === 'high' ? 'border-amber-200 bg-amber-50 text-status-waiting' :
-                    task.priority === 'low' ? 'border-border bg-surface-secondary text-text-secondary' :
-                    'border-blue-200 bg-blue-50 text-status-active',
-                  )}>
+                  <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', priorityClasses[task.priority] ?? 'border-status-active/20 bg-brand-muted text-status-active')}>
                     {task.priority}
                   </span>
                   {task.isStale && (
-                    <span className="rounded-sm border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-status-blocked">
+                    <span className="rounded-sm border border-status-blocked/20 bg-status-blocked/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-status-blocked">
                       stale
                     </span>
                   )}
@@ -135,7 +144,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
                 <div className="text-xs uppercase tracking-[0.2em] text-text-tertiary">Progress</div>
                 <div className="text-lg font-semibold text-text-primary">{task.progress}%</div>
                 <div className="h-1.5 w-28 overflow-hidden rounded-full bg-border">
-                  <div className={clsx('h-full', task.status === 'done' ? 'bg-status-done' : 'bg-accent')} style={{ width: `${task.progress}%` }} />
+                  <div className={clsx('h-full', task.status === 'done' ? 'bg-status-done' : 'bg-brand')} style={{ width: `${task.progress}%` }} />
                 </div>
               </div>
             </div>
@@ -144,7 +153,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
               <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
                 <span>Assignee</span>
                 <span className="inline-flex items-center gap-1.5 font-medium text-text-primary">
-                  {agent ? <Bot className="w-4 h-4 text-accent" /> : null}
+                  {agent ? <Bot className="w-4 h-4 text-brand" /> : null}
                   {agent?.name || 'Unassigned'}
                 </span>
               </div>
@@ -180,7 +189,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
               <div className="space-y-2">
                 {sections.acceptanceCriteria.map(item => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-primary">
-                    <SquareCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    <SquareCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -196,7 +205,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
                   <div className="space-y-2">
                     {sections.contextFiles.map(item => (
                       <div key={item} className="inline-flex items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2 text-sm text-text-primary">
-                        <FileText className="h-4 w-4 text-accent" />
+                        <FileText className="h-4 w-4 text-brand" />
                         {item}
                       </div>
                     ))}
@@ -210,7 +219,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
                   <div className="space-y-2">
                     {links.map(link => (
                       <div key={`${link.projectId}-${link.threadId}`} className="flex items-center gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2 text-sm text-text-primary">
-                        <Link2 className="h-4 w-4 text-accent" />
+                        <Link2 className="h-4 w-4 text-brand" />
                         <span>{link.projectId}</span>
                         <span className="text-text-tertiary">/</span>
                         <span>{link.threadId}</span>
@@ -249,13 +258,8 @@ export function DetailPanel({ taskId }: { taskId: string }) {
 
           <Section title="Approval">
             <div className="space-y-3 text-sm">
-              <div className="flex flex-wrap gap-2">
-                <span className={clsx(
-                  'rounded-sm px-2 py-1 text-[11px] font-bold uppercase tracking-wider',
-                  task.approvalOutcome === 'approved' && 'bg-green-50 text-status-done',
-                  task.approvalOutcome === 'rejected' && 'bg-red-50 text-status-blocked',
-                  task.approvalOutcome === 'pending' && 'bg-amber-50 text-status-waiting',
-                )}>
+                <div className="flex flex-wrap gap-2">
+                <span className={clsx('rounded-sm border px-2 py-1 text-[11px] font-bold uppercase tracking-wider', approvalClasses[task.approvalOutcome ?? 'pending'])}>
                   {task.approvalOutcome || 'pending'}
                 </span>
                 {task.approvalNeeded && <span className="rounded-sm border border-border bg-surface-secondary px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-text-secondary">approval needed</span>}
@@ -269,7 +273,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
               </div>
 
               {task.approvalReason ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                <div className="rounded-lg border border-status-waiting/20 bg-brand-muted p-3 text-sm text-text-primary">
                   {task.approvalReason}
                 </div>
               ) : <EmptyCopy>No approval note recorded yet.</EmptyCopy>}
@@ -280,14 +284,14 @@ export function DetailPanel({ taskId }: { taskId: string }) {
                     <Clock3 className="w-4 h-4" />
                     Waiting for approval
                   </div>
-                  <textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} rows={3} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary" placeholder="Reason for rejection" />
+                  <Textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} rows={3} placeholder="Reason for rejection" />
                   <div className="flex gap-2">
-                    <button onClick={() => void approveTask(task.id)} disabled={isMutating} className="flex-1 rounded-md bg-status-done py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-60">
+                    <Button onClick={() => void approveTask(task.id)} disabled={isMutating} className="flex-1 bg-status-done text-white hover:bg-status-done/90 disabled:opacity-60">
                       Approve
-                    </button>
-                    <button onClick={() => void rejectTask(task.id, rejectReason || task.approvalReason || 'Rejected from detail panel')} disabled={isMutating} className="flex-1 rounded-md bg-status-blocked py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-60">
+                    </Button>
+                    <Button onClick={() => void rejectTask(task.id, rejectReason || task.approvalReason || 'Rejected from detail panel')} disabled={isMutating} className="flex-1 bg-status-blocked text-white hover:bg-status-blocked/90 disabled:opacity-60">
                       Reject
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -349,12 +353,12 @@ export function DetailPanel({ taskId }: { taskId: string }) {
       <div className="mt-auto border-t border-border bg-surface p-4">
         <div className="mb-3 flex flex-wrap gap-2">
           {tags.length > 0 ? tags.map(tag => (
-            <span key={tag} className="rounded border border-border bg-surface-secondary px-2 py-1 text-xs text-text-secondary">
+            <Badge key={tag} variant="secondary">
               {tag}
-            </span>
+            </Badge>
           )) : <span className="text-xs text-text-tertiary">No tags</span>}
         </div>
-        <button className="inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-accent/80">
+        <button className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
           Open full record <ExternalLink className="w-3.5 h-3.5" />
         </button>
       </div>
