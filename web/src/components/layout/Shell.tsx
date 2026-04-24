@@ -28,7 +28,7 @@ export function Shell() {
   }, [startPolling, stopPolling]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-secondary">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface-secondary">
       <TopBar />
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />

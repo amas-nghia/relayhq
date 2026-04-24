@@ -40,7 +40,7 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="fixed left-0 top-14 bottom-0 w-14 bg-surface-sidebar border-r border-border overflow-y-auto hidden md:flex flex-col items-center py-4">
+    <aside className="fixed left-0 top-14 bottom-0 z-20 w-14 bg-surface-sidebar border-r border-border overflow-y-auto hidden md:flex flex-col items-center py-4">
       <nav className="flex flex-col gap-2 w-full px-2">
         {navItems.map((item) => (
           <NavLink
