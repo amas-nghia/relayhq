@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { TaskCard } from '../components/task/TaskCard';
-import { WorldCanvas } from '../components/live-world/WorldCanvas';
 import { TaskStatus } from '../types';
 import { Plus, LayoutGrid, Globe } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'motion/react';
+
+const WorldCanvas = lazy(async () => ({ default: (await import('../components/live-world/WorldCanvas')).WorldCanvas }));
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: 'todo', label: 'TODO' },
@@ -71,7 +72,9 @@ export function BoardView() {
       </div>
 
       {viewMode === 'world' ? (
-        <WorldCanvas />
+        <Suspense fallback={<div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-surface text-sm text-text-secondary">Loading world…</div>}>
+          <WorldCanvas />
+        </Suspense>
       ) : (
         <div className="flex-1 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
           <div className="flex flex-nowrap h-full gap-4 md:gap-6 min-w-max md:min-w-0">
