@@ -101,6 +101,24 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.execution_started_at).toBe(now.toISOString());
   });
 
+  test("reclaims a stale task lock during claim", async () => {
+    const staleAt = "2026-04-15T08:00:00Z";
+    const vaultRoot = await createVaultRoot(createTask({
+      locked_by: "agent-other",
+      locked_at: staleAt,
+      heartbeat_at: staleAt,
+      lock_expires_at: staleAt,
+    }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now });
+
+    expect(result.frontmatter.status).toBe("in-progress");
+    expect(result.frontmatter.locked_by).toBe("agent-backend-dev");
+    expect(result.frontmatter.locked_at).toBe(now.toISOString());
+    expect(result.frontmatter.lock_expires_at).toBe(new Date(now.getTime() + 5 * 60 * 1000).toISOString());
+  });
+
   test("refreshes task heartbeat without mutating business state", async () => {
     const lockAt = "2026-04-15T09:58:00Z";
     const vaultRoot = await createVaultRoot(

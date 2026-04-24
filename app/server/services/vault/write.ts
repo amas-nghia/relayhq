@@ -14,6 +14,7 @@ import {
   claimTaskLock,
   DEFAULT_LOCK_TTL_MS,
   DEFAULT_STALE_AFTER_MS,
+  VaultStaleWriteError,
 } from "./lock";
 import { validateTaskWrite } from "./validation";
 
@@ -62,6 +63,7 @@ export interface SyncTaskRequest {
   readonly now?: Date;
   readonly lockTtlMs?: number;
   readonly staleAfterMs?: number;
+  readonly recoverStaleLock?: boolean;
 }
 
 export interface SyncTaskResult extends VaultTaskDocument {
@@ -261,7 +263,13 @@ export async function syncTaskDocument(request: SyncTaskRequest): Promise<SyncTa
   try {
     const current = await readTaskDocument(request.filePath);
 
-    assertTaskWriteable(current.frontmatter, request.actorId, now, staleAfterMs);
+    try {
+      assertTaskWriteable(current.frontmatter, request.actorId, now, staleAfterMs);
+    } catch (error) {
+      if (!(request.recoverStaleLock && error instanceof VaultStaleWriteError)) {
+        throw error;
+      }
+    }
 
     const leased = claimTaskLock(current.frontmatter, {
       actorId: request.actorId,

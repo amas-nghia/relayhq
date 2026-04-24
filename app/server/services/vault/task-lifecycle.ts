@@ -61,6 +61,7 @@ function withLifecycleDefaults(
 async function runTaskLifecycleMutation(
   request: TaskLifecycleRequest,
   mutate: (task: TaskFrontmatter, now: Date) => Readonly<Partial<TaskFrontmatter>>,
+  options: { recoverStaleLock?: boolean } = {},
 ): Promise<SyncTaskResult> {
   const now = request.now ?? new Date();
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
@@ -69,6 +70,7 @@ async function runTaskLifecycleMutation(
     filePath: resolveTaskFilePath(request.taskId, vaultRoot),
     actorId: request.actorId,
     now,
+    recoverStaleLock: options.recoverStaleLock,
     mutate: (task) => withLifecycleDefaults(mutate(task, now), task, now),
   });
 }
@@ -85,7 +87,7 @@ export async function claimTaskLifecycle(request: ClaimTaskLifecycleRequest): Pr
     execution_started_at: now.toISOString(),
     blocked_reason: null,
     blocked_since: null,
-  }));
+  }), { recoverStaleLock: true });
 }
 
 export async function heartbeatTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
