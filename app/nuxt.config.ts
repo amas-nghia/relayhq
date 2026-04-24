@@ -1,7 +1,6 @@
 export default defineNuxtConfig({
   ssr: false,
   devtools: { enabled: true },
-  css: ["~/assets/css/main.css"],
   runtimeConfig: {
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3001',
   },
