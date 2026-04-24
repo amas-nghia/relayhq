@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Plus,
 } from 'lucide-vue-next'
+import EmptyState from '../../components/EmptyState.vue'
 import {
   emptyVaultReadModel,
   loadVaultReadModel,
@@ -30,9 +31,12 @@ const { data: vault } = await useAsyncData(relayhqReadModelKey, loadVaultReadMod
 
 const summary = computed(() => getProjectSummary(projectId, vault.value))
 const project = computed(() => vault.value.projects.find((entry) => entry.id === projectId) ?? null)
-const activeTab = ref<'workflow' | 'issues'>('workflow')
+const activeTab = ref<'workflow' | 'issues' | 'docs'>('workflow')
 
-const { data: allDocs } = await useFetch('/api/vault/documents')
+const { data: docsData, pending: docsPending, refresh: refreshDocs } = await useFetch('/api/vault/docs', {
+  query: { project_id: projectId },
+  default: () => ({ success: true, data: [] as Array<{ id: string; title: string; doc_type: string; status: string; workspace_id: string; project_id: string | null; updated_at: string; created_at: string; tags: string[]; sourcePath: string }>, error: null as string | null }),
+})
 const issueStatusFilter = ref('all')
 const issuePriorityFilter = ref('all')
 const issueCreateForm = ref({ title: '', problem: '', priority: 'medium' })
@@ -57,14 +61,13 @@ const { data: codeIndexStatus, pending: codeIndexPending, refresh: refreshCodeIn
   }),
 })
 
-const relatedVaultDocs = computed(() => {
-  if (!allDocs.value) return [];
-  return allDocs.value.filter((doc: any) =>
-    doc.tags?.includes(projectId) ||
-    doc.tags?.includes(`project-${projectId}`) ||
-    doc.tags?.includes(`proj-${projectId}`)
-  )
-})
+const docs = computed(() => docsData.value?.data ?? [])
+const openDocId = ref<string | null>(null)
+const docDetail = ref<{ id: string; title: string; doc_type: string; status: string; body: string; updated_at: string; tags: string[] } | null>(null)
+const docDetailPending = ref(false)
+const docError = ref<string | null>(null)
+const docCreateForm = ref({ title: '', doc_type: 'feature', body: '' })
+const isCreatingDoc = ref(false)
 const issues = computed(() => {
   const rows = issueData.value.issues ?? []
   return issuePriorityFilter.value === 'all'
@@ -72,6 +75,50 @@ const issues = computed(() => {
     : rows.filter((issue) => issue.priority === issuePriorityFilter.value)
 })
 const agentRaisedIssueCount = computed(() => issues.value.filter((issue) => issue.reportedBy.startsWith('agent-')).length)
+
+const toggleDoc = async (docId: string) => {
+  if (openDocId.value === docId) {
+    openDocId.value = null
+    docDetail.value = null
+    return
+  }
+
+  docError.value = null
+  docDetailPending.value = true
+  try {
+    const response = await $fetch<{ success: boolean; data: { id: string; title: string; doc_type: string; status: string; body: string; updated_at: string; tags: string[] } }>(`/api/vault/docs/${docId}`)
+    openDocId.value = docId
+    docDetail.value = response.data
+  } catch (error: any) {
+    docError.value = error?.data?.statusMessage ?? error?.statusMessage ?? error?.message ?? 'Unable to load document.'
+  } finally {
+    docDetailPending.value = false
+  }
+}
+
+const createDoc = async () => {
+  if (isCreatingDoc.value || !docCreateForm.value.title.trim()) return
+  docError.value = null
+  isCreatingDoc.value = true
+  try {
+    await $fetch('/api/vault/docs', {
+      method: 'POST',
+      body: {
+        title: docCreateForm.value.title.trim(),
+        doc_type: docCreateForm.value.doc_type,
+        project_id: projectId,
+        body: docCreateForm.value.body,
+        tags: ['project-doc', projectId],
+      },
+    })
+    docCreateForm.value = { title: '', doc_type: 'feature', body: '' }
+    await refreshDocs()
+  } catch (error: any) {
+    docError.value = error?.data?.statusMessage ?? error?.statusMessage ?? error?.message ?? 'Unable to create document.'
+  } finally {
+    isCreatingDoc.value = false
+  }
+}
 
 const createIssue = async () => {
   if (!issueCreateForm.value.title.trim() || isCreatingIssue.value) return
@@ -267,6 +314,10 @@ const runCodeSearch = async () => {
             <span class="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px]">{{ issues.length }}</span>
             <span v-if="agentRaisedIssueCount > 0" class="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px]">{{ agentRaisedIssueCount }} agent</span>
           </button>
+          <button class="pb-3 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2" :class="activeTab === 'docs' ? 'text-violet-600 border-b-2 border-violet-600' : 'text-slate-400 hover:text-slate-600'" @click="activeTab = 'docs'">
+            Docs
+            <span class="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px]">{{ docs.length }}</span>
+          </button>
         </div>
 
         <div v-if="activeTab === 'workflow'" class="glass-card p-6 md:p-8 space-y-6">
@@ -290,7 +341,7 @@ const runCodeSearch = async () => {
           </div>
         </div>
 
-        <div v-else class="glass-card p-6 md:p-8 space-y-6">
+        <div v-else-if="activeTab === 'issues'" class="glass-card p-6 md:p-8 space-y-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -353,6 +404,67 @@ const runCodeSearch = async () => {
                 <ChevronRight :size="16" class="text-slate-400 shrink-0" />
               </div>
             </NuxtLink>
+          </div>
+        </div>
+
+        <div v-else class="glass-card p-6 md:p-8 space-y-6">
+          <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileText :size="20" class="text-violet-600" />
+                Project Docs
+              </h2>
+              <p class="text-sm text-slate-500 mt-1">Feature docs, design notes, ADRs, and research linked to this project.</p>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 space-y-4">
+            <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+              <Plus :size="14" />
+              New Doc
+            </div>
+            <input v-model="docCreateForm.title" type="text" placeholder="Document title" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm" />
+            <select v-model="docCreateForm.doc_type" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700">
+              <option value="feature">Feature</option>
+              <option value="design">Design</option>
+              <option value="adr">ADR</option>
+              <option value="research">Research</option>
+              <option value="runbook">Runbook</option>
+              <option value="general">General</option>
+            </select>
+            <textarea v-model="docCreateForm.body" rows="6" placeholder="Write markdown content" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"></textarea>
+            <div class="flex items-center justify-end gap-3">
+              <button @click="createDoc" :disabled="isCreatingDoc" class="px-4 py-2 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 disabled:opacity-50">{{ isCreatingDoc ? 'Creating...' : 'Create Doc' }}</button>
+            </div>
+            <p v-if="docError" class="text-xs text-rose-600">{{ docError }}</p>
+          </div>
+
+          <div v-if="docsPending" class="text-sm text-slate-500">Loading docs...</div>
+          <EmptyState
+            v-else-if="docs.length === 0"
+            title="No project docs yet"
+            description="Create a project-scoped doc to capture feature context, design decisions, or research without leaving this page."
+          />
+          <div v-else class="space-y-3">
+            <div v-for="doc in docs" :key="doc.id" class="rounded-2xl border border-slate-100 bg-white p-4">
+              <button class="w-full text-left" @click="toggleDoc(doc.id)">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="space-y-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-sm font-bold text-slate-900">{{ doc.title }}</span>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">{{ doc.doc_type }}</span>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-100 text-violet-700">{{ doc.status }}</span>
+                    </div>
+                    <p class="text-xs text-slate-500">Updated {{ timeAgo(doc.updated_at) }}</p>
+                  </div>
+                  <ChevronRight :size="16" class="text-slate-400 shrink-0" />
+                </div>
+              </button>
+              <div v-if="openDocId === doc.id" class="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-4">
+                <div v-if="docDetailPending" class="text-sm text-slate-500">Loading document...</div>
+                <div v-else-if="docDetail && docDetail.id === doc.id" class="prose prose-sm max-w-none whitespace-pre-wrap text-slate-700">{{ docDetail.body }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -500,22 +612,7 @@ const runCodeSearch = async () => {
               </div>
             </NuxtLink>
 
-            <NuxtLink
-              v-for="doc in relatedVaultDocs"
-              :key="doc.id"
-              :to="`/vault?q=${doc.title}`"
-              class="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
-            >
-              <div class="mt-0.5 w-6 h-6 rounded bg-slate-100 flex items-center justify-center shrink-0">
-                <FileText :size="12" class="text-violet-400 group-hover:text-violet-600 transition-colors" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-sm font-bold text-slate-900 group-hover:text-violet-600 transition-colors line-clamp-1">{{ doc.title }}</p>
-                <p class="text-xs text-slate-500 truncate">{{ doc.sourcePath }}</p>
-              </div>
-            </NuxtLink>
-
-            <div v-if="summary.links.length === 0 && relatedVaultDocs.length === 0" class="text-sm text-slate-500 text-center py-4">
+            <div v-if="summary.links.length === 0 && docs.length === 0" class="text-sm text-slate-500 text-center py-4">
               No documents linked yet.
             </div>
           </div>
