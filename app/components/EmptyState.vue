@@ -30,10 +30,10 @@ const props = defineProps<{
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  border: 1px solid rgba(51, 65, 85, 0.8);
   border-radius: 1.25rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.82));
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.45);
 }
 
 .empty-illustration {
@@ -46,7 +46,7 @@ const props = defineProps<{
 .empty-illustration span {
   flex: 1;
   border-radius: 999px;
-  background: rgba(124, 58, 237, 0.14);
+  background: rgba(52, 211, 153, 0.14);
 }
 
 .empty-illustration span:nth-child(1) {
@@ -73,6 +73,7 @@ const props = defineProps<{
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #64748b;
+  color: #34d399;
 }
 
 h2,
@@ -82,11 +83,11 @@ p {
 
 h2 {
   letter-spacing: -0.04em;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 p {
-  color: #475569;
+  color: #94a3b8;
   line-height: 1.6;
 }
 
@@ -97,10 +98,10 @@ p {
   width: fit-content;
   min-height: 2.5rem;
   padding: 0.625rem 0.9rem;
-  border: 1px solid rgba(124, 58, 237, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.26);
   border-radius: 999px;
-  background: rgba(124, 58, 237, 0.08);
-  color: #4c1d95;
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
   font-weight: 700;
   transition:
     transform 160ms ease,
@@ -112,9 +113,9 @@ p {
 .empty-action:hover,
 .empty-action:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(124, 58, 237, 0.24);
-  background: #ffffff;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  border-color: rgba(52, 211, 153, 0.34);
+  background: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
 }
 
 @media (min-width: 768px) {

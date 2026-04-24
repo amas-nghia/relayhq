@@ -173,10 +173,10 @@ const quickLinks = computed(() =>
 .section-card,
 .metric-card,
 .pending-callout {
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  border: 1px solid rgba(51, 65, 85, 0.8);
   border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.38);
 }
 
 .hero-card {
@@ -196,11 +196,11 @@ const quickLinks = computed(() =>
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #6d28d9;
+  color: #34d399;
 }
 
 .eyebrow-amber {
-  color: #92400e;
+  color: #fbbf24;
 }
 
 .hero-title,
@@ -208,6 +208,7 @@ const quickLinks = computed(() =>
 .pending-copy h2 {
   margin: 0;
   letter-spacing: -0.04em;
+  color: #f8fafc;
 }
 
 .hero-title {
@@ -222,7 +223,7 @@ const quickLinks = computed(() =>
 .pending-copy p,
 .flow-step p {
   margin: 0;
-  color: #475569;
+  color: #94a3b8;
   line-height: 1.65;
 }
 
@@ -241,9 +242,9 @@ const quickLinks = computed(() =>
   display: grid;
   gap: 0.35rem;
   padding: 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 1rem;
-  background: rgba(248, 250, 252, 0.92);
+  background: rgba(15, 23, 42, 0.76);
 }
 
 .panel-label,
@@ -262,7 +263,7 @@ const quickLinks = computed(() =>
 .secondary-action,
 .inline-link,
 .pending-action {
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .hero-panel-card strong,
@@ -303,16 +304,16 @@ const quickLinks = computed(() =>
 }
 
 .primary-action {
-  border: 1px solid rgba(124, 58, 237, 0.28);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.96), rgba(109, 40, 217, 0.9));
-  color: #ffffff;
-  box-shadow: 0 18px 38px rgba(109, 40, 217, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.96), rgba(16, 185, 129, 0.88));
+  color: #052e16;
+  box-shadow: 0 18px 38px rgba(16, 185, 129, 0.22);
 }
 
 .secondary-action,
 .inline-link {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  background: rgba(15, 23, 42, 0.88);
 }
 
 .primary-action:hover,
@@ -326,8 +327,8 @@ const quickLinks = computed(() =>
 .page-link:hover,
 .page-link:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(124, 58, 237, 0.24);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  border-color: rgba(52, 211, 153, 0.24);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
 }
 
 .secondary-action:hover,
@@ -336,7 +337,7 @@ const quickLinks = computed(() =>
 .inline-link:focus-visible,
 .page-link:hover,
 .page-link:focus-visible {
-  background: #ffffff;
+  background: rgba(15, 23, 42, 0.98);
 }
 
 .action-badge {
@@ -347,8 +348,8 @@ const quickLinks = computed(() =>
   min-height: 1.6rem;
   padding: 0 0.45rem;
   border-radius: 999px;
-  background: rgba(245, 158, 11, 0.14);
-  color: #92400e;
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
   font-size: 0.75rem;
 }
 
@@ -407,14 +408,14 @@ const quickLinks = computed(() =>
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
-  border-color: rgba(245, 158, 11, 0.24);
-  background: linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.94));
+  border-color: rgba(245, 158, 11, 0.28);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.35), rgba(15, 23, 42, 0.92));
 }
 
 .pending-action {
-  border: 1px solid rgba(245, 158, 11, 0.22);
-  background: rgba(245, 158, 11, 0.12);
-  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
 }
 
 .page-link {
@@ -422,7 +423,7 @@ const quickLinks = computed(() =>
 }
 
 .page-link small {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 @media (min-width: 768px) {

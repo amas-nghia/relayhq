@@ -243,10 +243,10 @@ async function submit(): Promise<void> {
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  border: 1px solid rgba(51, 65, 85, 0.8);
   border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.35);
 }
 
 .task-create-copy,

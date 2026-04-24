@@ -104,10 +104,10 @@ defineProps<{
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  border: 1px solid rgba(51, 65, 85, 0.8);
   border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.35);
 }
 
 .board-copy {
@@ -124,14 +124,14 @@ defineProps<{
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #64748b;
+  color: #34d399;
 }
 
 .board-title,
 .column-header h3 {
   margin: 0;
   letter-spacing: -0.04em;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .board-title {
@@ -145,7 +145,7 @@ defineProps<{
 .metric-chip dd,
 .task-meta dd {
   margin: 0;
-  color: #475569;
+  color: #94a3b8;
   line-height: 1.55;
 }
 
@@ -159,14 +159,14 @@ defineProps<{
   display: grid;
   gap: 0.15rem;
   padding: 0.9rem 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 1rem;
-  background: rgba(248, 250, 252, 0.95);
+  background: rgba(15, 23, 42, 0.76);
 }
 
 .metric-chip dd strong {
   display: block;
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 1.25rem;
 }
 
@@ -177,9 +177,9 @@ defineProps<{
 
 .column-card,
 .task-card {
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 1rem;
-  background: rgba(248, 250, 252, 0.94);
+  background: rgba(15, 23, 42, 0.84);
 }
 
 .column-card {
@@ -210,8 +210,8 @@ defineProps<{
   min-height: 2rem;
   padding: 0.35rem 0.65rem;
   border-radius: 999px;
-  background: rgba(124, 58, 237, 0.08);
-  color: #4c1d95;
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
@@ -220,7 +220,7 @@ defineProps<{
 .task-status.stale {
   border: 1px solid rgba(239, 68, 68, 0.2);
   background: rgba(239, 68, 68, 0.12);
-  color: #991b1b;
+  color: #fca5a5;
 }
 
 .task-list {
