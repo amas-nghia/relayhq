@@ -1,7 +1,7 @@
 import { useAppStore } from '../../store/appStore';
 import { X } from 'lucide-react';
 import React, { useState } from 'react';
-import { Task, TaskPriority } from '../../types';
+import { TaskPriority } from '../../types';
 import { Button } from '../ui/button';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -18,12 +18,16 @@ export function NewTaskModal() {
   const agents = useAppStore(state => state.agents);
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [objective, setObjective] = useState('');
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState('');
+  const [contextFiles, setContextFiles] = useState('');
+  const [constraints, setConstraints] = useState('');
   const [projectId, setProjectId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [requiresApproval, setRequiresApproval] = useState(false);
   const selectedProject = projects.find(project => project.id === projectId)
+  const acceptanceCriteriaCount = acceptanceCriteria.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
+  const contextFilesCount = contextFiles.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
 
   React.useEffect(() => {
     if (!projectId && projects[0]) setProjectId(projects[0].id)
@@ -36,13 +40,25 @@ export function NewTaskModal() {
     e.preventDefault();
     if (!title.trim()) return;
 
-    await addTask({ title, description, projectId, boardId: selectedProject?.boardId, assigneeId, priority });
+    await addTask({
+      title,
+      description: objective,
+      objective,
+      acceptanceCriteria: acceptanceCriteria.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
+      contextFiles: contextFiles.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
+      constraints: constraints.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
+      projectId,
+      boardId: selectedProject?.boardId,
+      assigneeId,
+      priority,
+    });
     closeNewTaskModal();
-    // Reset form
     setTitle('');
-    setDescription('');
+    setObjective('');
+    setAcceptanceCriteria('');
+    setContextFiles('');
+    setConstraints('');
     setPriority('medium');
-    setRequiresApproval(false);
   };
 
   return (
@@ -72,12 +88,12 @@ export function NewTaskModal() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-text-primary">Description</label>
+            <label className="text-sm font-medium text-text-primary">Objective</label>
             <Textarea 
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Task details..."
+              value={objective}
+              onChange={e => setObjective(e.target.value)}
+              rows={4}
+              placeholder="Describe what this task should achieve in enough detail for an agent or teammate to start immediately."
             />
           </div>
 
@@ -127,36 +143,46 @@ export function NewTaskModal() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 mt-1">
-            <span className="text-sm font-medium text-text-primary">Requires approval?</span>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="approval" 
-                  checked={!requiresApproval} 
-                  onChange={() => setRequiresApproval(false)} 
-                  className="w-4 h-4 text-accent border-border focus:ring-accent"
-                />
-                <span className="text-sm text-text-secondary">No</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="approval" 
-                  checked={requiresApproval} 
-                  onChange={() => setRequiresApproval(true)} 
-                  className="w-4 h-4 text-accent border-border focus:ring-accent"
-                />
-                <span className="text-sm text-text-secondary">Yes</span>
-              </label>
-            </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-text-primary">
+              Acceptance criteria
+              <Textarea
+                value={acceptanceCriteria}
+                onChange={e => setAcceptanceCriteria(e.target.value)}
+                rows={4}
+                placeholder={"One outcome per line\nTask appears on the board\nReviewer can verify the result"}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-text-primary">
+              Context files
+              <Textarea
+                value={contextFiles}
+                onChange={e => setContextFiles(e.target.value)}
+                rows={4}
+                placeholder={"One path per line\nweb/src/api/client.ts\ndocs/onboarding.md"}
+              />
+            </label>
           </div>
+
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-text-primary">
+            Constraints (optional)
+            <Textarea
+              value={constraints}
+              onChange={e => setConstraints(e.target.value)}
+              rows={3}
+              placeholder={"One constraint per line\nDo not break existing approval flow"}
+            />
+          </label>
+
+          <p className="text-xs text-text-tertiary">
+            New tasks should include a real objective, at least two acceptance criteria, and at least one context file.
+          </p>
 
             <DialogFooter className="px-0 pb-0">
               {mutationError && <p className="mr-auto text-sm text-status-blocked">{mutationError}</p>}
               <Button variant="outline" onClick={closeNewTaskModal}>Cancel</Button>
-              <Button type="submit" disabled={isMutating}>{isMutating ? 'Creating...' : 'Create Task'}</Button>
+              <Button type="submit" disabled={isMutating || title.trim().length === 0 || objective.trim().length < 50 || acceptanceCriteriaCount < 2 || contextFilesCount < 1}>{isMutating ? 'Creating...' : 'Create Task'}</Button>
             </DialogFooter>
             </form>
           </DialogBody>
