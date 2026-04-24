@@ -1,0 +1,43 @@
+{
+  "id": "relayhq-build-08",
+  "seq": "08",
+  "title": "Build task and approval workflow views",
+  "status": "completed",
+  "depends_on": ["03", "05", "06"],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendSpecialist",
+  "context_files": [
+    "/home/amas/.opencode/context/ui/web/ui-styling-standards.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-overview.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-layout.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-theme.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-animation.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-implementation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/README.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vision.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/roadmap.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/schema.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/protocol.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.full.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "acceptance_criteria": [
+    "Follows the 4-stage design workflow",
+    "Responsive at all breakpoints",
+    "Task and approval views reflect vault state and support the control-plane workflow",
+    "Approval actions are visible without exposing runtime execution details"
+  ],
+  "deliverables": [
+    "app/pages/tasks/[task].vue",
+    "app/components/tasks/TaskDetailDrawer.vue",
+    "app/components/approvals/ApprovalPanel.vue",
+    "app/components/tasks/TaskStatusTimeline.vue"
+  ],
+  "agent_id": null,
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Implemented the task detail drawer, approval panel, task status timeline, and task page with vault-only state and responsive layout."
+}

@@ -1,0 +1,28 @@
+{
+  "id": "ui-fix-01",
+  "seq": "01",
+  "title": "Fix stale detection bug — task-001/002 marked stale despite recent heartbeat",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "vault-readmodel-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/server/services/vault/lock.ts",
+    "app/server/models/read-model.ts",
+    "vault/shared/tasks/task-001.md",
+    "vault/shared/tasks/task-002.md"
+  ],
+  "acceptance_criteria": [
+    "Running `curl http://localhost:4310/api/vault/read-model` returns task-001 and task-002 with isStale=false (task-001 heartbeat_at is 2026-04-16T00:18:17.806Z which is recent)",
+    "task-003 with heartbeat_at 2026-04-15T09:20:00Z remains correctly detected as stale (over 24 hours old)"
+  ],
+  "deliverables": [
+    "app/server/services/vault/lock.ts"
+  ],
+  "started_at": "2026-04-16T00:00:00Z",
+  "completed_at": "2026-04-16T00:00:00Z",
+  "completion_summary": "Split UI stale heartbeat detection from write-lock staleness and added focused regressions."
+}

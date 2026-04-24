@@ -1,0 +1,43 @@
+{
+  "id": "harness-context-bootstrap-03",
+  "seq": "03",
+  "title": "Add CLI `context` and `bootstrap <taskId>` commands",
+  "status": "pending",
+  "depends_on": ["01", "02"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "bootstrap-cli-agent",
+  "context_files": [],
+  "reference_files": [
+    "cli/relayhq.ts"
+  ],
+  "implementation_notes": [
+    "Edit cli/relayhq.ts to add two new commands.",
+    "Look at the existing `tasks` command as the pattern: it calls fetch(baseUrl + '/api/vault/read-model'), processes the result, prints to stdout.",
+    "Command: `context`",
+    "  bun run ./cli/relayhq.ts context",
+    "  Calls GET {baseUrl}/api/agent/context",
+    "  Prints: workspace name, project count, open task count, pending approval count",
+    "  On approval count > 0: print warning line '⚠ {n} approvals pending — open {baseUrl}/approvals'",
+    "Command: `bootstrap <taskId>`",
+    "  bun run ./cli/relayhq.ts bootstrap <taskId>",
+    "  Calls GET {baseUrl}/api/agent/bootstrap/{taskId}",
+    "  Prints: task id/title/status, objective, acceptance criteria (as numbered list), protocol instructions",
+    "  On 404: print 'Task not found: {taskId}' and exit 1",
+    "Both commands respect --base-url and RELAYHQ_BASE_URL (same as existing commands).",
+    "No new dependencies — use fetch() like existing commands."
+  ],
+  "acceptance_criteria": [
+    "`bun run ./cli/relayhq.ts context` prints workspace summary without error when server is up.",
+    "`bun run ./cli/relayhq.ts bootstrap <valid-task-id>` prints task context + protocol instructions.",
+    "`bun run ./cli/relayhq.ts bootstrap nonexistent` exits with code 1 and prints 'Task not found'.",
+    "Both commands respect --base-url flag.",
+    "No changes to existing command behaviour."
+  ],
+  "deliverables": [
+    "cli/relayhq.ts"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

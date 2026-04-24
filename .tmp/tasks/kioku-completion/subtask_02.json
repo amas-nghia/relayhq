@@ -1,0 +1,42 @@
+{
+  "id": "kioku-completion-02",
+  "seq": "02",
+  "title": "Wire vault-to-Kioku sync pipeline",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/models/read-model.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/read-model.get.ts"
+  ],
+  "implementation_notes": [
+    "Create sync.ts that exports syncReadModelToKioku(readModel, storage).",
+    "Internally call buildKiokuIndexUpdates(readModel) from indexer.ts, then call storage.upsert() for each update.",
+    "Sync must be idempotent: running twice on the same snapshot produces the same stored state.",
+    "Do not call any vault read/write — receive the already-loaded VaultReadModel as a parameter.",
+    "Wire the sync call into the read-model.get.ts handler so it syncs on every read-model load (or on demand)."
+  ],
+  "acceptance_criteria": [
+    "syncReadModelToKioku pushes all projects, boards, tasks, and approvals into storage.",
+    "Running sync twice on the same snapshot leaves storage in the same state (idempotent).",
+    "Sync does not touch vault markdown files.",
+    "No raw task body, executionNotes, result, or approval reason leaks into the index.",
+    "sync.ts and the wiring in read-model.get.ts are covered by unit tests."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/sync.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/sync.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/read-model.get.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added syncReadModelToKioku with idempotent upserts, stale-document deletion, and optional read-model wiring guarded by environment."
+}

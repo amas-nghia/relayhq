@@ -1,0 +1,46 @@
+{
+  "id": "harness-context-bootstrap-01",
+  "seq": "01",
+  "title": "Create GET /api/agent/context endpoint + unit test",
+  "status": "in_progress",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "agent-context-api-agent",
+  "context_files": [
+    "docs/relayhq-agent-harness-plan.md"
+  ],
+  "reference_files": [
+    "app/server/api/vault/read-model.get.ts",
+    "app/server/models/read-model.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/runtime.ts"
+  ],
+  "implementation_notes": [
+    "Create app/server/api/agent/context.get.ts.",
+    "Call buildVaultReadModel() (same pattern as read-model.get.ts — import from app/server/services/vault/read.ts).",
+    "Return a lightweight summary object — do NOT return the full read-model:",
+    "  { workspaceId: string|null, workspaceName: string|null, projects: Array<{id, name, boardCount}>, openTaskCount: number, pendingApprovalCount: number, boardSummary: Array<{id, name, columnSummary: Array<{id, name, taskCount}>}> }",
+    "No auth. Single-user, local service.",
+    "Create app/server/api/agent/context.test.ts:",
+    "  - mock buildVaultReadModel() with fixture data",
+    "  - assert correct field projection (no raw vault objects leaked)",
+    "  - assert pendingApprovalCount counts correctly",
+    "The VaultReadModel type is at app/server/models/read-model.ts:1 — check ReadModelWorkspace, ReadModelProject, ReadModelBoard, ReadModelTask, ReadModelApproval types for exact field names.",
+    "approval pending = approval.status === 'pending' (see ReadModelApproval.status field)."
+  ],
+  "acceptance_criteria": [
+    "GET /api/agent/context returns 200 with the summary shape above.",
+    "openTaskCount counts only tasks with status not in ['done', 'cancelled'].",
+    "pendingApprovalCount counts approvals with status === 'pending'.",
+    "Unit test passes covering both happy path and empty vault (no projects).",
+    "No raw vault task body text or execution_notes leaked in response."
+  ],
+  "deliverables": [
+    "app/server/api/agent/context.get.ts",
+    "app/server/api/agent/context.test.ts"
+  ],
+  "started_at": "2026-04-23T00:00:00Z",
+  "completed_at": null,
+  "completion_summary": null
+}

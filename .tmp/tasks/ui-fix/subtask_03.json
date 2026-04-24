@@ -1,0 +1,27 @@
+{
+  "id": "ui-fix-03",
+  "seq": "03",
+  "title": "Fix navigation structure — remove anchor links, fix Audit item, add badge to approval count",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "navigation-ui-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/components/navigation/WorkspaceNav.vue"
+  ],
+  "acceptance_criteria": [
+    "The 'Audit' nav item under Governance links to /tasks/:taskId is replaced with either a dedicated /audit route or temporarily removed — it must NOT link to a task page with the label 'Audit'",
+    "The 'Views' section at top of nav is removed (it duplicates the Workspace/Coordination/Governance sections below it)",
+    "The approval badge count (e.g., '1') appears correctly on the Approvals nav item when pendingApprovals.length > 0",
+    "All nav links navigate to their intended routes without 404 errors"
+  ],
+  "deliverables": [
+    "app/components/navigation/WorkspaceNav.vue"
+  ],
+  "started_at": "2026-04-16T10:00:00Z",
+  "completed_at": "2026-04-16T10:00:00Z",
+  "completion_summary": "Removed duplicated navigation structure, preserved the approvals badge, and ensured Audit no longer pointed at a task route."
+}

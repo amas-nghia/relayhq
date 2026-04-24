@@ -1,0 +1,36 @@
+{
+  "id": "mvp-readiness-task-manager-04",
+  "seq": "04",
+  "title": "Lock the Kioku real-service boundary and integration contract",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.full.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "acceptance_criteria": [
+    "RelayHQ is documented as the source of truth and Kioku as retrieval-only.",
+    "The Kioku path is a real integration boundary, not a placeholder.",
+    "The contract states that RelayHQ may read from Kioku but not treat it as authoritative state.",
+    "The boundary includes a clear failure mode for unavailable Kioku services."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/client.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/client.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.full.md"
+  ],
+  "agent_id": "coder-agent",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Locked the Kioku boundary as retrieval-only with a real failure-mode contract"
+}

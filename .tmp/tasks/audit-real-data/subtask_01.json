@@ -1,0 +1,34 @@
+{
+  "id": "audit-real-data-01",
+  "seq": "01",
+  "title": "Create GET /api/vault/audit-notes route with unit test",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "code-architect",
+  "context_files": [],
+  "reference_files": [
+    "app/server/api/vault/read-model.get.ts",
+    "app/server/models/read-model.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/runtime.ts",
+    "app/server/api/vault/tasks.post.ts"
+  ],
+  "acceptance_criteria": [
+    "File app/server/api/vault/audit-notes.get.ts exists and exports a Nitro defineEventHandler as default.",
+    "The handler calls readCanonicalVaultReadModel(resolveVaultWorkspaceRoot()) and returns { auditNotes } where auditNotes is ReadModelAuditNote[] sorted by createdAt descending.",
+    "An exported interface AuditNoteResponse is defined in the same file with fields: id (string), taskId (string), message (string), source (string), confidence (number), createdAt (string), sourcePath (string).",
+    "File app/server/api/vault/audit-notes.get.test.ts exists with at least 2 test cases.",
+    "Test case 1: mocked readCanonicalVaultReadModel returns a model with 2 auditNotes — handler returns both sorted by createdAt desc.",
+    "Test case 2: mocked readCanonicalVaultReadModel returns empty auditNotes — handler returns { auditNotes: [] }.",
+    "bun test server/api/vault/audit-notes.get.test.ts passes with 0 failures."
+  ],
+  "deliverables": [
+    "app/server/api/vault/audit-notes.get.ts",
+    "app/server/api/vault/audit-notes.get.test.ts"
+  ],
+  "started_at": "2026-04-20T00:00:00Z",
+  "completed_at": "2026-04-20T00:00:00Z",
+  "completion_summary": "Added GET /api/vault/audit-notes with a typed response helper, workspace-aware filtering, descending sort order, and route tests for populated and empty results."
+}

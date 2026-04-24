@@ -1,0 +1,38 @@
+{
+  "id": "relayhq-build-01",
+  "seq": "01",
+  "title": "Define vault schema foundation and canonical file layout",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/structure.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/schema.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.full.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "acceptance_criteria": [
+    "Shared vs private vault boundaries are explicit and source-of-truth rules are documented",
+    "Canonical file layout covers workspaces, projects, boards, columns, tasks, agents, approvals, audit, threads, and user overlays",
+    "Task, agent, approval, and audit frontmatter fields are defined for validation",
+    "Schema versioning and file ownership rules are clear"
+  ],
+  "deliverables": [
+    "app/shared/vault/schema.ts",
+    "app/shared/vault/layout.ts",
+    "app/shared/vault/schema.test.ts",
+    "docs/vault/schema.md"
+  ],
+  "agent_id": "coder-agent",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Defined canonical vault layout and frontmatter validators for shared, private, and system vault records"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "relayhq-phase-1-release-05",
+  "seq": "05",
+  "title": "Add shared empty state component and wiring",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "app-shell-ui-agent",
+  "started_at": "2026-04-15T00:00:00Z",
+  "completed_at": "2026-04-15T00:00:00Z",
+  "completion_summary": "Added a shared EmptyState component and wired it into workspace navigation and core pages so missing vault data produces guided fallback UI instead of raw unavailable text.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "docs/phase-1-checklist.md",
+    "docs/ux-design.md",
+    "app/components/navigation/WorkspaceNav.vue",
+    "app/pages/index.vue",
+    "app/pages/boards/[board].vue",
+    "app/pages/tasks/[task].vue"
+  ],
+  "acceptance_criteria": [
+    "A reusable EmptyState component exists with title, description, and optional action",
+    "Workspace, board, and task surfaces use the shared empty state instead of raw unavailable strings",
+    "Empty states explain what to do next"
+  ],
+  "deliverables": [
+    "app/components/EmptyState.vue",
+    "app/pages/index.vue",
+    "app/pages/boards/[board].vue",
+    "app/pages/tasks/[task].vue"
+  ]
+}

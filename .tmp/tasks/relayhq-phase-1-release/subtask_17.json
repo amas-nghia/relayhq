@@ -1,0 +1,31 @@
+{
+  "id": "relayhq-phase-1-release-17",
+  "seq": "17",
+  "title": "Update CLAUDE.md for the final Phase 1 architecture",
+  "status": "completed",
+  "depends_on": ["16"],
+  "parallel": false,
+  "suggested_agent": "DocWriter",
+  "agent_id": "docs-maintainer-agent",
+  "started_at": "2026-04-16T00:00:00Z",
+  "completed_at": "2026-04-16T00:00:00Z",
+  "completion_summary": "Updated CLAUDE.md to match the real seeded Phase 1 architecture, live routes, CLI usage, vault root behavior, and verification facts.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/documentation.md",
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "docs/phase-1-checklist.md",
+    "CLAUDE.md",
+    "docs/architecture.md",
+    "app/server/"
+  ],
+  "acceptance_criteria": [
+    "CLAUDE.md reflects the real app/server structure and vault root",
+    "Commands and repository layout match the Phase 1 implementation",
+    "The doc no longer describes outdated backend assumptions"
+  ],
+  "deliverables": [
+    "CLAUDE.md"
+  ]
+}

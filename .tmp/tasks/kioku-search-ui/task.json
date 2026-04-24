@@ -1,0 +1,25 @@
+{
+  "id": "kioku-search-ui",
+  "name": "Kioku Search UI Integration",
+  "status": "completed",
+  "objective": "Wire the existing /api/kioku/search backend into the UI: create a useKiokuSearch composable, plug it into tasks/index.vue search bar, and add an end-to-end smoke test.",
+  "context_files": [],
+  "reference_files": [
+    "app/server/api/kioku/search.post.ts",
+    "app/server/services/kioku/retriever.ts",
+    "app/server/services/kioku/sync.ts",
+    "app/server/services/kioku/storage.ts",
+    "app/composables/useVaultStatus.ts",
+    "app/pages/tasks/index.vue"
+  ],
+  "exit_criteria": [
+    "app/composables/useKiokuSearch.ts exists and its unit tests pass.",
+    "tasks/index.vue search bar calls /api/kioku/search; results come from Kioku, not client-side filter.",
+    "Integration smoke test confirms seeded vault tasks are returned for a known keyword.",
+    "bun test passes with no new failures after all 3 subtasks are done."
+  ],
+  "subtask_count": 3,
+  "completed_count": 3,
+  "created_at": "2026-04-20T00:00:00Z",
+  "completed_at": "2026-04-20T00:00:00Z"
+}

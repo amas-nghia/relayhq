@@ -1,0 +1,30 @@
+{
+  "id": "ui-fix-02",
+  "seq": "02",
+  "title": "Redesign dashboard (/) — replace static text with operational metrics and CTAs",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "dashboard-ui-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/pages/index.vue",
+    "app/data/relayhq-overview.ts"
+  ],
+  "acceptance_criteria": [
+    "Dashboard shows 4 metric cards with live counts: Projects (1), Boards (1), Tasks (3), Approvals (1 pending) — values sourced from the vault read model, not hardcoded",
+    "When pendingApprovals.length > 0, an amber-highlighted section with 'X pending approvals' appears with a CTA link to /approvals",
+    "A prominent 'Open Board' button/link navigates to /boards/board-demo (derived from vault data, not hardcoded)",
+    "The 'Board flow' section shows the 4 column names (Todo / In Progress / Review / Done) as a visual step indicator, not a static numbered list",
+    "The static 'Projects', 'Tasks', 'Approvals', 'Audit' info-dump sections are removed or collapsed into the metrics cards",
+    "The page renders without errors and all links navigate correctly"
+  ],
+  "deliverables": [
+    "app/pages/index.vue"
+  ],
+  "started_at": "2026-04-16T10:00:00Z",
+  "completed_at": "2026-04-16T10:00:00Z",
+  "completion_summary": "Reworked the dashboard into a live operational surface with vault-derived metrics, pending-approval CTA, board CTA, and a visual board-flow indicator."
+}

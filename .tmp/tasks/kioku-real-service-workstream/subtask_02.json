@@ -1,0 +1,33 @@
+{
+  "id": "kioku-real-service-workstream-02",
+  "seq": "02",
+  "title": "Build the SQLite-backed Kioku storage layer",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/models/read-model.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/retriever.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/repository.ts"
+  ],
+  "acceptance_criteria": [
+    "Kioku documents can be upserted, fetched, and deleted through a SQLite-backed adapter.",
+    "The storage layer preserves canonical document fields needed for search and retrieval.",
+    "Storage mutations are isolated from RelayHQ vault state.",
+    "SQLite schema and repository behavior are covered by tests."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Built the SQLite-backed Kioku storage layer with in-memory test support, FTS search, and explicit document CRUD operations."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "ui-fix-07",
+  "seq": "07",
+  "title": "Create /audit page — show audit notes linked to the current workspace/board",
+  "status": "completed",
+  "sprint": 2,
+  "depends_on": ["03"],
+  "parallel": false,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "audit-ui-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/pages/approvals.vue",
+    "app/data/relayhq-overview.ts",
+    "app/server/models/read-model.ts"
+  ],
+  "acceptance_criteria": [
+    "A new page exists at app/pages/audit.vue and is accessible at /audit",
+    "The page shows a list of audit notes from vault.auditNotes, each with: id, message, source, confidence, createdAt, and the linked taskId",
+    "When vault.auditNotes is empty, the page shows a clear empty state: 'No audit notes recorded yet'",
+    "The navigation item 'Audit' in WorkspaceNav.vue links to /audit",
+    "The page follows the same visual style as the approvals.vue page (section cards, eyebrow labels, etc.)"
+  ],
+  "deliverables": [
+    "app/pages/audit.vue",
+    "app/components/navigation/WorkspaceNav.vue"
+  ],
+  "started_at": "2026-04-16T10:00:00Z",
+  "completed_at": "2026-04-16T10:00:00Z",
+  "completion_summary": "Added a real /audit route backed by canonical audit notes and updated navigation so the Audit item links there."
+}

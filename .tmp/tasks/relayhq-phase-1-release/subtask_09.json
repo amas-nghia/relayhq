@@ -1,0 +1,31 @@
+{
+  "id": "relayhq-phase-1-release-09",
+  "seq": "09",
+  "title": "Create dedicated /approvals page",
+  "status": "completed",
+  "depends_on": ["08"],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "approvals-ui-agent",
+  "started_at": "2026-04-15T00:00:00Z",
+  "completed_at": "2026-04-15T00:00:00Z",
+  "completion_summary": "Added a dedicated /approvals page listing all pending approvals with task, assignee, requested-at, and direct links into task detail.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "docs/phase-1-checklist.md",
+    "docs/ux-design.md",
+    "app/pages/approvals.vue",
+    "app/data/relayhq-overview.ts"
+  ],
+  "acceptance_criteria": [
+    "Page lists all pending approvals with task, assignee, reason, and requested_at",
+    "Clicking a row routes to the task detail page",
+    "Page works with the sidebar nav refactor"
+  ],
+  "deliverables": [
+    "app/pages/approvals.vue"
+  ]
+}

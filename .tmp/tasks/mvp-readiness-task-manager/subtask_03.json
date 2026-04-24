@@ -1,0 +1,36 @@
+{
+  "id": "mvp-readiness-task-manager-03",
+  "seq": "03",
+  "title": "Define the minimal single-user agent registry",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "DocWriter",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/documentation.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/definitions.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/protocol.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/index.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.test.ts"
+  ],
+  "acceptance_criteria": [
+    "The registry is explicitly scoped to one user for the MVP.",
+    "Approval-required actions are listed in the registry.",
+    "The registry includes accepted task types and capability boundaries.",
+    "The docs surface the registry as the canonical agent entry point."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/definitions.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/protocol.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/index.md"
+  ],
+  "agent_id": "doc-writer",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Defined the single-user agent registry, capability boundaries, approval-required actions, and canonical agent entry docs"
+}

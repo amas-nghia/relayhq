@@ -1,0 +1,42 @@
+{
+  "id": "kioku-completion-01",
+  "seq": "01",
+  "title": "Build the SQLite-backed Kioku storage layer",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/client.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/repository.ts"
+  ],
+  "implementation_notes": [
+    "Use bun:sqlite (built-in, no extra dep). Open DB at KIOKU_DB_PATH env or :memory: for tests.",
+    "Schema: table kioku_documents with columns matching KiokuIndexDocument fields.",
+    "Add a full-text search virtual table (FTS5) on title + summary + keywords JSON for the search endpoint.",
+    "Expose three operations: upsert(doc), fetchById(entityId), deleteById(entityId), search(query, limit).",
+    "Storage must be isolated — never read or write vault markdown files directly.",
+    "Export a factory: createKiokuStorage(dbPath?: string): KiokuStorage."
+  ],
+  "acceptance_criteria": [
+    "upsert idempotently inserts or replaces a KiokuIndexDocument row.",
+    "fetchById returns the stored document or null when not found.",
+    "deleteById removes the document; subsequent fetchById returns null.",
+    "search(query) returns hits ranked by FTS5 relevance with entityType, entityId, score.",
+    "In-memory DB path (:memory:) is supported and used in all tests.",
+    "SQLite schema and all four operations are covered by unit tests."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Implemented SQLite-backed Kioku storage with FTS search, in-memory test support, and unit coverage for CRUD and query validation."
+}

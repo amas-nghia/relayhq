@@ -1,0 +1,46 @@
+{
+  "id": "harness-mcp-server-01",
+  "seq": "01",
+  "title": "Scaffold mcp/server.ts — MCP server skeleton with 8 tool schemas",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "mcp-schema-agent",
+  "context_files": [],
+  "reference_files": [
+    "cli/relayhq.ts"
+  ],
+  "implementation_notes": [
+    "Create mcp/server.ts.",
+    "Use the @modelcontextprotocol/sdk package. Check if it is installed: grep @modelcontextprotocol app/package.json",
+    "If not installed: add to app/package.json dependencies and run bun install in app/.",
+    "Alternatively, implement a minimal stdio MCP server from scratch using Bun.stdin/stdout with the JSON-RPC protocol — this avoids a new dependency. See https://modelcontextprotocol.io/llms-full.txt for the protocol spec.",
+    "Recommended: minimal stdio approach (no new npm dependency).",
+    "The 8 tools to register (name + description + input_schema):",
+    "  1. relayhq_get_context — no inputs — returns workspace summary",
+    "  2. relayhq_list_tasks — input: { assignee?: string } — returns task list",
+    "  3. relayhq_get_bootstrap — input: { taskId: string } — returns execution pack",
+    "  4. relayhq_claim_task — input: { taskId: string, agentId: string } — claims task",
+    "  5. relayhq_heartbeat — input: { taskId: string, agentId: string } — refreshes lock",
+    "  6. relayhq_update_task — input: { taskId: string, agentId: string, status?: string, progress?: number, result?: string, executionNotes?: string } — patches task",
+    "  7. relayhq_request_approval — input: { taskId: string, agentId: string, reason: string } — requests approval",
+    "  8. relayhq_create_tasks — input: { tasks: TaskProposal[] } — bulk create",
+    "In this subtask: just define the tool schemas and stub handlers that return { content: [{ type: 'text', text: 'Not yet implemented' }] }.",
+    "The actual HTTP delegation is subtask_02.",
+    "The BASE_URL is read from RELAYHQ_BASE_URL env var or defaults to http://127.0.0.1:4310.",
+    "Server reads from stdin, writes to stdout (MCP stdio transport)."
+  ],
+  "acceptance_criteria": [
+    "mcp/server.ts exists and compiles (bun run mcp/server.ts starts without error).",
+    "8 tools are registered with correct names and input schemas.",
+    "Server responds to tools/list with all 8 tools.",
+    "Stub handlers return 'Not yet implemented' without crashing."
+  ],
+  "deliverables": [
+    "mcp/server.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Created mcp/server.ts with a minimal stdio MCP server skeleton and all eight RelayHQ tool schemas registered."
+}

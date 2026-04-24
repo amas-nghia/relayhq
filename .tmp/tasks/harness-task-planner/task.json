@@ -1,0 +1,31 @@
+{
+  "id": "harness-task-planner",
+  "name": "Harness Phase 0 — Planner Primitives (Bulk Task Create + Search Context)",
+  "status": "completed",
+  "objective": "Add the two primitives a planner runtime (Claude) needs to propose and persist work: (1) POST /api/agent/tasks supports bulk creation with duplicate detection — before writing, it checks for open tasks with identical titles and skips them; (2) POST /api/agent/search-context is a thin wrapper over the existing /api/kioku/search endpoint, returning structured results typed for agent consumption. This completes the PLANNING LANE contract. Planners use these two endpoints + context/bootstrap from harness-context-bootstrap to do their job — they never call the execution endpoints (claim, heartbeat, update).",
+  "context_files": [
+    "docs/relayhq-agent-harness-plan.md",
+    "docs/agents/protocol.md"
+  ],
+  "reference_files": [
+    "app/server/api/vault/tasks.post.ts",
+    "app/server/api/kioku/search.post.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/write.ts",
+    "app/server/services/vault/repository.ts",
+    "app/server/models/read-model.ts",
+    "app/shared/vault/schema.ts",
+    "cli/relayhq.ts"
+  ],
+  "exit_criteria": [
+    "POST /api/agent/tasks accepts an array of task proposals and creates each one, skipping any with a title that matches an existing open task (dedup by normalized title).",
+    "POST /api/agent/search-context wraps /api/kioku/search and returns { query, tasks[], projects[], boards[] } — no raw vault objects.",
+    "Both endpoints have unit tests.",
+    "CLI has `create-tasks --file <json>` and `search-context <query>` commands.",
+    "bun test passes with no new failures."
+  ],
+  "subtask_count": 3,
+  "completed_count": 3,
+  "created_at": "2026-04-23T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z"
+}

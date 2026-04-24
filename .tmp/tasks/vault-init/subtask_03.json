@@ -1,0 +1,45 @@
+{
+  "id": "vault-init-03",
+  "seq": "03",
+  "title": "Add `POST /api/vault/init` endpoint so Settings UI can trigger init",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "settings-init-flow-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/scaffold.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/settings.get.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/settings.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/settings/index.vue"
+  ],
+  "implementation_notes": [
+    "Create app/server/api/vault/init.post.ts.",
+    "Body: { vaultRoot: string, workspaceName?: string, projectName?: string }",
+    "Call scaffoldVault() — same logic as the CLI command but served over HTTP.",
+    "On alreadyExists: return 409 Conflict with message.",
+    "On success: also call saveVaultRootSetting() (from settings.post.ts) to activate the new vault immediately.",
+    "Return: { created: string[], vaultRoot: string }",
+    "In Settings page (settings/index.vue): when GET /api/settings returns isValid: false, show an 'Initialise vault here' button.",
+    "Button opens a small inline form with workspace name + project name inputs.",
+    "On submit: POST /api/vault/init, then refresh settings state — UI should immediately show green status."
+  ],
+  "acceptance_criteria": [
+    "POST /api/vault/init creates vault/shared/ and activates the vault root in one request.",
+    "Returns 409 if vault/shared/ already exists.",
+    "Settings page shows 'Initialise vault here' when current path is invalid.",
+    "After init, Settings page shows green valid status without page reload.",
+    "Endpoint is covered by at least one integration test."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/init.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/settings/index.vue"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added POST /api/vault/init plus a settings-page flow that initializes an invalid target path and activates it immediately."
+}

@@ -1,0 +1,32 @@
+{
+  "id": "kioku-real-service-workstream-06",
+  "seq": "06",
+  "title": "Run release verification and finalize the Kioku ship gate",
+  "status": "completed",
+  "depends_on": ["05"],
+  "parallel": false,
+  "suggested_agent": "TestEngineer",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/test-coverage.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/test/relayhq.e2e.test.ts"
+  ],
+  "acceptance_criteria": [
+    "The release checklist explicitly confirms Kioku is retrieval-only and RelayHQ stays canonical.",
+    "The Kioku workstream has a clear ship/no-ship gate based on the regression suite.",
+    "Release verification documents the residual risks and any follow-up work.",
+    "No unchecked placeholder or mock Kioku path remains in the release plan."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Validated the completed Kioku boundary against focused suites, the full app test suite, and a production Nuxt build, then closed the workstream."
+}

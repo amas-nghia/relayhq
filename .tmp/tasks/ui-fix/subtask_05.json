@@ -1,0 +1,32 @@
+{
+  "id": "ui-fix-05",
+  "seq": "05",
+  "title": "Add column move button on task detail page — move task to next/previous column",
+  "status": "completed",
+  "sprint": 2,
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "task-workflow-ui-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/pages/tasks/[task].vue",
+    "app/server/api/vault/tasks/[id].patch.ts",
+    "app/data/task-workflow.ts",
+    "app/data/relayhq-overview.ts"
+  ],
+  "acceptance_criteria": [
+    "Task detail page shows 'Move to [Next Column]' button when the task is not in the 'done' column",
+    "Task detail page shows 'Move to [Previous Column]' button when the task is not in the 'todo' column",
+    "Clicking 'Move to [column]' calls PATCH /api/vault/tasks/:id with a column update and refreshes the page",
+    "After a successful column move, the task detail page reflects the new column in the status area",
+    "The button is disabled while the API call is in flight (loading state)"
+  ],
+  "deliverables": [
+    "app/pages/tasks/[task].vue",
+    "app/data/task-actions.ts"
+  ],
+  "started_at": "2026-04-16T10:00:00Z",
+  "completed_at": "2026-04-16T10:00:00Z",
+  "completion_summary": "Added previous/next column controls on task detail using the task PATCH API with in-flight disable state and shared task action helpers."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "vault-init-fix",
+  "name": "vault-init-fix — Remove project name from init flow, workspace-only scaffold",
+  "status": "completed",
+  "objective": "Init should create only a workspace. Project name in the init form is premature — user may have no projects yet. Remove project name from scaffold, CLI, API, and Settings UI. Projects are created later via the UI.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/scaffold.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/relayhq.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/init.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/settings/index.vue"
+  ],
+  "exit_criteria": [
+    "scaffoldVault() accepts only workspaceName — no projectName, no boardName.",
+    "Generated vault/shared/ contains only: workspaces/{id}.md and empty subdirs for projects, boards, columns, tasks, agents, approvals, audit, threads.",
+    "CLI init accepts --workspace-name only; --project-name flag is removed.",
+    "POST /api/vault/init body accepts only { vaultRoot, workspaceName }.",
+    "Settings UI init form shows only the Workspace name field.",
+    "All tests pass after the change."
+  ],
+  "subtask_count": 2,
+  "completed_count": 2,
+  "created_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z"
+}

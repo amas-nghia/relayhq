@@ -1,0 +1,38 @@
+{
+  "id": "vault-persistence-flow",
+  "name": "Vault Persistence Flow",
+  "status": "completed",
+  "objective": "Replace the remaining demo/static data with vault-backed read and write persistence and wire the Nuxt control plane to the live vault.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/schema.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/structure.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/models/read-model.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/read.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/write.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/data/relayhq-overview.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/data/task-workflow.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/index.vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/boards/[board].vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/projects/[project].vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/tasks/[task].vue"
+  ],
+  "exit_criteria": [
+    "Vault-backed read services feed the Nuxt pages and data layers",
+    "Task and project updates persist through a vault-backed write flow with locking and stale detection",
+    "Static demo data is removed from the active app source of truth",
+    "Read and write regression tests cover the persistence flow"
+  ],
+  "subtask_count": 6,
+  "completed_count": 6,
+  "created_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z"
+}

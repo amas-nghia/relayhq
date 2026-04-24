@@ -1,0 +1,32 @@
+{
+  "id": "project-creation",
+  "name": "project-creation — Wire New Project button: API endpoint + create modal",
+  "status": "completed",
+  "objective": "The /projects page has a 'New Project' button that is purely decorative — no @click handler, no modal, no API route. This workstream wires it end-to-end: POST /api/vault/projects writes a project.md + default board + 4 columns into the vault, and the UI shows a create modal with a name field.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/projects/index.vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/project-write.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/repository.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/tasks.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/read-model.get.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/projects/project-relayhq-dev.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/boards/board-dev-sprint.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/columns/"
+  ],
+  "exit_criteria": [
+    "POST /api/vault/projects accepts { name } and creates: projects/{id}.md, boards/{boardId}.md, columns/{todo,in-progress,review,done}.md under vault/shared/.",
+    "The new project + board + columns are immediately visible in GET /api/vault/read-model.",
+    "New Project button on /projects opens an inline modal with a single 'Project name' input.",
+    "Submitting creates the project and refreshes the list without a full page reload.",
+    "Clicking an existing project still navigates to /projects/[id].",
+    "bun test passes with 0 failures."
+  ],
+  "subtask_count": 2,
+  "completed_count": 2,
+  "created_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z"
+}

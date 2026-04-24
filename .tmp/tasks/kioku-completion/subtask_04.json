@@ -1,0 +1,43 @@
+{
+  "id": "kioku-completion-04",
+  "seq": "04",
+  "title": "Add integration tests for the full storage → sync → search path",
+  "status": "completed",
+  "depends_on": ["01", "02", "03"],
+  "parallel": false,
+  "suggested_agent": "TestEngineer",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/test-coverage.md",
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/sync.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/retriever.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/client.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/test/relayhq.e2e.test.ts"
+  ],
+  "implementation_notes": [
+    "Create integration.test.ts — tests that wire storage + sync + retriever together without mocking storage.",
+    "Use in-memory SQLite (:memory:) for every test; no filesystem side effects.",
+    "Cover: sync from fixture read-model → search hits → canonical resolution round-trip.",
+    "Cover: sync idempotency (sync twice, assert storage unchanged).",
+    "Cover: search returns empty hits for queries that match nothing.",
+    "Cover: no secret fields present in any returned hit or resolved entity payload."
+  ],
+  "acceptance_criteria": [
+    "integration.test.ts passes with bun test; no real vault files are read or written.",
+    "Tests fail if sync stops pushing documents into storage.",
+    "Tests fail if search returns results that contain raw vault body or executionNotes.",
+    "Tests fail if retrieval resolution returns stale or wrong canonical entities.",
+    "Overall test count increases (i.e., tests are real, not skipped)."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/integration.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added integration coverage for storage, sync, and search resolution, plus focused tests for query/path hardening and stale-document cleanup."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "vault-persistence-flow-06",
+  "seq": "06",
+  "title": "Add write and locking regression coverage",
+  "status": "completed",
+  "depends_on": ["03"],
+  "parallel": true,
+  "suggested_agent": "TestEngineer",
+  "agent_id": "test-engineer",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Added write and locking regression coverage for lock refresh, stale/contended rejection, and secret-safe validation",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/write.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/validation.test.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/lock.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/write.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts"
+  ],
+  "acceptance_criteria": [
+    "Atomic writes refresh lock metadata and persist the expected body and frontmatter",
+    "Stale and contended locks reject writes before corruption occurs",
+    "Invalid patch shapes, immutable fields, and secret-bearing values are rejected"
+  ],
+  "deliverables": [
+    "app/server/services/vault/write.test.ts",
+    "app/server/services/vault/validation.test.ts",
+    "app/server/services/vault/lock.test.ts",
+    "app/server/services/vault/project-write.test.ts"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "RelayHQ",
+  "description": "Vault-first Kanban control plane for human-agent coordination.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,33 @@
+{
+  "id": "mvp-readiness-task-manager-01",
+  "seq": "01",
+  "title": "Publish the 1-user MVP release scope and next-task order",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "DocWriter",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/documentation.md",
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/README.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/roadmap.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.md"
+  ],
+  "acceptance_criteria": [
+    "docs/relayhq-build-plan.md states the 1-user MVP release slice in plain language.",
+    "The plan explicitly says RelayHQ is control-plane only and vault-first.",
+    "The plan includes a clear next-task order for the MVP release path.",
+    "The plan states that Kioku is only included as a real boundary, not a placeholder."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "agent_id": "doc-writer",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Published the 1-user MVP release slice, next-task order, and Kioku boundary in the build plan"
+}

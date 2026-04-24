@@ -1,0 +1,29 @@
+{
+  "id": "harness-context-bootstrap",
+  "name": "Harness Phase 0 — Context API + Bootstrap API",
+  "status": "completed",
+  "objective": "Add the two foundational headless endpoints that every agent runtime needs before it can do anything: (1) GET /api/agent/context returns a lightweight summary of active workspace/project/task state so a runtime can orient itself without reading the full read-model; (2) GET /api/agent/bootstrap/:taskId returns a full execution pack for a specific task — metadata, acceptance criteria, top-3 related files, protocol instructions — capped at a safe context budget. No new persistence, no new schema: both endpoints project from the existing VaultReadModel.",
+  "context_files": [
+    "docs/relayhq-agent-harness-plan.md",
+    "docs/agents/protocol.md"
+  ],
+  "reference_files": [
+    "app/server/api/vault/read-model.get.ts",
+    "app/server/models/read-model.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/runtime.ts",
+    "app/shared/vault/schema.ts",
+    "cli/relayhq.ts"
+  ],
+  "exit_criteria": [
+    "GET /api/agent/context returns { workspaceId, workspaceName, projects[], openTaskCount, pendingApprovalCount, boardSummary[] } — no auth, JSON.",
+    "GET /api/agent/bootstrap/:taskId returns { task, objective, acceptanceCriteria, constraints, relatedFiles[max3], protocolInstructions, approvalPolicy } — missing task → 404.",
+    "Both endpoints are covered by unit tests.",
+    "CLI has `context` and `bootstrap <taskId>` commands that call the new endpoints.",
+    "bun test passes with no new failures."
+  ],
+  "subtask_count": 3,
+  "completed_count": 3,
+  "created_at": "2026-04-23T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z"
+}

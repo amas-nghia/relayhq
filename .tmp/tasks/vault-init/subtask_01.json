@@ -1,0 +1,52 @@
+{
+  "id": "vault-init-01",
+  "seq": "01",
+  "title": "Build the vault scaffold generator service",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "vault-scaffold-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/runtime.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/workspaces/ws-demo.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/projects/project-relayhq-dev.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/boards/board-dev-sprint.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/columns/"
+  ],
+  "implementation_notes": [
+    "Create cli/scaffold.ts — pure function, no side effects besides writing files.",
+    "Export: scaffoldVault(options: ScaffoldOptions): Promise<ScaffoldResult>",
+    "ScaffoldOptions: { vaultRoot: string, workspaceName: string, workspaceId: string, projectName: string, projectId: string, boardName?: string }",
+    "ScaffoldResult: { created: string[], skipped: string[], alreadyExists: boolean }",
+    "Abort (alreadyExists: true) if vault/shared/ already exists — never overwrite.",
+    "Create directories: vault/shared/{workspaces,projects,boards,columns,tasks,agents,approvals,audit,threads}/",
+    "Seed files to generate (all must pass schema validators):",
+    "  - vault/shared/workspaces/{workspaceId}.md",
+    "  - vault/shared/projects/{projectId}.md — workspace_id, board_ids populated",
+    "  - vault/shared/boards/board-{projectId}-main.md — project_id, column_ids populated",
+    "  - vault/shared/columns/column-todo.md, column-in-progress.md, column-review.md, column-done.md",
+    "IDs: use the provided names slugified (e.g. 'My App' → 'my-app'), prefix with type (ws-, project-, board-, column-).",
+    "Timestamps: use the current ISO timestamp for created_at and updated_at.",
+    "Do not hardcode ws-demo anywhere — all IDs come from ScaffoldOptions."
+  ],
+  "acceptance_criteria": [
+    "scaffoldVault() creates all required directories and seed files.",
+    "Calling scaffoldVault() twice on the same root returns alreadyExists: true and writes nothing.",
+    "All generated markdown files parse cleanly through the existing vault schema validators.",
+    "Generated project references the generated board; generated board references the generated columns.",
+    "Unit tests cover: fresh init, idempotency guard, slugification edge cases."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/scaffold.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/scaffold.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added cli/scaffold.ts with portable vault/shared scaffolding, already-exists protection, and scaffold tests covering fresh init and slugification."
+}

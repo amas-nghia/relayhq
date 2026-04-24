@@ -1,0 +1,37 @@
+{
+  "id": "kioku-real-service-workstream-03",
+  "seq": "03",
+  "title": "Wire vault indexing and sync from the RelayHQ read model",
+  "status": "completed",
+  "depends_on": ["01", "02"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": null,
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/models/read-model.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/read-model.get.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/read.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/storage.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/.tmp/tasks/relayhq-build/subtask_09.json"
+  ],
+  "acceptance_criteria": [
+    "Canonical workspaces, projects, boards, tasks, and approvals are indexed from the read model.",
+    "Sync updates are idempotent and safe to rerun against the same vault snapshot.",
+    "The sync path avoids leaking raw vault bodies or secrets into the index.",
+    "Vault read-model changes are reflected in Kioku storage through a deterministic pipeline."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/indexer.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/sync.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/kioku/sync.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Wired the vault-to-Kioku sync pipeline with idempotent updates and stale-document cleanup using the canonical read-model as the only input."
+}

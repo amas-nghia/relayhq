@@ -1,0 +1,41 @@
+{
+  "id": "relayhq-build-06",
+  "seq": "06",
+  "title": "Create the Nuxt app shell, routing, and shared navigation",
+  "status": "completed",
+  "depends_on": ["02", "05"],
+  "parallel": false,
+  "suggested_agent": "OpenFrontendSpecialist",
+  "context_files": [
+    "/home/amas/.opencode/context/ui/web/ui-styling-standards.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-overview.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-layout.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-theme.md",
+    "/home/amas/.opencode/context/core/workflows/design-iteration-stage-implementation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/README.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/index.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vision.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/architecture.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/roadmap.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "acceptance_criteria": [
+    "Follows the 4-stage design workflow",
+    "Responsive at all breakpoints",
+    "Shell exposes workspace and project navigation without relying on runtime execution",
+    "Markup is semantic and accessible"
+  ],
+  "deliverables": [
+    "app/app.vue",
+    "app/layouts/default.vue",
+    "app/pages/index.vue",
+    "app/components/navigation/WorkspaceNav.vue"
+  ],
+  "agent_id": "openfrontendspecialist",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Created the Nuxt app shell, layout, index page, and workspace navigation"
+}

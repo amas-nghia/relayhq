@@ -1,0 +1,31 @@
+{
+  "id": "dogfooding-setup-04",
+  "seq": "04",
+  "title": "Viết dogfooding protocol và cập nhật CLAUDE.md",
+  "status": "completed",
+  "sprint": 2,
+  "depends_on": ["01", "02", "03"],
+  "parallel": false,
+  "suggested_agent": "DocWriter",
+  "agent_id": "protocol-docs-agent",
+  "context_files": [
+    "docs/agents/protocol.md"
+  ],
+  "reference_files": [
+    "CLAUDE.md",
+    "cli/relayhq.ts",
+    "docs/architecture.md"
+  ],
+  "acceptance_criteria": [
+    "CLAUDE.md có section 'Dogfooding Workflow' mô tả: khi bắt đầu làm việc → claim vault task; trong lúc làm → heartbeat mỗi ~10 phút; xong → mark done với result; cần review → request-approval",
+    "Section phân biệt rõ hai layer: vault task (coordination, board-visible) vs .tmp/tasks/ subtasks (internal breakdown, agent-only)",
+    "CLAUDE.md có convention: mọi top-level work item mới phải có vault task trước khi bắt đầu",
+    "CLI commands được document với ví dụ cụ thể dùng agent-claude-code và project-relayhq-dev"
+  ],
+  "deliverables": [
+    "CLAUDE.md"
+  ],
+  "started_at": "2026-04-16T00:00:00Z",
+  "completed_at": "2026-04-16T00:00:00Z",
+  "completion_summary": "Added a Dogfooding Workflow section to CLAUDE.md covering claim, heartbeat, done, request-approval, and the distinction between vault tasks and .tmp breakdown files."
+}

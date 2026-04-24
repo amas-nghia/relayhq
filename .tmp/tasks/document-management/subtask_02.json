@@ -1,0 +1,38 @@
+{
+  "id": "document-management-02",
+  "seq": "02",
+  "title": "Add New Document button + inline form to /vault explorer",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "vault-explorer-ui-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/vault/index.vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/settings/index.vue"
+  ],
+  "implementation_notes": [
+    "In app/pages/vault/index.vue add: showCreateForm ref (default false), newTitle ref, newContent ref, createError ref, isSubmitting ref.",
+    "Add a 'New Document' button in the header area (next to the search input). On click: showCreateForm = true.",
+    "Render the form as a card above the document list when showCreateForm is true: title input (required), content textarea (optional, ~4 rows), Cancel + Create buttons.",
+    "Create button: POST /api/vault/documents with { title: newTitle, content: newContent }. On success: close form, reset fields, call refreshNuxtData or re-fetch /api/vault/documents.",
+    "On error: show createError message inside the form.",
+    "Also add a 'Create your first document' CTA in the empty state (when filteredDocs.length === 0 and searchQuery is empty) that opens the same form.",
+    "The existing search, Index Status sidebar, and document list behaviour must remain unchanged."
+  ],
+  "acceptance_criteria": [
+    "Clicking 'New Document' reveals the inline form.",
+    "Submitting with a title creates the file and the new document appears in the list immediately.",
+    "Submitting with empty title shows an inline validation message and does not close the form.",
+    "Empty state shows a Create CTA when no documents exist and no search is active."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/vault/index.vue"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added a New Document button, inline creation form, empty-state CTA, and immediate list refresh to the /vault explorer."
+}

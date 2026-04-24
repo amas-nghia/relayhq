@@ -1,0 +1,48 @@
+{
+  "id": "project-creation-01",
+  "seq": "01",
+  "title": "Create POST /api/vault/projects endpoint with board + columns scaffold",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "coder-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/tasks.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/project-write.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/repository.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/runtime.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/projects/project-relayhq-dev.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/boards/board-dev-sprint.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/columns/"
+  ],
+  "implementation_notes": [
+    "Create app/server/api/vault/projects.post.ts.",
+    "Body: { name: string }. Validate with zod or inline check — name must be non-empty string.",
+    "Generate IDs: projectId = 'project-' + slugify(name) + '-' + nanoid(6), boardId = 'board-' + projectId suffix, columnIds = ['col-todo-…', 'col-inprogress-…', 'col-review-…', 'col-done-…'].",
+    "Use resolveSharedVaultPath() from runtime.ts to get the vault root.",
+    "Write project .md using serializeProjectDocument from project-write.ts (or replicate the atomic write pattern). Frontmatter: id, type='project', workspace_id (from readConfiguredWorkspaceId()), name, created_at, updated_at.",
+    "Write board .md: frontmatter id, type='board', workspace_id, project_id, name=name+' Board', created_at, updated_at.",
+    "Write 4 column .mds: frontmatter id, type='column', workspace_id, project_id, board_id, name, position (0-3), created_at, updated_at. Names: 'To Do', 'In Progress', 'Review', 'Done'.",
+    "All writes go to vault/shared/projects/, vault/shared/boards/, vault/shared/columns/ respectively.",
+    "Return 201 with { project, board, columns }.",
+    "Add a unit test in app/test/ covering: successful creation, missing name → 400, existing project file → 409."
+  ],
+  "acceptance_criteria": [
+    "POST /api/vault/projects with { name: 'My Project' } returns 201 and 6 files are created on disk.",
+    "Subsequent GET /api/vault/read-model includes the new project, board, and columns.",
+    "POST with empty name returns 400.",
+    "bun test passes."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/projects.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/test/vault-project-create.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added POST /api/vault/projects to create a project, default board, and four workflow columns under vault/shared with focused tests."
+}

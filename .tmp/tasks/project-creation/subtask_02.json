@@ -1,0 +1,38 @@
+{
+  "id": "project-creation-02",
+  "seq": "02",
+  "title": "Wire New Project button: create modal in /projects UI",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "projects-create-modal-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/projects/index.vue",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/settings/index.vue"
+  ],
+  "implementation_notes": [
+    "In app/pages/projects/index.vue add: showCreateModal ref (default false), createName ref, createError ref, isCreating ref.",
+    "Wire @click on the 'New Project' header button and the empty-state 'Create Project' button to set showCreateModal = true.",
+    "Add a modal overlay (fixed inset-0 backdrop-blur-sm) containing a card with: title 'New Project', a single 'Project name' text input bound to createName, an error message span (shown when createError is set), Cancel + Create buttons.",
+    "Create button calls POST /api/vault/projects with { name: createName }. On success: close modal, reset refs, call refreshNuxtData(relayhqReadModelKey) to refresh the project list without page reload.",
+    "On API error, display the error message inside the modal (do not close it).",
+    "The 'New Project' button in the empty state row also opens the same modal.",
+    "Do not add the modal to [id].vue — only index.vue."
+  ],
+  "acceptance_criteria": [
+    "Clicking 'New Project' opens the modal.",
+    "Typing a name and clicking Create calls POST /api/vault/projects and the new project appears in the table immediately.",
+    "Clicking Cancel or submitting with empty name shows a validation error without closing.",
+    "The rest of the /projects page (search, table, navigation to [id]) is unaffected."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/pages/projects/index.vue"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Wired the New Project button and empty-state CTA to an inline modal that creates projects and refreshes the list without a full reload."
+}

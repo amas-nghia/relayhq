@@ -1,0 +1,30 @@
+{
+  "id": "ui-fix-04",
+  "seq": "04",
+  "title": "Add priority left-border and approval/stale visual states to task cards on the board",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "OpenFrontendDeveloper",
+  "agent_id": "board-ui-agent",
+  "context_files": [],
+  "reference_files": [
+    "app/components/boards/BoardColumnList.vue"
+  ],
+  "acceptance_criteria": [
+    "Task cards with priority='critical' have a 3px left border in #dc2626 (red-600)",
+    "Task cards with priority='high' have a 3px left border in #d97706 (amber-600)",
+    "Task cards with priority='medium' have no accent left border (default)",
+    "Task cards with priority='low' have opacity 0.8 applied",
+    "Task cards where isStale=true show a 'Stale' badge (red background) AND a red left border, distinct from approval state",
+    "Task cards where approvalState.status='pending' show an amber left border and an 'Approval pending' badge in addition to the existing status badge",
+    "The board page at /boards/board-demo visually distinguishes task-001 (in-progress, stale) from task-003 (waiting-approval, review column)"
+  ],
+  "deliverables": [
+    "app/components/boards/BoardColumnList.vue"
+  ],
+  "started_at": "2026-04-16T10:00:00Z",
+  "completed_at": "2026-04-16T10:00:00Z",
+  "completion_summary": "Added priority, stale, and approval-pending visual states to board task cards while preserving click-through behavior and existing metadata."
+}

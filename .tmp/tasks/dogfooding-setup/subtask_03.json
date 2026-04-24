@@ -1,0 +1,41 @@
+{
+  "id": "dogfooding-setup-03",
+  "seq": "03",
+  "title": "Seed Kioku workstream thành vault tasks trên dev board",
+  "status": "completed",
+  "sprint": 2,
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "workstream-seeding-agent",
+  "context_files": [
+    "docs/vault/schema.md"
+  ],
+  "reference_files": [
+    "vault/shared/tasks/task-001.md",
+    ".tmp/tasks/kioku-real-service-workstream/task.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_01.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_02.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_03.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_04.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_05.json",
+    ".tmp/tasks/kioku-real-service-workstream/subtask_06.json"
+  ],
+  "acceptance_criteria": [
+    "6 vault task files tồn tại trong vault/shared/tasks/ với prefix kioku-* và project_id: project-relayhq-dev",
+    "depends_on của vault tasks phản ánh đúng dependency graph từ .tmp/tasks/ subtasks (01→03, 01+02→04, v.v.)",
+    "kioku-01 và kioku-02 có column: todo (không có dep), các task còn lại có column: todo với depends_on hợp lệ",
+    "GET /api/vault/read-model trả về 6 tasks mới dưới board-dev-sprint"
+  ],
+  "deliverables": [
+    "vault/shared/tasks/kioku-01-http-contract.md",
+    "vault/shared/tasks/kioku-02-sqlite-storage.md",
+    "vault/shared/tasks/kioku-03-vault-indexing.md",
+    "vault/shared/tasks/kioku-04-retrieval-api.md",
+    "vault/shared/tasks/kioku-05-regression-tests.md",
+    "vault/shared/tasks/kioku-06-ship-gate.md"
+  ],
+  "started_at": "2026-04-16T00:00:00Z",
+  "completed_at": "2026-04-16T00:00:00Z",
+  "completion_summary": "Seeded 6 Kioku vault tasks on the dev board with canonical frontmatter and dependency mapping."
+}

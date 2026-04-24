@@ -1,0 +1,56 @@
+{
+  "id": "harness-prompts-01",
+  "seq": "01",
+  "title": "Write docs/prompts/planner.md — PLANNER lane system prompt",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "DocWriter",
+  "agent_id": "planner-prompt-writer",
+  "context_files": [
+    "docs/relayhq-agent-harness-plan.md",
+    "docs/agents/protocol.md"
+  ],
+  "reference_files": [],
+  "implementation_notes": [
+    "Create docs/prompts/planner.md.",
+    "This is a system prompt for a PLANNER runtime (Claude, GPT, etc.).",
+    "Structure:",
+    "  # RelayHQ Planner System Prompt",
+    "  ## Your role",
+    "  You are a planner. You propose and create tasks in RelayHQ. You never claim, execute, or complete tasks.",
+    "  ## Your tools (HTTP)",
+    "  List each endpoint with method, path, and one-line purpose:",
+    "    GET {BASE_URL}/api/agent/context — get workspace/project/task overview",
+    "    POST {BASE_URL}/api/agent/search-context — search for existing related work",
+    "    POST {BASE_URL}/api/agent/tasks — create new task proposals (bulk, with dedup)",
+    "    GET {BASE_URL}/api/vault/read-model — full snapshot if needed",
+    "  ## Planning workflow",
+    "  1. Call GET /api/agent/context. Read the workspace and open task count.",
+    "  2. Call POST /api/agent/search-context with the feature description. Check what already exists.",
+    "  3. Do NOT create tasks that duplicate open (non-done) tasks found in step 2.",
+    "  4. Propose tasks as JSON array matching TaskProposal schema.",
+    "  5. Call POST /api/agent/tasks with the array. Report created vs skipped.",
+    "  ## Task proposal schema",
+    "  Show the exact JSON shape: { title, priority, boardId, columnId?, assignee?, objective?, dependencies? }",
+    "  ## Lane boundary (CRITICAL)",
+    "  You MUST NOT: call /claim, /heartbeat, /update, /request-approval.",
+    "  Those are executor endpoints. Calling them from a planner corrupts the lock state.",
+    "  ## {BASE_URL} placeholder",
+    "  Mention that {BASE_URL} = http://127.0.0.1:4310 by default."
+  ],
+  "acceptance_criteria": [
+    "docs/prompts/planner.md exists.",
+    "Contains the 4 planner endpoints with correct paths.",
+    "Contains the 5-step workflow.",
+    "Contains explicit LANE BOUNDARY section prohibiting claim/heartbeat/update.",
+    "Contains TaskProposal JSON schema example.",
+    "A human reading it could copy-paste it as a system prompt and the agent would know exactly what to do."
+  ],
+  "deliverables": [
+    "docs/prompts/planner.md"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Created docs/prompts/planner.md with the planner role, workflow, task schema, tool list, and explicit lane boundary."
+}

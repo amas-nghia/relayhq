@@ -1,0 +1,32 @@
+{
+  "id": "kioku-search-ui-02",
+  "seq": "02",
+  "title": "Wire useKiokuSearch into tasks/index.vue search bar",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "code-architect",
+  "context_files": [],
+  "reference_files": [
+    "app/pages/tasks/index.vue",
+    "app/composables/useKiokuSearch.ts",
+    "app/data/relayhq-overview.ts"
+  ],
+  "acceptance_criteria": [
+    "app/pages/tasks/index.vue imports useKiokuSearch from '~/composables/useKiokuSearch'.",
+    "The search input element has v-model bound to the query ref from useKiokuSearch.",
+    "A computed displayedTasks returns kiokuSearch.results.tasks when query is non-empty, otherwise falls back to vault.tasks from the read model.",
+    "A loading spinner or 'Searching…' label is visible in the task list area when kiokuSearch.pending is true.",
+    "An inline error message is shown below the search bar when kiokuSearch.error is non-null.",
+    "The existing task list rendering loop (v-for) iterates over displayedTasks, not the original unfiltered vault.tasks.",
+    "bun run typecheck exits with code 0 — no TypeScript errors introduced.",
+    "All previously passing tests in bun test still pass (no regressions)."
+  ],
+  "deliverables": [
+    "app/pages/tasks/index.vue"
+  ],
+  "started_at": "2026-04-20T00:00:00Z",
+  "completed_at": "2026-04-20T00:00:00Z",
+  "completion_summary": "Wired the tasks page search bar to useKiokuSearch, switched list and kanban rendering to displayedTasks, and surfaced searching and error states inline."
+}

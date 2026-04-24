@@ -1,0 +1,45 @@
+{
+  "id": "harness-prompts-03",
+  "seq": "03",
+  "title": "Add CLI `prompt planner` and `prompt executor --task <id>` commands",
+  "status": "completed",
+  "depends_on": ["01", "02"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "prompt-cli-agent",
+  "context_files": [],
+  "reference_files": [
+    "cli/relayhq.ts",
+    "docs/prompts/planner.md",
+    "docs/prompts/executor.md"
+  ],
+  "implementation_notes": [
+    "Edit cli/relayhq.ts to add the `prompt` command with two sub-commands.",
+    "Command: `prompt planner`",
+    "  Reads docs/prompts/planner.md (resolve path relative to CLI file: import.meta.dir + '/../docs/prompts/planner.md')",
+    "  Replaces {BASE_URL} with the resolved base URL (from --base-url or RELAYHQ_BASE_URL or default)",
+    "  Prints the result to stdout (for piping to clipboard or pasting into system prompt field)",
+    "Command: `prompt executor --task <taskId>`",
+    "  Reads docs/prompts/executor.md",
+    "  Replaces {BASE_URL} with resolved base URL",
+    "  Fetches GET {baseUrl}/api/agent/bootstrap/{taskId}",
+    "  Appends a '## Current Task' section with task id, title, objective, acceptanceCriteria",
+    "  Prints to stdout",
+    "  If --task is not provided: prints executor.md without task section",
+    "  If task not found: prints executor.md with '## Current Task\\nTask {taskId} not found — run `relayhq tasks` to see available tasks'",
+    "Implementation note: Bun supports fs.readFileSync. Use import.meta.dir to get the directory of the CLI script, then navigate to docs/prompts/."
+  ],
+  "acceptance_criteria": [
+    "`bun run ./cli/relayhq.ts prompt planner` prints planner.md with BASE_URL filled in.",
+    "`bun run ./cli/relayhq.ts prompt executor --task task-001` prints executor.md with task context appended.",
+    "`bun run ./cli/relayhq.ts prompt executor` (no --task) prints executor.md without task section, no error.",
+    "Output is clean text suitable for copy-paste into a system prompt.",
+    "No changes to existing command behaviour."
+  ],
+  "deliverables": [
+    "cli/relayhq.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added CLI `prompt planner` and `prompt executor [--task=<id>]` commands that render ready-to-paste system prompts with live base URL and bootstrap task context."
+}

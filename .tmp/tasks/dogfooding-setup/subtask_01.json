@@ -1,0 +1,37 @@
+{
+  "id": "dogfooding-setup-01",
+  "seq": "01",
+  "title": "Tạo vault records cho dev project",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "vault-seeding-agent",
+  "context_files": [
+    "docs/vault/schema.md"
+  ],
+  "reference_files": [
+    "vault/shared/projects/project-demo.md",
+    "vault/shared/boards/board-demo.md",
+    "vault/shared/columns/col-todo.md",
+    "app/shared/vault/schema.ts"
+  ],
+  "acceptance_criteria": [
+    "project-relayhq-dev.md tồn tại trong vault/shared/projects/ với workspace_id: ws-demo",
+    "board-dev-sprint.md tồn tại trong vault/shared/boards/ với project_id: project-relayhq-dev",
+    "4 column files tồn tại (col-dev-todo, col-dev-inprogress, col-dev-review, col-dev-done) với board_id: board-dev-sprint",
+    "GET /api/vault/read-model trả về project và board mới trong response"
+  ],
+  "deliverables": [
+    "vault/shared/projects/project-relayhq-dev.md",
+    "vault/shared/boards/board-dev-sprint.md",
+    "vault/shared/columns/col-dev-todo.md",
+    "vault/shared/columns/col-dev-inprogress.md",
+    "vault/shared/columns/col-dev-review.md",
+    "vault/shared/columns/col-dev-done.md"
+  ],
+  "started_at": "2026-04-16T00:00:00Z",
+  "completed_at": "2026-04-16T00:00:00Z",
+  "completion_summary": "Seeded ws-demo dev project, board, and four columns; verified canonical read-model wiring by static inspection."
+}

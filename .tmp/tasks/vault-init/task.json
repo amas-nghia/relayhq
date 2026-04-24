@@ -1,0 +1,32 @@
+{
+  "id": "vault-init",
+  "name": "vault-init — CLI command to scaffold a new vault at any directory",
+  "status": "completed",
+  "objective": "Add a `relayhq init` CLI command that creates a valid vault/shared/ structure with seed files at any target directory, so users can point RelayHQ at any folder (Obsidian vault, project coordination folder, multi-repo parent) without manually creating files.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/relayhq.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/runtime.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/workspaces/ws-demo.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/projects/project-relayhq-dev.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/boards/board-dev-sprint.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/vault/shared/columns/"
+  ],
+  "exit_criteria": [
+    "`bun run ./cli/relayhq.ts init --vault-root=<path>` creates vault/shared/ with seed files at the given path.",
+    "Command accepts --workspace-name, --project-name flags to personalise the seed.",
+    "If vault/shared/ already exists at the target, the command aborts with a clear error (no overwrite).",
+    "Generated files pass RelayHQ's own schema validators.",
+    "The init path is covered by unit tests.",
+    "Settings UI validates a newly-initted vault as valid immediately after init."
+  ],
+  "subtask_count": 4,
+  "completed_count": 4,
+  "created_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z"
+}

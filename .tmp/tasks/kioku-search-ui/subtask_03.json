@@ -1,0 +1,33 @@
+{
+  "id": "kioku-search-ui-03",
+  "seq": "03",
+  "title": "Add end-to-end smoke test: seeded vault → Kioku index → search returns hits",
+  "status": "completed",
+  "sprint": 1,
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "code-architect",
+  "context_files": [],
+  "reference_files": [
+    "app/server/services/kioku/integration.test.ts",
+    "app/server/services/kioku/sync.ts",
+    "app/server/services/kioku/storage.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/runtime.ts",
+    "vault/shared/tasks/task-001.md"
+  ],
+  "acceptance_criteria": [
+    "A new describe block or test file exists at app/server/services/kioku/integration.test.ts (extend existing) or app/server/api/kioku/search.smoke.test.ts.",
+    "Test 1: reads the real vault using readCanonicalVaultReadModel(resolveVaultWorkspaceRoot()), syncs into an in-memory createKiokuStorage(':memory:'), then calls storage.search() with a keyword that appears in at least one seeded task title — asserts hits.length > 0.",
+    "Test 2: calls storage.search() with a keyword that does not appear in any seeded task (e.g. 'xyzzy_nonexistent_keyword') — asserts hits.length === 0.",
+    "Test 3: all returned hits have entityType === 'task'.",
+    "bun test with the relevant test file path passes with 0 failures.",
+    "The test does NOT mock readCanonicalVaultReadModel — it reads the actual vault files on disk."
+  ],
+  "deliverables": [
+    "app/server/services/kioku/integration.test.ts"
+  ],
+  "started_at": "2026-04-20T00:00:00Z",
+  "completed_at": "2026-04-20T00:00:00Z",
+  "completion_summary": "Extended Kioku integration coverage with a real-vault smoke test that syncs seeded data into in-memory storage and asserts known hits, misses, and task-only results."
+}

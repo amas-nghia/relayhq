@@ -1,0 +1,40 @@
+{
+  "id": "document-management-01",
+  "seq": "01",
+  "title": "Create POST /api/vault/documents endpoint",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "vault-documents-api-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/documents.get.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/runtime.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/tasks.post.ts"
+  ],
+  "implementation_notes": [
+    "Create app/server/api/vault/documents.post.ts.",
+    "Body: { title: string, content?: string }. Validate: title must be non-empty, max 200 chars.",
+    "Use resolveSharedVaultPath() to get vault root. Documents go in the vault root itself (not vault/shared/) — i.e., vaultRoot directly, because the vault explorer reads arbitrary .md files from the Obsidian vault root.",
+    "Derive filename: slugify(title) + '.md'. If the file already exists, append -2, -3, etc.",
+    "File content: a simple markdown file with a # {title} heading followed by a blank line and content (empty string if omitted).",
+    "Return 201 with { id, title, sourcePath, createdAt }.",
+    "Add a unit test: successful creation, duplicate title gets suffix, empty title → 400."
+  ],
+  "acceptance_criteria": [
+    "POST /api/vault/documents with { title: 'My Note' } writes {vaultRoot}/my-note.md and returns 201.",
+    "Second POST with the same title writes my-note-2.md without error.",
+    "GET /api/vault/documents after creation includes the new file.",
+    "bun test passes."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/api/vault/documents.post.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/test/vault-document-create.test.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Added POST /api/vault/documents with title validation, collision suffixing, and tests covering creation, suffix behavior, and empty-title rejection."
+}

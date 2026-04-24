@@ -1,0 +1,39 @@
+{
+  "id": "relayhq-build-10",
+  "seq": "10",
+  "title": "Harden validation, stale detection, security, and tests",
+  "status": "completed",
+  "depends_on": ["02", "03", "04", "05", "06", "07", "08", "09"],
+  "parallel": false,
+  "suggested_agent": "TestEngineer",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/security-patterns.md",
+    "/home/amas/.opencode/context/core/standards/test-coverage.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/schema.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/structure.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agents/protocol.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/agent-context.full.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vision.md",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/relayhq-build-plan.md"
+  ],
+  "acceptance_criteria": [
+    "Malformed vault writes are rejected by validation",
+    "Stale detection and locking prevent lost updates",
+    "Secrets are not exposed in shared files or logs",
+    "Critical paths have regression coverage"
+  ],
+  "deliverables": [
+    "app/server/services/vault/validation.ts",
+    "app/server/services/vault/validation.test.ts",
+    "app/server/services/security/secrets.ts",
+    "app/test/relayhq.e2e.test.ts"
+  ],
+  "agent_id": "test-engineer",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Added task-write validation, secret redaction, stale-lock hardening, and regression tests for malformed writes, lock contention, and secret-safe logs/files."
+}

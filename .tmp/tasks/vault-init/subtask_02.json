@@ -1,0 +1,41 @@
+{
+  "id": "vault-init-02",
+  "seq": "02",
+  "title": "Wire `relayhq init` subcommand into the CLI",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "cli-init-agent",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/relayhq.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/scaffold.ts"
+  ],
+  "implementation_notes": [
+    "Add 'init' to executeRelayHQInvocation() in cli/relayhq.ts, before the 'help' fallback.",
+    "Flags: --vault-root (required), --workspace-name (default: 'My Workspace'), --project-name (default: 'My Project').",
+    "If --vault-root is missing, print a clear usage error and exit 1.",
+    "Call scaffoldVault() with parsed options.",
+    "On alreadyExists: print 'vault/shared/ already exists at <path>. Use an empty directory.' and exit 1.",
+    "On success: print the list of created files, then print the suggested .env line: RELAYHQ_VAULT_ROOT=<path>",
+    "Add the 'init' command to renderRelayHQHelp() and RELAYHQ_COMMAND_SURFACE.",
+    "The command must NOT require a running RelayHQ server — it works offline, writing files directly."
+  ],
+  "acceptance_criteria": [
+    "`bun run ./cli/relayhq.ts init --vault-root=/tmp/test-vault` creates vault/shared/ and prints created files.",
+    "`bun run ./cli/relayhq.ts init` (no flag) exits 1 with a usage message.",
+    "Running init twice on the same path exits 1 with 'already exists' message.",
+    "Output includes the exact RELAYHQ_VAULT_ROOT=... line the user should add to .env.",
+    "init appears in `relayhq help` output.",
+    "No HTTP call is made during init."
+  ],
+  "deliverables": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/cli/relayhq.ts"
+  ],
+  "started_at": "2026-04-19T00:00:00Z",
+  "completed_at": "2026-04-19T00:00:00Z",
+  "completion_summary": "Wired relayhq init into the CLI with offline scaffold flow, help entry, and clear init errors."
+}

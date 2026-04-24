@@ -1,0 +1,32 @@
+{
+  "id": "vault-persistence-flow-02",
+  "seq": "02",
+  "title": "Build vault-backed read model queries",
+  "status": "completed",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "coder-agent",
+  "started_at": "2026-04-14T00:00:00Z",
+  "completed_at": "2026-04-14T00:00:00Z",
+  "completion_summary": "Built vault read model reconstruction with deterministic ordering and private-overlay exclusion; added shared-collection reader and coverage for ordering and overlay safety.",
+  "context_files": [
+    "/home/amas/.opencode/context/core/standards/code-quality.md",
+    "/home/amas/.opencode/context/core/standards/documentation.md"
+  ],
+  "reference_files": [
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/models/read-model.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/server/services/vault/read.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/app/shared/vault/schema.ts",
+    "/home/amas/Documents/GitHub/RelayHQ-vault-first/docs/vault/schema.md"
+  ],
+  "acceptance_criteria": [
+    "Read services reconstruct workspace, project, board, column, task, and approval state from vault files",
+    "Private overlays are excluded from the public read model",
+    "Returned collections are deterministically ordered for UI consumption"
+  ],
+  "deliverables": [
+    "app/server/models/read-model.ts",
+    "app/server/services/vault/read.ts"
+  ]
+}

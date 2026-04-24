@@ -1,0 +1,66 @@
+{
+  "id": "harness-context-bootstrap-02",
+  "seq": "02",
+  "title": "Create GET /api/agent/bootstrap/:taskId endpoint + unit test",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "CoderAgent",
+  "agent_id": "task-bootstrap-api-agent",
+  "context_files": [
+    "docs/relayhq-agent-harness-plan.md",
+    "docs/agents/protocol.md"
+  ],
+  "reference_files": [
+    "app/server/api/vault/read-model.get.ts",
+    "app/server/models/read-model.ts",
+    "app/server/services/vault/read.ts",
+    "app/server/services/vault/runtime.ts",
+    "app/shared/vault/schema.ts"
+  ],
+  "implementation_notes": [
+    "Create app/server/api/agent/bootstrap/[taskId].get.ts.",
+    "Read the full VaultReadModel via buildVaultReadModel().",
+    "Find task by taskId in readModel.tasks — return 404 if not found.",
+    "Build and return a BootstrapPack object:",
+    "  {",
+    "    task: { id, title, status, column, priority, assignee, progress, boardId, projectId },",
+    "    objective: string (task body markdown, first 500 chars max),",
+    "    acceptanceCriteria: string[] (parse from task body '## Acceptance Criteria' section if present, else []),",
+    "    constraints: string[] (parse from '## Constraints' section if present, else []),",
+    "    relatedTasks: Array<{id, title, status}> (same boardId, max 5, exclude the task itself),",
+    "    pendingApprovals: Array<{id, reason, requestedAt}> (approvals for this taskId),",
+    "    protocolInstructions: string (static instructions — see implementation_notes below),",
+    "    approvalPolicy: { required: boolean, reason: string|null }",
+    "  }",
+    "protocolInstructions static string (embed directly, do not load from file):",
+    "  '1. You already have this task claimed or are about to claim it. Call POST /api/vault/tasks/{taskId}/claim with your agentId before touching anything.',",
+    "  '2. Send a heartbeat every 10 minutes: POST /api/vault/tasks/{taskId}/heartbeat.',",
+    "  '3. If you need a human decision, call POST /api/vault/tasks/{taskId}/request-approval with a reason. Stop work until approved.',",
+    "  '4. When done, call PATCH /api/vault/tasks/{taskId} with status=done, progress=100, result=<concrete outcome>.',",
+    "  '5. Do not write directly to vault files. All mutations go through the API.'",
+    "Context budget: objective is capped at 500 chars. relatedTasks max 5. No raw body text beyond the objective.",
+    "Create app/server/api/agent/bootstrap/[taskId].test.ts:",
+    "  - mock buildVaultReadModel with seeded task + related tasks",
+    "  - assert 404 for unknown taskId",
+    "  - assert protocolInstructions is non-empty string",
+    "  - assert relatedTasks contains at most 5 items",
+    "  - assert objective is capped at 500 chars"
+  ],
+  "acceptance_criteria": [
+    "GET /api/agent/bootstrap/:taskId returns 200 with BootstrapPack shape.",
+    "Returns 404 for unknown taskId.",
+    "objective is capped at 500 characters.",
+    "relatedTasks contains max 5 items from the same board, excluding the task itself.",
+    "protocolInstructions is present and non-empty.",
+    "Unit test covers: happy path, 404, objective truncation, related tasks limit.",
+    "bun test passes with no new failures."
+  ],
+  "deliverables": [
+    "app/server/api/agent/bootstrap/[taskId].get.ts",
+    "app/server/api/agent/bootstrap/[taskId].test.ts"
+  ],
+  "started_at": "2026-04-23T00:00:00Z",
+  "completed_at": "2026-04-23T00:00:00Z",
+  "completion_summary": "Added GET /api/agent/bootstrap/:taskId with bounded bootstrap payload and unit coverage."
+}
