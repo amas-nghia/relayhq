@@ -67,17 +67,22 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
           )}
         </div>
 
-        {task.progress > 0 && task.status !== 'done' && (
-          <div className="flex items-center gap-1.5 w-16 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-brand" 
-                style={{ width: `${task.progress}%` }} 
-              />
+        <div className="flex items-center gap-2">
+          {task.createdAt && (
+            <span className="text-[10px] text-text-tertiary">{new Date(task.createdAt).toLocaleDateString()}</span>
+          )}
+          {task.progress > 0 && task.status !== 'done' && (
+            <div className="flex items-center gap-1.5 w-16 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-brand" 
+                  style={{ width: `${task.progress}%` }} 
+                />
+              </div>
+              <span className="text-[10px] font-medium text-text-tertiary">{task.progress}%</span>
             </div>
-            <span className="text-[10px] font-medium text-text-tertiary">{task.progress}%</span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Card>
   );

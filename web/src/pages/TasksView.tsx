@@ -31,6 +31,25 @@ function compareText(left: string, right: string) {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
+function formatRelativeTime(value?: string) {
+  if (!value) return '—'
+  const timestamp = new Date(value)
+  if (Number.isNaN(timestamp.getTime())) return value
+
+  const diffMs = timestamp.getTime() - Date.now()
+  const diffMinutes = Math.round(diffMs / 60000)
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+
+  if (Math.abs(diffMinutes) < 1) return 'just now'
+  if (Math.abs(diffMinutes) < 60) return formatter.format(diffMinutes, 'minute')
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (Math.abs(diffHours) < 24) return formatter.format(diffHours, 'hour')
+
+  const diffDays = Math.round(diffHours / 24)
+  return formatter.format(diffDays, 'day')
+}
+
 function getPriorityBadgeClass(priority: TaskPriority) {
   switch (priority) {
     case 'critical':
@@ -193,7 +212,7 @@ export function TasksView() {
 
       <div className="flex-1 overflow-hidden rounded-lg border border-border bg-surface">
         <div className="h-full overflow-auto">
-          <table className="min-w-[860px] w-full border-collapse text-left">
+          <table className="min-w-[1040px] w-full border-collapse text-left">
           <thead>
             <tr className="bg-surface-secondary text-xs uppercase tracking-wider text-text-tertiary border-b border-border">
               <th className="px-4 py-3 font-semibold w-10"></th>
@@ -203,6 +222,8 @@ export function TasksView() {
               <th className="px-4 py-3 font-semibold w-24"><button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-1">Status {renderSortIcon('status')}</button></th>
               <th className="px-4 py-3 font-semibold w-28"><button type="button" onClick={() => toggleSort('priority')} className="inline-flex items-center gap-1">Priority {renderSortIcon('priority')}</button></th>
               <th className="px-4 py-3 font-semibold w-40"><button type="button" onClick={() => toggleSort('assignee')} className="inline-flex items-center gap-1">Assignee {renderSortIcon('assignee')}</button></th>
+              <th className="px-4 py-3 font-semibold w-28">Created</th>
+              <th className="px-4 py-3 font-semibold w-28">Updated</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -255,12 +276,18 @@ export function TasksView() {
                       <span className="text-sm text-text-tertiary">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-sm text-text-secondary" title={task.createdAt || ''}>
+                    {formatRelativeTime(task.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-text-secondary" title={task.updatedAt && task.updatedAt !== task.createdAt ? task.updatedAt : ''}>
+                    {task.updatedAt && task.updatedAt !== task.createdAt ? formatRelativeTime(task.updatedAt) : '—'}
+                  </td>
                 </tr>
               );
             })}
             {visibleTasks.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-text-tertiary">
+                <td colSpan={9} className="px-4 py-10 text-center text-sm text-text-tertiary">
                   No tasks match the current search.
                 </td>
               </tr>
