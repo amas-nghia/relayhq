@@ -1,390 +1,153 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import EmptyState from "../../components/EmptyState.vue";
-import BoardColumnList from "../../components/boards/BoardColumnList.vue";
-import ProjectSummaryCard from "../../components/projects/ProjectSummaryCard.vue";
-import TaskCreateForm from "../../components/tasks/TaskCreateForm.vue";
+import { computed } from 'vue'
+import { AlertTriangle, Bot, ChevronLeft, Clock, ShieldCheck, User as UserIcon } from 'lucide-vue-next'
+
 import {
   emptyVaultReadModel,
   loadVaultReadModel,
   relayhqReadModelKey,
   selectBoardSummary,
   selectProjectSummary,
-  selectWorkspaceLinks,
-} from "../../data/relayhq-overview";
+} from '../../data/relayhq-overview'
 
-const route = useRoute();
+const route = useRoute()
 
 const boardId = computed(() => {
-  const value = route.params.board;
-  return typeof value === "string" ? value : Array.isArray(value) ? value[0] ?? "" : "";
-});
+  const value = route.params.board
+  return typeof value === 'string' ? value : Array.isArray(value) ? value[0] ?? '' : ''
+})
 
 const { data: vault } = await useAsyncData(relayhqReadModelKey, loadVaultReadModel, {
   default: () => emptyVaultReadModel,
-});
+})
 
-const board = computed(() => selectBoardSummary(vault.value, boardId.value));
-const project = computed(() => selectProjectSummary(vault.value, board.value.projectId));
-const workspaceLinks = computed(() => selectWorkspaceLinks(vault.value));
-const hasBoardData = computed(() => vault.value.boards.some((entry) => entry.id === boardId.value));
-const isTaskCreateVisible = ref(false);
+const board = computed(() => selectBoardSummary(vault.value, boardId.value))
+const project = computed(() => selectProjectSummary(vault.value, board.value.projectId))
+const hasBoardData = computed(() => vault.value.boards.some((entry) => entry.id === boardId.value))
 
-const boardOptions = computed(() => {
-  if (!hasBoardData.value) {
-    return [];
-  }
-
-  return [{ id: board.value.id, name: board.value.name }];
-});
-
-const boardColumns = computed(() =>
-  vault.value.columns
-    .filter((entry) => entry.boardId === boardId.value)
-    .map((entry) => ({ id: entry.id, name: entry.name, boardId: entry.boardId, position: entry.position }))
-    .sort((left, right) => left.position - right.position || left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
-    .map(({ position: _position, ...column }) => column),
-);
-
-const assigneeOptions = computed(() => {
-  const values = new Set<string>();
-
-  for (const agent of vault.value.agents) {
-    if (agent.workspaceId === board.value.workspaceId) {
-      values.add(agent.id);
-    }
-  }
-
-  for (const task of vault.value.tasks) {
-    if (task.boardId === boardId.value) {
-      values.add(task.assignee);
-    }
-  }
-
-  return [...values].sort((left, right) => left.localeCompare(right));
-});
-
-function toggleTaskCreate(): void {
-  isTaskCreateVisible.value = !isTaskCreateVisible.value;
+const priorityIcon = (priority: string) => {
+  if (priority === 'critical') return '▲▲'
+  if (priority === 'high') return '▲'
+  if (priority === 'medium') return '•'
+  return '▼'
 }
 
-function handleTaskCreateCancel(): void {
-  isTaskCreateVisible.value = false;
-}
-
-async function handleTaskCreated(): Promise<void> {
-  await refreshNuxtData(relayhqReadModelKey);
-  isTaskCreateVisible.value = false;
-}
+const assigneeIcon = (assignee: string) => assignee.startsWith('agent') ? Bot : UserIcon
 </script>
 
 <template>
-  <div class="board-page">
-    <EmptyState
-      v-if="!hasBoardData"
-      title="No board data found"
-      description="This route does not map to a shared board record yet. Seed vault/shared/boards and linked task files to populate the board view."
-      action-label="Open workspace overview"
-      action-href="/"
-    />
+  <div v-if="hasBoardData" class="space-y-8 pb-12">
+    <header class="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-6 py-6 shadow-2xl shadow-black/40">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-3">
+          <NuxtLink to="/" class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:text-emerald-300">
+            <ChevronLeft :size="14" />
+            Back to workspace
+          </NuxtLink>
+          <div>
+            <p class="theme-kicker text-[10px] font-bold uppercase">Board</p>
+            <h1 class="mt-2 text-4xl font-semibold tracking-tight text-slate-50">{{ board.name }}</h1>
+            <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{{ board.summary }}</p>
+          </div>
+        </div>
 
-    <template v-else>
-    <section class="page-intro" aria-labelledby="board-page-title">
-      <div class="intro-copy">
-        <p class="eyebrow">Board overview</p>
-        <h1 id="board-page-title">{{ board.name }}</h1>
-        <p>
-          This page shows the board as a control-plane surface for vault-backed coordination.
-        </p>
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-for="metric in board.metrics" :key="metric.label" class="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{{ metric.label }}</p>
+            <p class="mt-2 text-2xl font-semibold tracking-tight text-slate-50">{{ metric.value }}</p>
+            <p class="mt-1 text-xs text-slate-400">{{ metric.note }}</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div class="overflow-x-auto kanban-scroll">
+        <div class="flex min-h-[70vh] gap-4 pb-4">
+          <article v-for="column in board.columns" :key="column.id" class="w-[320px] shrink-0 rounded-3xl border border-slate-800/80 bg-slate-950/70 p-4 shadow-xl shadow-black/30">
+            <header class="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{{ String(column.position).padStart(2, '0') }}</p>
+                <h2 class="mt-1 text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">{{ column.title }}</h2>
+              </div>
+              <span class="rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-mono text-slate-300">{{ column.taskCount }}</span>
+            </header>
+
+            <p class="mb-4 text-xs leading-5 text-slate-500">{{ column.summary }}</p>
+
+            <div class="space-y-3">
+              <NuxtLink
+                v-for="task in column.tasks"
+                :key="task.id"
+                :to="`/tasks/${task.id}`"
+                class="block rounded-2xl border border-slate-800 bg-slate-900/90 p-4 transition-all hover:border-emerald-500/40 hover:bg-slate-900"
+                :class="{
+                  'border-l-4 border-l-rose-500': task.isStale,
+                  'border-l-4 border-l-amber-400': task.approval === 'pending' && !task.isStale,
+                  'border-l-4 border-l-rose-400/80': task.priority === 'critical' && !task.isStale && task.approval !== 'pending',
+                }"
+              >
+                <div v-if="task.isStale" class="mb-2 inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-300">
+                  <Clock :size="12" /> Stale
+                </div>
+
+                <div class="mb-2 flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-slate-800 text-slate-300">{{ priorityIcon(task.priority) }}</span>
+                    <span class="font-mono">{{ task.id }}</span>
+                  </div>
+                  <span v-if="task.approval === 'pending'" class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">Approval Req</span>
+                </div>
+
+                <h3 class="text-sm font-semibold leading-5 text-slate-100">{{ task.title }}</h3>
+                <p class="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">{{ task.note }}</p>
+
+                <div class="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
+                  <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <component :is="assigneeIcon(task.assignee)" :size="13" class="text-slate-500" />
+                    <span class="font-medium">{{ task.assignee }}</span>
+                  </div>
+
+                  <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span v-if="task.approval === 'approved'" class="inline-flex items-center gap-1 text-emerald-300"><ShieldCheck :size="12" /> Approved</span>
+                    <span>{{ task.progress }}%</span>
+                  </div>
+                </div>
+              </NuxtLink>
+            </div>
+          </article>
+        </div>
       </div>
 
-      <div class="intro-actions">
-        <button
-          class="new-task-button"
-          type="button"
-          :aria-expanded="isTaskCreateVisible"
-          aria-controls="board-task-create"
-          @click="toggleTaskCreate"
-        >
-          {{ isTaskCreateVisible ? "Close task form" : "+ New Task" }}
-        </button>
-      </div>
+      <aside class="space-y-4">
+        <section class="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-xl shadow-black/30">
+          <p class="theme-kicker text-[10px] font-bold uppercase">Project</p>
+          <h2 class="mt-2 text-xl font-semibold tracking-tight text-slate-50">{{ project.name }}</h2>
+          <p class="mt-3 text-sm leading-6 text-slate-400">{{ project.summary }}</p>
+          <div class="mt-4 grid gap-2 text-sm text-slate-400">
+            <p><span class="text-slate-500">Project file:</span> {{ project.sourcePath }}</p>
+            <p><span class="text-slate-500">Board file:</span> {{ board.sourcePath }}</p>
+            <p><span class="text-slate-500">Workspace:</span> {{ board.workspaceName }}</p>
+          </div>
+        </section>
 
-      <nav class="page-links" aria-label="Primary views">
-        <NuxtLink v-for="link in workspaceLinks" :key="link.href" class="page-link" :to="link.href">
-          <span>{{ link.label }}</span>
-          <small>{{ link.note }}</small>
-        </NuxtLink>
-      </nav>
+        <section class="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-xl shadow-black/30">
+          <p class="theme-kicker text-[10px] font-bold uppercase">Workflow boundary</p>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-400">
+            <li>Shows board flow, ownership, stale state, and approval gates.</li>
+            <li>Keeps execution outside RelayHQ and inside external runtimes.</li>
+            <li>Uses vault-backed board summaries instead of mock kanban state.</li>
+          </ul>
+        </section>
+      </aside>
     </section>
-
-    <ProjectSummaryCard
-      :id="project.id"
-      :title="project.name"
-      :workspace-id="project.workspaceId"
-      :workspace-name="project.workspaceName"
-      :board-id="project.boardId"
-      :board-name="project.boardName"
-      :status="project.status"
-      :source-path="project.sourcePath"
-      :summary="project.summary"
-      :metrics="project.metrics"
-      :workflow="project.workflow"
-      :links="project.links"
-    />
-
-    <TaskCreateForm
-      v-if="isTaskCreateVisible"
-      id="board-task-create"
-      :project-id="project.id"
-      :project-name="project.name"
-      :boards="boardOptions"
-      :columns="boardColumns"
-      :assignees="assigneeOptions"
-      :initial-board-id="board.id"
-      @cancel="handleTaskCreateCancel"
-      @created="handleTaskCreated"
-    />
-
-    <BoardColumnList
-      :board-id="board.id"
-      :board-name="board.name"
-      :summary="board.summary"
-      :metrics="board.metrics"
-      :columns="board.columns"
-    />
-
-    <section class="board-notes" aria-label="Board workflow notes">
-      <article class="info-card">
-        <p class="section-kicker">Workflow boundary</p>
-        <h2>What the board does</h2>
-        <ul class="check-list" role="list">
-          <li>Shows committed column flow for the current project</li>
-          <li>Makes approval gates visible before work moves forward</li>
-          <li>Surfaces task ownership, priority, and progress</li>
-          <li>Leaves execution to the external runtime</li>
-        </ul>
-      </article>
-
-      <article class="info-card">
-        <p class="section-kicker">Vault mapping</p>
-        <h2>Shared records in view</h2>
-        <dl class="state-list">
-          <div>
-            <dt>Board file</dt>
-            <dd>{{ board.sourcePath }}</dd>
-          </div>
-          <div>
-            <dt>Project file</dt>
-            <dd>{{ project.sourcePath }}</dd>
-          </div>
-          <div>
-            <dt>Workspace</dt>
-            <dd>{{ board.workspaceName }}</dd>
-          </div>
-          <div>
-            <dt>Coordination mode</dt>
-            <dd>Kanban-first control plane</dd>
-          </div>
-        </dl>
-      </article>
-    </section>
-    </template>
   </div>
+
+  <EmptyState
+    v-else
+    title="No board data found"
+    description="This route does not map to a shared board record yet. Seed vault/shared/boards and linked task files to populate the board view."
+    action-label="Open workspace overview"
+    action-href="/"
+  />
 </template>
-
-<style scoped>
-.board-page {
-  display: grid;
-  gap: 1rem;
-}
-
-.page-intro,
-.info-card {
-  padding: 1.25rem;
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  border-radius: 1.25rem;
-  background: rgba(15, 23, 42, 0.9);
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.35);
-}
-
-.page-intro {
-  display: grid;
-  gap: 1rem;
-}
-
-.intro-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.intro-copy {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.eyebrow,
-.section-kicker {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-h1,
-.info-card h2 {
-  margin: 0;
-  letter-spacing: -0.04em;
-  color: #0f172a;
-}
-
-h1 {
-  font-size: clamp(1.8rem, 3.2vw, 2.8rem);
-  line-height: 1.08;
-}
-
-.intro-copy p,
-.info-card p,
-.state-list dd {
-  margin: 0;
-  color: #475569;
-  line-height: 1.6;
-}
-
-.page-links {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.page-link {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 1rem;
-  background: rgba(248, 250, 252, 0.95);
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease;
-}
-
-.new-task-button {
-  min-height: 2.75rem;
-  padding: 0.8rem 1rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
-  color: #ffffff;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    filter 160ms ease;
-}
-
-.new-task-button:hover,
-.new-task-button:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.24);
-  filter: saturate(1.05);
-}
-
-.new-task-button:focus-visible {
-  outline: 2px solid rgba(124, 58, 237, 0.2);
-  outline-offset: 2px;
-}
-
-.page-link:hover,
-.page-link:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(124, 58, 237, 0.24);
-  background: #ffffff;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-}
-
-.page-link span,
-.info-card h2 {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.page-link small {
-  color: #64748b;
-}
-
-.board-notes {
-  display: grid;
-  gap: 1rem;
-}
-
-.state-list,
-.check-list {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-}
-
-.state-list div {
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 1rem;
-  background: rgba(248, 250, 252, 0.95);
-}
-
-.state-list dt {
-  margin: 0 0 0.2rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.check-list li {
-  position: relative;
-  padding-left: 1.25rem;
-  color: #0f172a;
-}
-
-.check-list li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55rem;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
-  background: #7c3aed;
-}
-
-@media (min-width: 768px) {
-  .page-intro,
-  .info-card {
-    padding: 1.5rem;
-  }
-
-  .page-intro {
-    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
-    align-items: start;
-  }
-
-  .intro-actions {
-    justify-content: flex-end;
-    align-items: start;
-  }
-
-  .page-links {
-    grid-column: 1 / -1;
-  }
-
-  .board-notes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-</style>
