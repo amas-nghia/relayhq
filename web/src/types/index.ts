@@ -1,6 +1,7 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'waiting-approval' | 'blocked' | 'done' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type AgentState = 'idle' | 'active' | 'waiting' | 'stale'
+export type Theme = 'light' | 'dark' | 'system'
 
 export interface Agent {
   id: string
