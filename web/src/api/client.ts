@@ -210,6 +210,11 @@ export const relayhqApi = {
   createDoc: (payload: VaultDocCreatePayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; sourcePath: string }>>('/api/vault/docs', { method: 'POST', body: JSON.stringify(payload) }),
   patchDoc: (docId: string, payload: VaultDocPatchPayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; updated_at: string; body: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  writeShellProfile: (target: 'zshrc' | 'bashrc') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
+    method: 'POST',
+    body: JSON.stringify({ target }),
+  }),
+
   getProjectIndexStatus: (projectId: string) => request<ProjectIndexStatusResponse>(`/api/vault/projects/${encodeURIComponent(projectId)}/index-status`),
   indexProject: (projectId: string, codebaseName?: string) => request<{ indexedFiles: number; resolvedPaths: ReadonlyArray<string>; warnings: ReadonlyArray<string>; status: ProjectIndexStatusResponse }>(`/api/vault/projects/${encodeURIComponent(projectId)}/index`, {
     method: 'POST',

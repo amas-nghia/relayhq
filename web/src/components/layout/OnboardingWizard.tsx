@@ -1,26 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Check, ChevronLeft, Folder, FolderOpen, Sparkles, X } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, ClipboardCheck, ClipboardCopy, Folder, FolderOpen, Sparkles, Terminal, X } from 'lucide-react'
 
 import { relayhqApi, type RelayHQBrowseDirectoriesResponse } from '../../api/client'
 import { useAppStore } from '../../store/appStore'
-import type { TaskPriority } from '../../types'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
-import { Select } from '../ui/select'
-import { Textarea } from '../ui/textarea'
 
 type WizardMode = 'create' | 'existing'
 type WizardStep = 1 | 2 | 3
+type ConnectTab = 'claude-code' | 'cli'
+type ShellWriteStatus = 'idle' | 'writing' | 'done' | 'error'
 
 const WIZARD_STEPS: ReadonlyArray<{ id: WizardStep; label: string }> = [
   { id: 1, label: 'Workspace' },
   { id: 2, label: 'Project' },
-  { id: 3, label: 'Task' },
+  { id: 3, label: 'Connect' },
 ]
 
-function stepFromState(hasValidVault: boolean, workspaceCount: number, projectCount: number, taskCount: number): WizardStep {
+function stepFromState(hasValidVault: boolean, workspaceCount: number, projectCount: number): WizardStep {
   if (!hasValidVault || workspaceCount === 0) return 1
   if (projectCount === 0) return 2
   return 3
@@ -29,10 +28,8 @@ function stepFromState(hasValidVault: boolean, workspaceCount: number, projectCo
 export function OnboardingWizard() {
   const settings = useAppStore(state => state.settings)
   const projects = useAppStore(state => state.projects)
-  const tasks = useAppStore(state => state.tasks)
   const showOnboarding = useAppStore(state => state.showOnboarding)
   const loadData = useAppStore(state => state.loadData)
-  const addTask = useAppStore(state => state.addTask)
   const isMutating = useAppStore(state => state.isMutating)
   const mutationError = useAppStore(state => state.mutationError)
 
@@ -42,12 +39,10 @@ export function OnboardingWizard() {
   const [existingVaultRoot, setExistingVaultRoot] = useState('')
   const [projectName, setProjectName] = useState('')
   const [codebaseRoot, setCodebaseRoot] = useState('')
-  const [taskTitle, setTaskTitle] = useState('')
-  const [taskObjective, setTaskObjective] = useState('')
-  const [taskAcceptanceCriteria, setTaskAcceptanceCriteria] = useState('')
-  const [taskContextFiles, setTaskContextFiles] = useState('')
-  const [taskConstraints, setTaskConstraints] = useState('')
-  const [taskPriority, setTaskPriority] = useState<TaskPriority>('medium')
+  const [connectTab, setConnectTab] = useState<ConnectTab>('claude-code')
+  const [shellWriteStatus, setShellWriteStatus] = useState<ShellWriteStatus>('idle')
+  const [shellWritePath, setShellWritePath] = useState<string | null>(null)
+  const [snippetCopied, setSnippetCopied] = useState(false)
   const [wizardError, setWizardError] = useState<string | null>(null)
   const [stepOverride, setStepOverride] = useState<WizardStep | null>(null)
   const [pickerTarget, setPickerTarget] = useState<'create' | 'existing' | null>(null)
@@ -69,16 +64,30 @@ export function OnboardingWizard() {
   }, [projects])
 
   const detectedStep = useMemo(
-    () => stepFromState(Boolean(settings?.isValid), settings?.availableWorkspaces.length ?? 0, projects.length, tasks.length),
-    [settings, projects.length, tasks.length],
+    () => stepFromState(Boolean(settings?.isValid), settings?.availableWorkspaces.length ?? 0, projects.length),
+    [settings, projects.length],
   )
 
   const currentStep = stepOverride ?? detectedStep
   const canSubmitStep1 = !isMutating && (mode === 'create' ? workspaceName.trim().length > 0 && vaultRoot.trim().length > 0 : existingVaultRoot.trim().length > 0)
   const canSubmitStep2 = projectName.trim().length > 0
-  const acceptanceCriteriaCount = taskAcceptanceCriteria.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
-  const contextFilesCount = taskContextFiles.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
-  const canSubmitStep3 = taskTitle.trim().length > 0 && taskObjective.trim().length >= 50 && acceptanceCriteriaCount >= 2 && contextFilesCount >= 1 && !isMutating
+
+  const activeVaultRoot = settings?.vaultRoot || settings?.resolvedRoot || ''
+
+  const mcpSnippet = JSON.stringify({
+    mcpServers: {
+      relayhq: {
+        command: 'npx',
+        args: ['relayhq-mcp'],
+        env: {
+          RELAYHQ_BASE_URL: 'http://127.0.0.1:44210',
+          RELAYHQ_VAULT_ROOT: activeVaultRoot,
+        },
+      },
+    },
+  }, null, 2)
+
+  const cliSnippet = `export RELAYHQ_BASE_URL="http://127.0.0.1:44210"\nexport RELAYHQ_VAULT_ROOT="${activeVaultRoot}"`
 
   useEffect(() => {
     setStepOverride(current => {
@@ -91,15 +100,10 @@ export function OnboardingWizard() {
     return null
   }
 
-  const selectedProject = projects[0]
-
   async function handleCreateWorkspace() {
     setWizardError(null)
     try {
-      await relayhqApi.initVault({
-        vaultRoot,
-        workspaceName,
-      })
+      await relayhqApi.initVault({ vaultRoot, workspaceName })
       await loadData()
       setStepOverride(2)
     } catch (error) {
@@ -110,10 +114,7 @@ export function OnboardingWizard() {
   async function handleUseExistingVault() {
     setWizardError(null)
     try {
-      await relayhqApi.saveSettings({
-        vaultRoot: existingVaultRoot,
-        workspaceId: null,
-      })
+      await relayhqApi.saveSettings({ vaultRoot: existingVaultRoot, workspaceId: null })
       await loadData()
       setStepOverride(2)
     } catch (error) {
@@ -135,44 +136,24 @@ export function OnboardingWizard() {
     }
   }
 
-  async function handleCreateTask() {
-    if (!selectedProject) {
-      setWizardError('Create a project before adding the first task.')
-      return
-    }
+  async function handleCopySnippet() {
+    const text = connectTab === 'claude-code' ? mcpSnippet : cliSnippet
+    await navigator.clipboard.writeText(text)
+    setSnippetCopied(true)
+    setTimeout(() => setSnippetCopied(false), 2000)
+  }
 
+  async function handleWriteShellProfile(target: 'zshrc' | 'bashrc') {
+    setShellWriteStatus('writing')
+    setShellWritePath(null)
     setWizardError(null)
     try {
-      const acceptanceCriteria = taskAcceptanceCriteria
-        .split(/\r?\n/)
-        .map(item => item.trim())
-        .filter(Boolean)
-
-      const contextFiles = taskContextFiles
-        .split(/\r?\n/)
-        .map(item => item.trim())
-        .filter(Boolean)
-
-      const constraints = taskConstraints
-        .split(/\r?\n/)
-        .map(item => item.trim())
-        .filter(Boolean)
-
-      await addTask({
-        title: taskTitle,
-        description: taskObjective,
-        projectId: selectedProject.id,
-        boardId: selectedProject.boardId,
-        priority: taskPriority,
-        objective: taskObjective,
-        acceptanceCriteria,
-        contextFiles,
-        constraints,
-      })
-      await loadData()
-      setStepOverride(null)
+      const result = await relayhqApi.writeShellProfile(target)
+      setShellWriteStatus('done')
+      setShellWritePath(result.path)
     } catch (error) {
-      setWizardError(error instanceof Error ? error.message : 'Unable to create the first task.')
+      setShellWriteStatus('error')
+      setWizardError(error instanceof Error ? error.message : 'Unable to write shell profile.')
     }
   }
 
@@ -183,12 +164,6 @@ export function OnboardingWizard() {
       if (active <= 1) return 1
       return (active - 1) as WizardStep
     })
-  }
-
-  function handleSkipTask() {
-    setWizardError(null)
-    setStepOverride(null)
-    void loadData()
   }
 
   async function openDirectoryPicker(target: 'create' | 'existing', path?: string) {
@@ -208,196 +183,235 @@ export function OnboardingWizard() {
   }
 
   function selectDirectory(path: string) {
-    if (pickerTarget === 'create') {
-      setVaultRoot(path)
-    }
-    if (pickerTarget === 'existing') {
-      setExistingVaultRoot(path)
-    }
+    if (pickerTarget === 'create') setVaultRoot(path)
+    if (pickerTarget === 'existing') setExistingVaultRoot(path)
     setPickerTarget(null)
     setDirectoryBrowser(null)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <div className="flex h-[min(760px,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-modal">
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <Badge variant="secondary" className="w-fit gap-2 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] normal-case">
-              <Sparkles className="w-3.5 h-3.5" />
-              Step {currentStep} of 3
-            </Badge>
-            <h2 className="text-3xl font-bold text-text-primary">Set up your first RelayHQ workspace</h2>
-            <p className="max-w-2xl text-sm text-text-secondary">
-              Start in the UI now. RelayHQ will write the vault files for you, and you can inspect or edit them directly later.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
-              {WIZARD_STEPS.map((step, index) => {
-                const isComplete = detectedStep > step.id
-                const isCurrent = currentStep === step.id
-                const isUnlocked = detectedStep >= step.id
+            <div className="flex flex-col gap-2">
+              <Badge variant="secondary" className="w-fit gap-2 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] normal-case">
+                <Sparkles className="w-3.5 h-3.5" />
+                Step {currentStep} of 3
+              </Badge>
+              <h2 className="text-3xl font-bold text-text-primary">Set up your first RelayHQ workspace</h2>
+              <p className="max-w-2xl text-sm text-text-secondary">
+                RelayHQ writes Markdown files to your vault on your behalf. You can stay in the UI, open the files in your editor, or let an AI agent read and write them directly — all three work on the same files.
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
+                {WIZARD_STEPS.map((step, index) => {
+                  const isComplete = detectedStep > step.id
+                  const isCurrent = currentStep === step.id
+                  const isUnlocked = detectedStep >= step.id
 
-                return (
-                  <div key={step.id} className="contents md:contents">
-                    <button
-                      type="button"
-                      onClick={() => setStepOverride(step.id)}
-                      disabled={!isUnlocked}
-                      className="group inline-flex w-full items-center gap-3 rounded-xl border border-border bg-surface-secondary px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50 md:min-h-[72px]"
-                    >
-                      <span className={[
-                        'flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-colors',
-                        isComplete ? 'border-status-done/20 bg-status-done/10 text-status-done' : '',
-                        isCurrent ? 'border-brand bg-brand-light text-brand' : '',
-                        !isComplete && !isCurrent ? 'border-border bg-surface-secondary text-text-tertiary group-hover:text-text-primary' : '',
-                      ].join(' ')}>
-                        {isComplete ? <Check className="h-4 w-4" /> : step.id}
-                      </span>
-                      <span className="flex flex-col items-start">
+                  return (
+                    <div key={step.id} className="contents md:contents">
+                      <button
+                        type="button"
+                        onClick={() => setStepOverride(step.id)}
+                        disabled={!isUnlocked}
+                        className="group inline-flex w-full items-center gap-3 rounded-xl border border-border bg-surface-secondary px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50 md:min-h-[72px]"
+                      >
                         <span className={[
-                          'text-sm font-medium transition-colors',
-                          isCurrent ? 'text-text-primary' : '',
-                          isComplete ? 'text-status-done' : '',
-                          !isComplete && !isCurrent ? 'text-text-tertiary group-hover:text-text-primary' : '',
+                          'flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-colors',
+                          isComplete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : '',
+                          isCurrent ? 'border-accent bg-accent-light text-accent' : '',
+                          !isComplete && !isCurrent ? 'border-border bg-surface-secondary text-text-tertiary group-hover:text-text-primary' : '',
                         ].join(' ')}>
-                          {step.label}
+                          {isComplete ? <Check className="h-4 w-4" /> : step.id}
                         </span>
-                        <span className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">
-                          {isComplete ? 'done' : isCurrent ? 'current' : isUnlocked ? 'ready' : 'locked'}
+                        <span className="flex flex-col items-start">
+                          <span className={[
+                            'text-sm font-medium transition-colors',
+                            isCurrent ? 'text-text-primary' : '',
+                            isComplete ? 'text-emerald-700' : '',
+                            !isComplete && !isCurrent ? 'text-text-tertiary group-hover:text-text-primary' : '',
+                          ].join(' ')}>
+                            {step.label}
+                          </span>
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">
+                            {isComplete ? 'done' : isCurrent ? 'current' : isUnlocked ? 'ready' : 'locked'}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
 
-                    {index < WIZARD_STEPS.length - 1 && (
-                      <div className={[
-                        'hidden h-px w-full md:block',
-                        detectedStep > step.id ? 'bg-status-done/40' : 'bg-border',
-                      ].join(' ')} />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {currentStep === 1 && (
-            <div className="flex flex-col gap-5">
-              <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                <Button
-                  type="button"
-                  onClick={() => setMode('create')}
-                  variant={mode === 'create' ? 'secondary' : 'ghost'}
-                  className={mode === 'create' ? 'bg-surface text-brand shadow-sm' : ''}
-                >
-                  Create new vault
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setMode('existing')}
-                  variant={mode === 'existing' ? 'secondary' : 'ghost'}
-                  className={mode === 'existing' ? 'bg-surface text-brand shadow-sm' : ''}
-                >
-                  Use existing vault
-                </Button>
+                      {index < WIZARD_STEPS.length - 1 && (
+                        <div className={[
+                          'hidden h-px w-full md:block',
+                          detectedStep > step.id ? 'bg-emerald-300' : 'bg-border',
+                        ].join(' ')} />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
+            </div>
 
-              {mode === 'create' ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Workspace name
-                    <Input value={workspaceName} onChange={event => setWorkspaceName(event.target.value)} placeholder="My Workspace" />
-                  </label>
+            {currentStep === 1 && (
+              <div className="flex flex-col gap-5">
+                <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
+                  <button
+                    type="button"
+                    onClick={() => setMode('create')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === 'create' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    Create new vault
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('existing')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === 'existing' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    Use existing vault
+                  </button>
+                </div>
+
+                {mode === 'create' ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                      Workspace name
+                      <Input value={workspaceName} onChange={event => setWorkspaceName(event.target.value)} placeholder="My Workspace" />
+                    </label>
+                    <div className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                      <label>Vault path</label>
+                      <div className="flex gap-2">
+                        <Input value={vaultRoot} onChange={event => setVaultRoot(event.target.value)} className="min-w-0 flex-1" placeholder={settings.resolvedRoot} />
+                        <Button variant="outline" onClick={() => void openDirectoryPicker('create')}>
+                          <FolderOpen className="h-4 w-4" /> Browse
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <div className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    <label>Vault path</label>
+                    <label>Existing vault path</label>
                     <div className="flex gap-2">
-                      <Input value={vaultRoot} onChange={event => setVaultRoot(event.target.value)} className="min-w-0 flex-1" placeholder={settings.resolvedRoot} />
-                      <Button variant="outline" onClick={() => void openDirectoryPicker('create')}>
+                      <Input value={existingVaultRoot} onChange={event => setExistingVaultRoot(event.target.value)} className="min-w-0 flex-1" placeholder={settings.resolvedRoot} />
+                      <Button variant="outline" onClick={() => void openDirectoryPicker('existing')}>
                         <FolderOpen className="h-4 w-4" /> Browse
                       </Button>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                  <label>Existing vault path</label>
-                  <div className="flex gap-2">
-                    <Input value={existingVaultRoot} onChange={event => setExistingVaultRoot(event.target.value)} className="min-w-0 flex-1" placeholder={settings.resolvedRoot} />
-                    <Button variant="outline" onClick={() => void openDirectoryPicker('existing')}>
-                      <FolderOpen className="h-4 w-4" /> Browse
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="flex flex-col gap-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                  Project name
-                  <Input value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="Launch Website" />
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                  Codebase path (optional)
-                  <Input value={codebaseRoot} onChange={event => setCodebaseRoot(event.target.value)} placeholder="../my-repo" />
-                </label>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {currentStep === 3 && (
-            <div className="flex flex-col gap-5">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-                <div className="space-y-4">
+            {currentStep === 2 && (
+              <div className="flex flex-col gap-5">
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    First task title
-                    <Input value={taskTitle} onChange={event => setTaskTitle(event.target.value)} placeholder="Ship the landing page" />
+                    Project name
+                    <Input value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="Launch Website" />
                   </label>
-
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Objective
-                    <Textarea value={taskObjective} onChange={event => setTaskObjective(event.target.value)} rows={5} placeholder="Describe what this task should achieve in enough detail for an agent or teammate to start immediately." />
+                    Codebase path (optional)
+                    <Input value={codebaseRoot} onChange={event => setCodebaseRoot(event.target.value)} placeholder="../my-repo" />
                   </label>
-
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Acceptance criteria
-                    <Textarea value={taskAcceptanceCriteria} onChange={event => setTaskAcceptanceCriteria(event.target.value)} rows={5} placeholder={"One outcome per line\nTask appears on the board\nReviewer can verify the result"} />
-                  </label>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Context files
-                    <Textarea value={taskContextFiles} onChange={event => setTaskContextFiles(event.target.value)} rows={4} placeholder={"One path per line\nweb/src/api/client.ts\ndocs/onboarding.md"} />
-                  </label>
-
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Constraints (optional)
-                    <Textarea value={taskConstraints} onChange={event => setTaskConstraints(event.target.value)} rows={4} placeholder={"One constraint per line\nDo not break existing approval flow"} />
-                  </label>
-
-                  <label className="flex max-w-xs flex-col gap-1.5 text-sm text-text-secondary">
-                    Priority
-                    <Select value={taskPriority} onChange={event => setTaskPriority(event.target.value as TaskPriority)}>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </Select>
-                  </label>
-
-              <div className="rounded-lg border border-status-active/20 bg-brand-muted px-3 py-3 text-xs text-text-secondary">
-                    Objective should be detailed enough to start work. Add at least two acceptance criteria and one context file.
-                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {(wizardError || mutationError) && <p className="text-sm text-status-blocked">{wizardError || mutationError}</p>}
+            {currentStep === 3 && (
+              <div className="flex flex-col gap-5">
+                <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
+                  <button
+                    type="button"
+                    onClick={() => setConnectTab('claude-code')}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'claude-code' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Claude Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConnectTab('cli')}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'cli' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    <Terminal className="h-3.5 w-3.5" />
+                    CLI / Shell
+                  </button>
+                </div>
+
+                {connectTab === 'claude-code' && (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-sm text-text-secondary">
+                      Add RelayHQ to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code>.
+                      Once added, every Claude Code session will have <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">relayhq_*</code> tools available automatically — no per-project setup needed.
+                    </p>
+                    <div className="relative rounded-xl border border-border bg-slate-950 p-4">
+                      <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{mcpSnippet}</pre>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopySnippet()}
+                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700"
+                      >
+                        {snippetCopied ? (
+                          <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
+                        ) : (
+                          <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>
+                        )}
+                      </button>
+                    </div>
+                    <ol className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">1</span> Copy the snippet above</li>
+                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">2</span> Paste it into <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code> (merging with any existing <code className="rounded bg-surface-secondary px-1 py-0.5 text-xs font-mono text-text-primary">mcpServers</code> key)</li>
+                      <li className="flex items-baseline gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-semibold text-accent">3</span> Restart Claude Code — done</li>
+                    </ol>
+                  </div>
+                )}
+
+                {connectTab === 'cli' && (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-sm text-text-secondary">
+                      Export these variables into your shell profile. Any terminal session opened after that will have the RelayHQ CLI ready without additional setup.
+                    </p>
+                    <div className="relative rounded-xl border border-border bg-slate-950 p-4">
+                      <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{cliSnippet}</pre>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopySnippet()}
+                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700"
+                      >
+                        {snippetCopied ? (
+                          <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
+                        ) : (
+                          <><ClipboardCopy className="h-3.5 w-3.5" /> Copy</>
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={shellWriteStatus === 'writing'}
+                        onClick={() => void handleWriteShellProfile('zshrc')}
+                      >
+                        Write to ~/.zshrc
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={shellWriteStatus === 'writing'}
+                        onClick={() => void handleWriteShellProfile('bashrc')}
+                      >
+                        Write to ~/.bashrc
+                      </Button>
+                    </div>
+                    {shellWriteStatus === 'done' && shellWritePath && (
+                      <p className="flex items-center gap-2 text-sm text-emerald-600">
+                        <Check className="h-4 w-4" />
+                        Added to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">{shellWritePath}</code> — run <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono">source {shellWritePath}</code>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(wizardError || mutationError) && <p className="text-sm text-status-blocked">{wizardError || mutationError}</p>}
           </div>
         </div>
 
@@ -409,22 +423,8 @@ export function OnboardingWizard() {
 
             <div className="flex flex-wrap gap-3 sm:justify-end">
               {currentStep > 1 && (
-                <Button
-                  type="button"
-                  onClick={handlePreviousStep}
-                  variant="outline"
-                >
+                <Button type="button" onClick={handlePreviousStep} variant="outline">
                   Back
-                </Button>
-              )}
-
-              {currentStep === 3 && (
-                <Button
-                  type="button"
-                  onClick={handleSkipTask}
-                  variant="outline"
-                >
-                  Skip for now
                 </Button>
               )}
 
@@ -451,8 +451,7 @@ export function OnboardingWizard() {
               {currentStep === 3 && (
                 <Button
                   type="button"
-                  disabled={!canSubmitStep3}
-                  onClick={() => void handleCreateTask()}
+                  onClick={() => setStepOverride(null)}
                 >
                   Open my board <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -460,92 +459,89 @@ export function OnboardingWizard() {
             </div>
           </div>
         </div>
-
       </div>
 
-        {pickerTarget !== null && directoryBrowser && (
+      {pickerTarget !== null && directoryBrowser && (
         <Dialog open>
           <DialogOverlay />
           <DialogContent>
-          <DialogPanel className="flex max-h-[calc(100vh-2rem)] max-w-3xl flex-col">
-            <DialogHeader>
-              <div>
-                <DialogTitle>Choose folder</DialogTitle>
-                <DialogDescription>Pick the directory to use as your RelayHQ vault root.</DialogDescription>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => { setPickerTarget(null); setDirectoryBrowser(null) }}>
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogHeader>
-
-            <div className="border-b border-border bg-surface-secondary px-5 py-3">
-              <div className="mb-2 flex items-center gap-2">
-                <Button
-                  disabled={!directoryBrowser.parentPath || isBrowsingDirectories}
-                  onClick={() => void openDirectoryPicker(pickerTarget, directoryBrowser.parentPath ?? undefined)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Up
+            <DialogPanel className="flex max-h-[calc(100vh-2rem)] max-w-3xl flex-col">
+              <DialogHeader>
+                <div>
+                  <DialogTitle>Choose folder</DialogTitle>
+                  <DialogDescription>Pick the directory to use as your RelayHQ vault root.</DialogDescription>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => { setPickerTarget(null); setDirectoryBrowser(null) }}>
+                  <X className="h-4 w-4" />
                 </Button>
-                {isBrowsingDirectories && <span className="text-sm text-text-secondary">Loading folders…</span>}
-              </div>
-              <div className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-secondary">
-                <span className="block truncate">{directoryBrowser.currentPath}</span>
-              </div>
-            </div>
+              </DialogHeader>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <div className="space-y-1">
-                {directoryBrowser.entries.map(entry => (
-                  <button
-                    key={entry.path}
-                    type="button"
-                    onClick={() => void openDirectoryPicker(pickerTarget, entry.path)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface-secondary"
+              <div className="border-b border-border bg-surface-secondary px-5 py-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <Button
+                    disabled={!directoryBrowser.parentPath || isBrowsingDirectories}
+                    onClick={() => void openDirectoryPicker(pickerTarget, directoryBrowser.parentPath ?? undefined)}
+                    variant="outline"
+                    size="sm"
                   >
-                    <span className="inline-flex min-w-0 items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-light text-brand">
-                        <Folder className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-text-primary">{entry.name}</span>
-                        <span className="block truncate text-xs text-text-tertiary">{entry.path}</span>
-                      </span>
-                    </span>
-                    {entry.isVaultRoot && (
-                      <Badge variant="secondary" className="border-status-done/20 bg-status-done/10 text-status-done">
-                        vault
-                      </Badge>
-                    )}
-                  </button>
-                ))}
-                {directoryBrowser.entries.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-text-tertiary">
-                    No subfolders found here.
-                  </div>
-                )}
+                    <ChevronLeft className="h-4 w-4" />
+                    Up
+                  </Button>
+                  {isBrowsingDirectories && <span className="text-sm text-text-secondary">Loading folders…</span>}
+                </div>
+                <div className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-secondary">
+                  <span className="block truncate">{directoryBrowser.currentPath}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-              <div className="text-sm text-text-secondary">
-                Select the current folder if you want RelayHQ to create or use a vault here.
+              <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <div className="space-y-1">
+                  {directoryBrowser.entries.map(entry => (
+                    <button
+                      key={entry.path}
+                      type="button"
+                      onClick={() => void openDirectoryPicker(pickerTarget, entry.path)}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface-secondary"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-3">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-light text-accent">
+                          <Folder className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-text-primary">{entry.name}</span>
+                          <span className="block truncate text-xs text-text-tertiary">{entry.path}</span>
+                        </span>
+                      </span>
+                      {entry.isVaultRoot && (
+                        <Badge variant="success">vault</Badge>
+                      )}
+                    </button>
+                  ))}
+                  {directoryBrowser.entries.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-text-tertiary">
+                      No subfolders found here.
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={() => { setPickerTarget(null); setDirectoryBrowser(null) }}>
-                  Cancel
-                </Button>
-                <Button onClick={() => selectDirectory(directoryBrowser.currentPath)}>
-                  Use this folder <ArrowRight className="h-4 w-4" />
-                </Button>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
+                <div className="text-sm text-text-secondary">
+                  Select the current folder if you want RelayHQ to create or use a vault here.
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" onClick={() => { setPickerTarget(null); setDirectoryBrowser(null) }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => selectDirectory(directoryBrowser.currentPath)}>
+                    Use this folder <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </DialogPanel>
+            </DialogPanel>
           </DialogContent>
         </Dialog>
-        )}
+      )}
     </div>
   )
 }
