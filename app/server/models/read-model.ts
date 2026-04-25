@@ -161,6 +161,7 @@ export interface ReadModelTask {
   readonly completedAt: string | null;
   readonly parentTaskId: string | null;
   readonly sourceIssueId?: string | null;
+  readonly githubIssueId?: string | null;
   readonly dependsOn: ReadonlyArray<string>;
   readonly tags: ReadonlyArray<string>;
   readonly links: ReadonlyArray<ReadModelLink>;
@@ -588,6 +589,7 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     completedAt: document.frontmatter.completed_at,
     parentTaskId: document.frontmatter.parent_task_id,
     sourceIssueId: document.frontmatter.source_issue_id ?? null,
+    githubIssueId: document.frontmatter.github_issue_id ?? null,
     dependsOn: sortStrings(document.frontmatter.depends_on),
     tags: sortStrings(document.frontmatter.tags),
     links: readLinkArray(document.frontmatter),

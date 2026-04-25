@@ -48,6 +48,7 @@ const TASK_FRONTMATTER_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
   "result",
   "completed_at",
   "parent_task_id",
+  "github_issue_id",
   "depends_on",
   "tags",
   "links",

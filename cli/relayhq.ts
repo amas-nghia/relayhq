@@ -26,6 +26,7 @@ type FetchLike = typeof fetch;
 interface RelayHQCliEnvironment {
   readonly RELAYHQ_BASE_URL?: string;
   readonly RELAYHQ_VAULT_ROOT?: string;
+  readonly GITHUB_TOKEN?: string;
 }
 
 interface RelayHQDotfileConfig {
@@ -195,6 +196,22 @@ async function requestRelayHQ<TResponse>(fetchFn: FetchLike, url: string, init?:
     throw new Error(extractRelayHQErrorMessage(payload, `RelayHQ request failed with status ${response.status}.`));
   }
 
+  return payload as TResponse;
+}
+
+async function requestGitHub<TResponse>(url: string, token: string): Promise<TResponse> {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/vnd.github+json",
+      "user-agent": "relayhq-cli",
+    },
+  });
+  const payload = await parseRelayHQResponse(response);
+  if (!response.ok) {
+    throw new Error(extractRelayHQErrorMessage(payload, `GitHub request failed with status ${response.status}.`));
+  }
   return payload as TResponse;
 }
 
@@ -447,6 +464,68 @@ export async function executeRelayHQInvocation(
         indexedFiles,
       },
     };
+  }
+
+  if (invocation.command === "sync") {
+    const githubRepo = invocation.flags.get("github");
+    if (githubRepo === undefined) {
+      throw new Error("--github <owner/repo> is required");
+    }
+
+    const token = invocation.flags.get("token") ?? process.env.GITHUB_TOKEN;
+    if (!token) {
+      throw new Error("GitHub token is required via --token or GITHUB_TOKEN.");
+    }
+
+    const [owner, repo] = githubRepo.split("/");
+    if (!owner || !repo) {
+      throw new Error("--github must be in owner/repo format.");
+    }
+
+    const baseUrl = await resolveRelayHQBaseUrl(argv);
+    const model = await requestRelayHQ<VaultReadModel>(fetchFnForClient(client), `${baseUrl}/api/vault/read-model`, { method: "GET" });
+    const targetProject = model.projects[0];
+    const targetBoard = model.boards.find((board) => board.projectId === targetProject?.id);
+    const todoColumn = model.columns.find((column) => column.boardId === targetBoard?.id && column.name.toLowerCase() === "todo") ?? model.columns.find((column) => column.boardId === targetBoard?.id);
+    if (!targetProject || !targetBoard || !todoColumn) {
+      throw new Error("A project, board, and todo column are required before GitHub sync can create tasks.");
+    }
+
+    const issues = await requestGitHub<ReadonlyArray<{ number: number; title: string; body: string | null; labels: ReadonlyArray<{ name: string }>; assignees: ReadonlyArray<{ login: string }> }>>(
+      `https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=100`,
+      token,
+    );
+
+    let created = 0;
+    let skipped = 0;
+    for (const issue of issues.filter((entry) => !("pull_request" in (entry as object)))) {
+      const existing = model.tasks.find((task) => task.githubIssueId === String(issue.number));
+      if (existing) {
+        skipped += 1;
+        continue;
+      }
+
+      await requestRelayHQ(fetchFnForClient(client), `${baseUrl}/api/vault/tasks`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: issue.title,
+          projectId: targetProject.id,
+          boardId: targetBoard.id,
+          columnId: todoColumn.id,
+          priority: "medium",
+          assignee: issue.assignees[0]?.login ?? "claude-code",
+          objective: issue.body ?? issue.title,
+          acceptanceCriteria: ["Issue is synced from GitHub", "Task is visible in RelayHQ"],
+          contextFiles: [],
+          constraints: [],
+          tags: issue.labels.map((label) => label.name),
+          github_issue_id: String(issue.number),
+        }),
+      });
+      created += 1;
+    }
+
+    return { command: "sync", payload: { created, skipped } };
   }
 
   return { command: "help", payload: renderRelayHQHelp() };

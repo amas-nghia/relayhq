@@ -76,6 +76,7 @@ export interface TaskFrontmatter {
   readonly completed_at: string | null;
   readonly parent_task_id: string | null;
   readonly source_issue_id?: string | null;
+  readonly github_issue_id?: string | null;
   readonly depends_on: ReadonlyArray<string>;
   readonly tags: ReadonlyArray<string>;
   readonly links: ReadonlyArray<TaskLink>;

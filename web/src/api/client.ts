@@ -69,6 +69,7 @@ export interface VaultTaskCreatePayload {
   readonly contextFiles?: ReadonlyArray<string>
   readonly tags?: ReadonlyArray<string>
   readonly dependsOn?: ReadonlyArray<string>
+  readonly github_issue_id?: string
 }
 
 export interface RelayHQWorkspaceOption {

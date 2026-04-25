@@ -272,6 +272,7 @@ function parseTaskFrontmatter(record: Record<string, unknown>, filePath: string)
     completed_at: requireNullableTimestamp(record, "completed_at", filePath),
     parent_task_id: requireNullableString(record, "parent_task_id", filePath),
     ...(record.source_issue_id === undefined ? {} : { source_issue_id: requireNullableString(record, "source_issue_id", filePath) }),
+    ...(record.github_issue_id === undefined ? {} : { github_issue_id: requireNullableString(record, "github_issue_id", filePath) }),
     depends_on: [...requireStringArray(record, "depends_on", filePath)].sort(compareText),
     tags: [...requireStringArray(record, "tags", filePath)].sort(compareText),
     links: requireTaskLinks(record, filePath),

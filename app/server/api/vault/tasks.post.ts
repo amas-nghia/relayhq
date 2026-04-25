@@ -51,6 +51,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     "constraints",
     "contextFiles",
     "sourceIssueId",
+    "github_issue_id",
   ] as const;
   const bodyKeys = Object.keys(body);
   const invalidKeys = bodyKeys.filter((key) => !allowedKeys.includes(key as (typeof allowedKeys)[number]));
@@ -105,6 +106,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     dependsOn: body.dependsOn,
     body: buildBody(body.objective, body.acceptanceCriteria, body.constraints, body.contextFiles),
     sourceIssueId: typeof body.sourceIssueId === "string" && body.sourceIssueId.trim().length > 0 ? body.sourceIssueId.trim() : undefined,
+    githubIssueId: typeof body.github_issue_id === "string" && body.github_issue_id.trim().length > 0 ? body.github_issue_id.trim() : undefined,
   });
 
   return {

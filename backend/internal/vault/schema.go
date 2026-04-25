@@ -156,6 +156,7 @@ type TaskFrontmatter struct {
 	Result              *string
 	CompletedAt         *time.Time
 	ParentTaskID        *string
+	GitHubIssueID       *string
 	DependsOn           []string
 	Tags                []string
 	Links               []TaskLink
