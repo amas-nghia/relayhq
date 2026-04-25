@@ -97,7 +97,7 @@ Add this to your project's `CLAUDE.md` and Claude Code will pick up tasks automa
 ## RelayHQ
 At session start: `relayhq_session_start(agentId="claude-code")`
 Heartbeat every ~10 min: `relayhq_heartbeat(taskId, agentId)`
-When done: `relayhq_update_task(taskId, agentId, status="done", result="...")`
+When done: `relayhq_update_task(taskId, agentId, status="done", result="...", tokens_used=18420, model="claude-sonnet-4-6", cost_usd=0.11)`
 ```
 
 **Using OpenCode, Codex, or another tool?** See [docs/connect.md](docs/connect.md) for setup instructions for all supported agents.

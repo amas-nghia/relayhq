@@ -43,6 +43,11 @@ When done, write:
 - `completed_at`
 - audit note or summary
 
+Token reporting is optional but recommended when the runtime can provide it. Include any of:
+- `tokens_used`
+- `model`
+- `cost_usd`
+
 ## Failure flow
 If blocked or failed, write:
 - `status: blocked` or `status: cancelled`
@@ -62,7 +67,7 @@ bun run ./cli/relayhq.ts tasks --assignee=me
 bun run ./cli/relayhq.ts claim task-001 --assignee=me
 bun run ./cli/relayhq.ts heartbeat task-001 --assignee=me
 bun run ./cli/relayhq.ts request-approval task-001 --assignee=me --reason="Need prod access"
-bun run ./cli/relayhq.ts update task-001 --assignee=me --status=done --result="PR #42 created"
+bun run ./cli/relayhq.ts update task-001 --assignee=me --status=done --result="PR #42 created" --tokens-used=18420 --model="claude-sonnet-4-6" --cost-usd=0.11
 ```
 
 ## Design rule

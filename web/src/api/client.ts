@@ -3,7 +3,6 @@ import type {
   AgentContextResponse,
   ProjectIndexStatusResponse,
   ReadModelDoc,
-  ReadModelIssue,
   VaultDocEnvelope,
   VaultReadModel,
 } from './contract'
@@ -140,6 +139,18 @@ export interface RelayHQToolSnippet {
   readonly instruction: string
 }
 
+export type RelayHQWebhookEvent = 'task.claimed' | 'task.done' | 'task.blocked' | 'task.waiting-approval'
+
+export interface RelayHQWebhookConfig {
+  readonly id: string
+  readonly url: string
+  readonly events: ReadonlyArray<RelayHQWebhookEvent>
+}
+
+export interface RelayHQWebhookSettingsResponse {
+  readonly webhooks: ReadonlyArray<RelayHQWebhookConfig>
+}
+
 export interface RelayHQScannedAgentTool {
   readonly id: string
   readonly name: string
@@ -154,17 +165,12 @@ export interface VaultTaskPatchPayload {
   readonly patch: Record<string, unknown>
 }
 
-export interface VaultIssueCreatePayload {
-  readonly projectId: string
-  readonly title: string
-  readonly problem?: string
-  readonly priority: string
-  readonly reportedBy: string
-}
-
-export interface VaultIssuePatchPayload {
-  readonly actorId: string
-  readonly patch: Record<string, unknown>
+export interface VaultIssuePromotePayload {
+  readonly boardId: string
+  readonly columnId: string
+  readonly assignee: string
+  readonly objective: string
+  readonly acceptanceCriteria: ReadonlyArray<string>
 }
 
 export interface VaultDocCreatePayload {
@@ -250,6 +256,15 @@ export const relayhqApi = {
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
+  getWebhookSettings: () => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks'),
+  saveWebhookSettings: (payload: { webhooks: ReadonlyArray<{ id?: string; url: string; events: ReadonlyArray<RelayHQWebhookEvent> }> }) => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  testWebhook: (payload: { url: string; event?: RelayHQWebhookEvent }) => request<{ success: boolean }>('/api/settings/webhooks/test', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
   registerAgents: (payload: RegisterAgentsPayload) => request<{ created: ReadonlyArray<{ id: string; sourcePath: string }>; skipped: ReadonlyArray<{ id: string; reason: 'not-detected' | 'already-registered' }> }>('/api/settings/register-agents', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -276,11 +291,7 @@ export const relayhqApi = {
     body: JSON.stringify({ actorId, reason }),
   }),
 
-  listIssues: (projectId: string, status?: string) => request<{ issues: ReadonlyArray<Pick<ReadModelIssue, 'id' | 'title' | 'status' | 'priority' | 'projectId' | 'createdAt' | 'updatedAt' | 'tags' | 'linkedTaskIds'> & { reportedBy: string }> }>(`/api/vault/issues?projectId=${encodeURIComponent(projectId)}${status ? `&status=${encodeURIComponent(status)}` : ''}`),
-  getIssue: (issueId: string) => request<{ id: string; title: string; status: string; priority: string; reportedBy: string; createdAt: string; updatedAt: string; projectId: string; problem: string | null; context: string | null; comments: ReadonlyArray<{ author: string; timestamp: string; body: string }>; linkedTaskIds: ReadonlyArray<string>; tags: ReadonlyArray<string> }>(`/api/vault/issues/${encodeURIComponent(issueId)}`),
-  createIssue: (payload: VaultIssueCreatePayload) => request<unknown>('/api/vault/issues', { method: 'POST', body: JSON.stringify(payload) }),
-  patchIssue: (issueId: string, payload: VaultIssuePatchPayload) => request<unknown>(`/api/vault/issues/${encodeURIComponent(issueId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  commentIssue: (issueId: string, actorId: string, body: string) => request<unknown>(`/api/vault/issues/${encodeURIComponent(issueId)}/comments`, { method: 'POST', body: JSON.stringify({ actorId, body }) }),
+  promoteIssue: (issueId: string, payload: VaultIssuePromotePayload) => request<{ task: { id: string; title: string; status: string; priority: string; assignee: string; boardId: string; columnId: string } }>(`/api/vault/tasks/${encodeURIComponent(issueId)}/promote`, { method: 'POST', body: JSON.stringify(payload) }),
 
   listDocs: (projectId?: string) => request<VaultDocEnvelope<ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; workspace_id: string; project_id: string | null; updated_at: string; created_at: string; tags: ReadonlyArray<string>; sourcePath: string }>>>(`/api/vault/docs${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`),
   getDoc: (docId: string) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; workspace_id: string; project_id: string | null; created_at: string; updated_at: string; tags: ReadonlyArray<string>; body: string; sourcePath: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`),

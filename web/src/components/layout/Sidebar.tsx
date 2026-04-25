@@ -95,6 +95,7 @@ export function Sidebar() {
         >
           <FolderKanban className="w-4 h-4" />
         </Button>
+
       </div>
 
       <div ref={menuRef} className="relative w-full border-t border-border px-2 pt-3">

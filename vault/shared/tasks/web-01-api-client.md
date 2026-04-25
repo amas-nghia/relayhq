@@ -5,18 +5,18 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-relayhq-dev"
 board_id: "board-dev-sprint"
-column: "todo"
-status: "todo"
+column: "done"
+status: "done"
 priority: "critical"
 title: "API client layer cho web/"
 assignee: null
 created_by: "@amas"
 created_at: "2026-04-24T00:00:00Z"
-updated_at: "2026-04-24T00:00:00Z"
+updated_at: "2026-04-25T00:00:00Z"
 heartbeat_at: null
 execution_started_at: null
 execution_notes: null
-progress: 0
+progress: 100
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
@@ -25,8 +25,8 @@ approved_at: null
 approval_outcome: "pending"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Added the typed web API client layer for read, audit, task mutation, and supporting endpoints."
+completed_at: "2026-04-25T00:00:00Z"
 parent_task_id: null
 depends_on: ["int-00-contract", "be-01-cors", "infra-01-pm2"]
 tags: ["web", "api", "ui-migration"]

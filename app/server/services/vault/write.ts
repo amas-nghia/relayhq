@@ -193,9 +193,10 @@ function serializeTaskLinks(links: ReadonlyArray<TaskLink>): string {
 }
 
 function serializeTaskFrontmatter(frontmatter: TaskFrontmatter): string {
-  return TASK_FRONTMATTER_KEYS.map((key) => {
+  return TASK_FRONTMATTER_KEYS.flatMap((key) => {
+    if (frontmatter[key] === undefined) return [];
     const value = key === "links" ? serializeTaskLinks(frontmatter.links) : stringifyTaskValue(frontmatter[key]);
-    return `${String(key)}: ${value}`;
+    return [`${String(key)}: ${value}`];
   }).join("\n");
 }
 

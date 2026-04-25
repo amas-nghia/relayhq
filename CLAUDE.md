@@ -188,7 +188,6 @@ Vault task lifecycle (`app/server/api/vault/`):
 - `GET /api/vault/agents`, `POST /api/vault/agents`
 - `GET /api/vault/projects`, `POST /api/vault/projects`, `GET/PATCH /api/vault/projects/[id]`
 - `GET /api/vault/docs`, `POST /api/vault/docs`, `GET/PATCH /api/vault/docs/[id]`
-- `GET /api/vault/issues/[id]`
 - `POST /api/vault/init` — seed an empty vault with scaffolding
 - `GET /api/health`, `GET /api/metrics`
 - `GET /api/settings`, `POST /api/settings`

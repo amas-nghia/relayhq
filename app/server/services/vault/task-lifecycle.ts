@@ -1,4 +1,5 @@
 import type { TaskFrontmatter } from "./repository";
+import { queueTaskWebhookNotification, type WebhookEvent } from "../settings/webhooks";
 import { upsertLatestApprovalForTask } from "./approval-write";
 import { syncTaskDocument, type SyncTaskResult } from "./write";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
@@ -75,12 +76,43 @@ async function runTaskLifecycleMutation(
   });
 }
 
+function toWebhookEvent(previous: TaskFrontmatter, next: TaskFrontmatter): WebhookEvent | null {
+  if (previous.status === next.status) {
+    return null;
+  }
+
+  if (next.status === "in-progress") return "task.claimed";
+  if (next.status === "done") return "task.done";
+  if (next.status === "blocked") return "task.blocked";
+  if (next.status === "waiting-approval") return "task.waiting-approval";
+  return null;
+}
+
+function notifyTaskLifecycle(previous: TaskFrontmatter, next: TaskFrontmatter, timestamp: string, vaultRoot: string): void {
+  const event = toWebhookEvent(previous, next);
+  if (event === null) return;
+
+  queueTaskWebhookNotification({
+    event,
+    taskId: next.id,
+    title: next.title,
+    status: next.status,
+    assignee: next.assignee,
+    timestamp,
+    boardUrl: `${process.env.RELAYHQ_PUBLIC_BASE_URL || "http://127.0.0.1:44211"}/boards/${next.board_id}`,
+  }, { vaultRoot });
+}
+
 export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Promise<SyncTaskResult> {
-  return await runTaskLifecycleMutation(request, () => request.patch);
+  const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, () => request.patch);
+  notifyTaskLifecycle(result.previous, result.frontmatter, request.now?.toISOString() ?? new Date().toISOString(), vaultRoot);
+  return result;
 }
 
 export async function claimTaskLifecycle(request: ClaimTaskLifecycleRequest): Promise<SyncTaskResult> {
-  return await runTaskLifecycleMutation(request, (_task, now) => ({
+  const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
     assignee: request.assignee ?? request.actorId,
     status: "in-progress",
     column: "in-progress",
@@ -88,6 +120,8 @@ export async function claimTaskLifecycle(request: ClaimTaskLifecycleRequest): Pr
     blocked_reason: null,
     blocked_since: null,
   }), { recoverStaleLock: true });
+  notifyTaskLifecycle(result.previous, result.frontmatter, request.now?.toISOString() ?? new Date().toISOString(), vaultRoot);
+  return result;
 }
 
 export async function heartbeatTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
@@ -95,7 +129,8 @@ export async function heartbeatTaskLifecycle(request: TaskLifecycleRequest): Pro
 }
 
 export async function requestTaskApprovalLifecycle(request: RequestApprovalLifecycleRequest): Promise<SyncTaskResult> {
-  const result = await runTaskLifecycleMutation(request, () => ({
+  const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, () => ({
     status: "waiting-approval",
     column: "review",
     approval_needed: true,
@@ -107,7 +142,7 @@ export async function requestTaskApprovalLifecycle(request: RequestApprovalLifec
   }));
 
   await upsertLatestApprovalForTask({
-    vaultRoot: request.vaultRoot ?? resolveVaultWorkspaceRoot(),
+    vaultRoot,
     taskId: result.frontmatter.id,
     workspaceId: result.frontmatter.workspace_id,
     projectId: result.frontmatter.project_id,
@@ -119,11 +154,14 @@ export async function requestTaskApprovalLifecycle(request: RequestApprovalLifec
     now: request.now ?? new Date(),
   });
 
+  notifyTaskLifecycle(result.previous, result.frontmatter, request.now?.toISOString() ?? new Date().toISOString(), vaultRoot);
+
   return result;
 }
 
 export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
-  const result = await runTaskLifecycleMutation(request, (_task, now) => ({
+  const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
     status: "in-progress",
     column: "in-progress",
     approval_needed: true,
@@ -135,7 +173,7 @@ export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promi
   }));
 
   await upsertLatestApprovalForTask({
-    vaultRoot: request.vaultRoot ?? resolveVaultWorkspaceRoot(),
+    vaultRoot,
     taskId: result.frontmatter.id,
     workspaceId: result.frontmatter.workspace_id,
     projectId: result.frontmatter.project_id,
@@ -147,11 +185,14 @@ export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promi
     now: request.now ?? new Date(),
   });
 
+  notifyTaskLifecycle(result.previous, result.frontmatter, request.now?.toISOString() ?? new Date().toISOString(), vaultRoot);
+
   return result;
 }
 
 export async function rejectTaskLifecycle(request: RejectTaskLifecycleRequest): Promise<SyncTaskResult> {
-  const result = await runTaskLifecycleMutation(request, (_task, now) => ({
+  const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
     status: "blocked",
     column: "review",
     approval_needed: true,
@@ -163,7 +204,7 @@ export async function rejectTaskLifecycle(request: RejectTaskLifecycleRequest): 
   }));
 
   await upsertLatestApprovalForTask({
-    vaultRoot: request.vaultRoot ?? resolveVaultWorkspaceRoot(),
+    vaultRoot,
     taskId: result.frontmatter.id,
     workspaceId: result.frontmatter.workspace_id,
     projectId: result.frontmatter.project_id,
@@ -174,6 +215,8 @@ export async function rejectTaskLifecycle(request: RejectTaskLifecycleRequest): 
     status: "rejected",
     now: request.now ?? new Date(),
   });
+
+  notifyTaskLifecycle(result.previous, result.frontmatter, request.now?.toISOString() ?? new Date().toISOString(), vaultRoot);
 
   return result;
 }

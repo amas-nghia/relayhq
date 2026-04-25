@@ -269,7 +269,6 @@ app/
 - Task create route: `app/server/api/vault/tasks.post.ts`.
 - Task patch route: `app/server/api/vault/tasks/[id].ts`.
 - Task lifecycle routes live under `app/server/api/vault/tasks/[id]/`.
-- Issue routes live under `app/server/api/vault/issues/`.
 - Audit-note read route is `app/server/api/vault/audit-notes.get.ts`.
 - Agent creation route is `app/server/api/vault/agents.post.ts`.
 - Document routes are `app/server/api/vault/documents.get.ts` and `documents.post.ts`.
@@ -281,7 +280,6 @@ app/
 - A single resource param usually uses `[id]`.
 - The task bootstrap route uses a more explicit `[taskId]` param name.
 - Nested resource routes keep the resource family in the folder path.
-- Example: issue comments live at `app/server/api/vault/issues/[id]/comments.post.ts`.
 - Example: task approval actions live at `app/server/api/vault/tasks/[id]/approve.ts` and `reject.ts`.
 
 ## HTTP verb file naming patterns
@@ -304,8 +302,6 @@ app/
 ## Example route style rules verified in code
 
 - `app/server/api/vault/projects.post.ts` validates input early and writes files after resolving the shared root.
-- `app/server/api/vault/issues/index.post.ts` validates `projectId` and `title`, then delegates to `createIssueDocument`.
-- `app/server/api/vault/issues/[id].patch.ts` validates transitions before writing.
 - `app/server/api/vault/tasks/[id].ts` checks `actorId` and `patch` shape before calling `patchTaskLifecycle`.
 - `app/server/api/agent/session.get.ts` reads the read model once, filters it by workspace when configured, then composes the session payload.
 
@@ -322,7 +318,6 @@ app/
 
 - A new agent handshake endpoint should live beside `app/server/api/agent/session.get.ts`.
 - A new task action like `pause` should live under `app/server/api/vault/tasks/[id]/pause.ts`.
-- A new issue sub-resource should live under `app/server/api/vault/issues/[id]/...`.
 - A new project-scoped indexing action should live under `app/server/api/vault/projects/[id]/...`.
 
 ## UI surface conventions: what is true now
@@ -375,7 +370,7 @@ app/
 ## Test location conventions
 
 - Route-family tests often live beside the route implementation as `*.test.ts`.
-- Examples: `app/server/api/agent/session.test.ts` and `app/server/api/vault/issues/issues.test.ts`.
+- Examples: `app/server/api/agent/session.test.ts` and `app/server/services/vault/task-create.test.ts`.
 - Service tests also live beside service files as `*.test.ts`.
 - Examples: `app/server/services/vault/task-create.test.ts` and `app/server/services/authz/access.test.ts`.
 - End-to-end-ish vault fixture tests live under `app/test/`.
@@ -431,7 +426,6 @@ app/
 - `vault/shared/boards/`
 - `vault/shared/columns/`
 - `vault/shared/tasks/`
-- `vault/shared/issues/`
 - `vault/shared/approvals/`
 - `vault/shared/agents/`
 - `vault/shared/audit/`
@@ -468,13 +462,6 @@ app/
 - Lock fields are `locked_by`, `locked_at`, and `lock_expires_at`.
 - Read-model task fields become camelCase like `createdAt`, `blockedReason`, and `approvalNeeded`.
 
-## Issue schema rules
-
-- Issues live under `vault/shared/issues/` in the current repo.
-- `docs/vault/schema.md` defines issue body sections `## Problem` and `## Context`.
-- `app/server/api/vault/issues/[id].patch.ts` edits those sections by heading name.
-- Valid issue statuses are `open`, `investigating`, `resolved`, and `wont-fix`.
-
 ## Approval and audit rules
 
 - Approvals are separate vault records linked to tasks.
@@ -490,7 +477,6 @@ app/
 - Task bodies may include `## Context Files`.
 - This is implemented in `app/server/api/vault/tasks.post.ts`.
 - Bootstrap parsing in `app/server/api/agent/bootstrap/[taskId].get.ts` reads those sections back out.
-- Issue bodies use `## Problem` and `## Context`.
 - Workspace bodies are free-form markdown briefs.
 
 ## Runtime vault root rules
@@ -551,7 +537,6 @@ app/
 - Task ids may be semantic (`kioku-04-retrieval-api`) or numeric (`task-001`) depending on how they were created.
 - Agent ids use `agent-` prefixes.
 - Approval ids use `approval-` prefixes.
-- Issue ids use `issue-` prefixes.
 
 ## Naming conventions for functions and helpers
 
@@ -571,7 +556,6 @@ app/
 
 - New agent-facing GET endpoint: `app/server/api/agent/<name>.get.ts`.
 - New task lifecycle action: `app/server/api/vault/tasks/[id]/<action>.ts`.
-- New issue mutation: `app/server/api/vault/issues/[id].patch.ts` or a nested file under `[id]/`.
 - New page route: `app/pages/<route>/index.vue` or `app/pages/<route>/[id].vue`.
 - New selector: `app/data/<feature>.ts`.
 - New schema enum or frontmatter change: `app/shared/vault/schema.ts` and `backend/internal/vault/schema.go`.

@@ -18,7 +18,6 @@ vault/
 │  ├─ projects/
 │  ├─ boards/
 │  ├─ columns/
-│  ├─ issues/
 │  ├─ agents/
 │  ├─ runs/
 │  ├─ audit/
@@ -40,7 +39,7 @@ Committed to Git and visible to the team.
 
 Examples:
 - projects
-- tasks / issues
+- tasks
 - assignments
 - approvals
 - audit notes

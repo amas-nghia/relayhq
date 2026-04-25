@@ -1,4 +1,4 @@
-import { ArrowRight, Circle, Coins, Pencil, Play, ScanSearch, X } from 'lucide-react';
+import { Activity, ArrowRight, Circle, Clock3, Coins, Pencil, Play, ScanSearch, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
@@ -68,6 +68,23 @@ function AgentFeedPanel() {
       })}
     </div>
   )
+}
+
+function eventIcon(eventType: string) {
+  if (eventType === 'session_start') return <Play className="h-3.5 w-3.5 text-brand" />
+  if (eventType === 'heartbeat') return <Clock3 className="h-3.5 w-3.5 text-status-active" />
+  if (eventType === 'approval_requested') return <ArrowRight className="h-3.5 w-3.5 text-status-waiting" />
+  if (eventType === 'task_completed') return <Circle className="h-3.5 w-3.5 fill-current text-status-done" />
+  return <Activity className="h-3.5 w-3.5 text-text-tertiary" />
+}
+
+function eventLabel(eventType: string) {
+  if (eventType === 'session_start') return 'Session started'
+  if (eventType === 'heartbeat') return 'Heartbeat'
+  if (eventType === 'approval_requested') return 'Approval requested'
+  if (eventType === 'task_completed') return 'Task completed'
+  if (eventType === 'task_claimed') return 'Task claimed'
+  return eventType.replace(/_/g, ' ')
 }
 
 export function AgentsView() {
@@ -273,14 +290,17 @@ export function AgentsView() {
                           </div>
                         )}
 
-                        <div className="space-y-1 rounded-lg bg-surface-secondary/80 p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeline</div>
-                          {(activityByAgent[agent.id] ?? []).slice(0, 10).map((event, index) => (
-                            <div key={`${event.timestamp}-${index}`} className="flex items-center justify-between gap-3 text-xs text-text-secondary">
-                              <span>{event.event_type}</span>
-                              <span>{new Date(event.timestamp).toLocaleString()}</span>
-                            </div>
-                          ))}
+                         <div className="space-y-1 rounded-lg bg-surface-secondary/80 p-3">
+                           <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeline</div>
+                           {(activityByAgent[agent.id] ?? []).slice(0, 10).map((event, index) => (
+                             <div key={`${event.timestamp}-${index}`} className="flex items-center justify-between gap-3 text-xs text-text-secondary">
+                               <span className="inline-flex items-center gap-2">
+                                 {eventIcon(event.event_type)}
+                                 {eventLabel(event.event_type)}
+                               </span>
+                               <span>{new Date(event.timestamp).toLocaleString()}</span>
+                             </div>
+                           ))}
                           {(activityByAgent[agent.id] ?? []).length === 0 && <div className="text-xs text-text-tertiary">No recent activity. Last seen {agent.lastHeartbeat}.</div>}
                         </div>
                       </div>
@@ -298,15 +318,32 @@ export function AgentsView() {
           </h3>
           <div className="flex flex-col border border-border rounded-lg bg-surface divide-y divide-border overflow-hidden">
             {idleAgents.map(agent => (
-              <div key={agent.id} className="p-4 flex items-center gap-2 text-sm text-text-secondary hover:bg-surface-secondary transition-colors cursor-pointer">
-                <Circle className="w-3 h-3 fill-current text-text-tertiary" />
-                <span className="font-semibold text-text-primary inline-block w-32">{agent.name}</span>
-                <span className="text-text-tertiary">Idle</span>
-                <span className="text-text-tertiary">•</span>
-                <span>No active task</span>
-                <Button type="button" variant="ghost" size="icon" className="ml-auto" onClick={() => startEdit(agent.id)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
+              <div key={agent.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-surface-secondary">
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                  <Circle className="h-3 w-3 fill-current text-text-tertiary" />
+                  <span className="inline-block w-32 font-semibold text-text-primary">{agent.name}</span>
+                  <span className="text-text-tertiary">Idle</span>
+                  <span className="text-text-tertiary">•</span>
+                  <span>No active task</span>
+                  <span className="text-text-tertiary">•</span>
+                  <span>Last seen {agent.lastHeartbeat}</span>
+                  <Button type="button" variant="ghost" size="icon" className="ml-auto" onClick={() => startEdit(agent.id)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="ml-5 space-y-1 rounded-lg bg-surface-secondary/80 p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeline</div>
+                  {(activityByAgent[agent.id] ?? []).slice(0, 10).map((event, index) => (
+                    <div key={`${event.timestamp}-${index}`} className="flex items-center justify-between gap-3 text-xs text-text-secondary">
+                      <span className="inline-flex items-center gap-2">
+                        {eventIcon(event.event_type)}
+                        {eventLabel(event.event_type)}
+                      </span>
+                      <span>{new Date(event.timestamp).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {(activityByAgent[agent.id] ?? []).length === 0 && <div className="text-xs text-text-tertiary">No recent activity. Last seen {agent.lastHeartbeat}.</div>}
+                </div>
               </div>
             ))}
           </div>

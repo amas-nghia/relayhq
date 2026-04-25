@@ -41,6 +41,11 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
         {!priorityDot && task.status === 'done' && (
           <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-done" />
         )}
+        {task.isStale && (
+          <span className="rounded-sm border border-status-blocked/20 bg-status-blocked/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-blocked">
+            stale
+          </span>
+        )}
         <span className="text-[14px] font-medium text-text-primary leading-tight line-clamp-2">
           {task.title}
         </span>

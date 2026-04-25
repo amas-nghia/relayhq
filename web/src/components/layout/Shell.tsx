@@ -18,6 +18,7 @@ export function Shell() {
   const location = useLocation();
   const closeDetail = useAppStore(state => state.closeTaskDetail);
   const isBoardRoute = location.pathname.startsWith('/boards/');
+  const isWorkspaceRoute = location.pathname === '/' || isBoardRoute;
 
   useEffect(() => {
     closeDetail();
@@ -36,8 +37,9 @@ export function Shell() {
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden md:ml-14">
           <AlertStrip />
           <div className={clsx(
-            'flex min-h-0 flex-1 px-4 py-4 md:px-6 md:py-6',
-            isBoardRoute ? 'overflow-hidden' : 'overflow-y-auto',
+            'flex min-h-0 flex-1',
+            isWorkspaceRoute ? 'px-3 py-4 md:px-4 md:py-4' : 'px-4 py-4 md:px-6 md:py-6',
+            isWorkspaceRoute ? 'overflow-hidden' : 'overflow-y-auto',
           )}>
             <Outlet />
           </div>

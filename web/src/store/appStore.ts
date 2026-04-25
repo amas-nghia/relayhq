@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 import { relayhqApi } from '../api/client'
 import type { RelayHQSettingsResponse } from '../api/client'
-import type { ActiveAgentSession, ReadModelColumn, VaultReadModel } from '../api/contract'
+import type { ActiveAgentSession, ReadModelColumn, ReadModelAuditNote, VaultReadModel } from '../api/contract'
 import type { Agent, AuditLog, Project, Task, Theme } from '../types'
 
 const THEME_STORAGE_KEY = 'relayhq-theme'
@@ -16,9 +16,11 @@ interface AppState {
   agents: Agent[]
   projects: Project[]
   columns: ReadonlyArray<ReadModelColumn>
+  auditNotes: ReadonlyArray<ReadModelAuditNote>
   settings: RelayHQSettingsResponse | null
   showOnboarding: boolean
   auditLogs: AuditLog[]
+  lastFetched: Date | null
   selectedTaskId: string | null
   isDetailPanelOpen: boolean
   isNewTaskModalOpen: boolean
@@ -37,6 +39,7 @@ interface AppState {
   openNewTaskModal: () => void
   closeNewTaskModal: () => void
   loadData: () => Promise<void>
+  fetchReadModel: () => Promise<void>
   startPolling: () => void
   stopPolling: () => void
   addTask: (payload: {
@@ -229,6 +232,7 @@ async function readSnapshot() {
       tasks: [],
       projects: [],
       columns: [],
+      auditNotes: [],
       agents: [],
       auditLogs: [],
       showOnboarding: true,
@@ -249,6 +253,7 @@ async function readSnapshot() {
     tasks,
     projects,
     columns: model.columns,
+    auditNotes: model.auditNotes,
     agents: mapAgents(model, sessions),
     auditLogs: mapAuditLogs(model),
     showOnboarding: settings.availableWorkspaces.length === 0 || projects.length === 0,
@@ -260,9 +265,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   agents: [],
   projects: [],
   columns: [],
+  auditNotes: [],
   settings: null,
   showOnboarding: false,
   auditLogs: [],
+  lastFetched: null,
   selectedTaskId: null,
   isDetailPanelOpen: false,
   isNewTaskModalOpen: false,
@@ -288,6 +295,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   openNewTaskModal: () => set({ isNewTaskModalOpen: true }),
   closeNewTaskModal: () => set({ isNewTaskModalOpen: false }),
 
+  fetchReadModel: async () => {
+    await get().loadData()
+  },
+
   loadData: async () => {
     set({ isLoading: true, error: null })
     try {
@@ -297,8 +308,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         tasks: snapshot.tasks,
         projects: snapshot.projects,
         columns: snapshot.columns,
+        auditNotes: snapshot.model.auditNotes,
         agents: snapshot.agents,
         auditLogs: snapshot.auditLogs,
+        lastFetched: new Date(),
         showOnboarding: snapshot.showOnboarding,
         isLoading: false,
       })
@@ -308,6 +321,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         settings: null,
         showOnboarding: false,
         isLoading: false,
+        lastFetched: null,
       })
     }
   },

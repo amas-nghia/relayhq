@@ -5,18 +5,18 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-relayhq-dev"
 board_id: "board-dev-sprint"
-column: "todo"
-status: "todo"
+column: "done"
+status: "done"
 priority: "high"
 title: "PM2 config: chạy api + web độc lập"
 assignee: null
 created_by: "@amas"
 created_at: "2026-04-24T00:00:00Z"
-updated_at: "2026-04-24T00:00:00Z"
+updated_at: "2026-04-25T00:00:00Z"
 heartbeat_at: null
 execution_started_at: null
 execution_notes: null
-progress: 0
+progress: 100
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
@@ -25,8 +25,8 @@ approved_at: null
 approval_outcome: "pending"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Configured PM2 to run the API and web app as independent processes with separate env settings."
+completed_at: "2026-04-25T00:00:00Z"
 parent_task_id: null
 depends_on: ["be-01-cors"]
 tags: ["infra", "pm2", "devops"]

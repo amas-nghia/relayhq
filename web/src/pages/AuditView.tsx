@@ -1,29 +1,72 @@
-import { useMemo } from 'react';
-import { useAppStore } from '../store/appStore';
-import { Bot, User, CheckCircle2 } from 'lucide-react';
+import { useMemo } from 'react'
+import { Bot, CheckCircle2, Clock3, Plus, TriangleAlert, User2, X } from 'lucide-react'
+
+import { useAppStore } from '../store/appStore'
+import type { ReadModelAuditNote } from '../api/contract'
+
+type AuditKind = 'claimed' | 'approved' | 'rejected' | 'completed' | 'created' | 'blocked' | 'requested-approval'
+
+function deriveKind(note: ReadModelAuditNote): AuditKind {
+  const text = `${note.source} ${note.message}`.toLowerCase()
+  if (text.includes('request')) return 'requested-approval'
+  if (text.includes('reject')) return 'rejected'
+  if (text.includes('approved')) return 'approved'
+  if (text.includes('claim')) return 'claimed'
+  if (text.includes('block')) return 'blocked'
+  if (text.includes('complete') || text.includes('coverage') || text.includes('seed')) return 'completed'
+  return 'created'
+}
+
+function iconFor(kind: AuditKind) {
+  switch (kind) {
+    case 'claimed':
+      return <Bot className="h-3.5 w-3.5 text-brand" />
+    case 'approved':
+    case 'completed':
+      return <CheckCircle2 className="h-3.5 w-3.5 text-status-done" />
+    case 'rejected':
+    case 'blocked':
+      return <X className="h-3.5 w-3.5 text-status-blocked" />
+    case 'requested-approval':
+      return <Clock3 className="h-3.5 w-3.5 text-status-waiting" />
+    default:
+      return <Plus className="h-3.5 w-3.5 text-text-tertiary" />
+  }
+}
+
+function formatGroupLabel(date: Date): string {
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const startOfYesterday = new Date(startOfToday)
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
+
+  const value = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  if (value.getTime() === startOfToday.getTime()) return 'TODAY'
+  if (value.getTime() === startOfYesterday.getTime()) return 'YESTERDAY'
+  return date.toLocaleDateString()
+}
+
+function formatTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 export function AuditView() {
-  const auditLogs = useAppStore(state => state.auditLogs);
-  const agents = useAppStore(state => state.agents);
-  const openDetail = useAppStore(state => state.openTaskDetail);
+  const auditNotes = useAppStore(state => state.auditNotes)
+  const openDetail = useAppStore(state => state.openTaskDetail)
 
-  const groupedLogs = useMemo(() => {
-    const today: typeof auditLogs = []
-    const earlier: typeof auditLogs = []
-    auditLogs.forEach((log, index) => {
-      if (index < 10) today.push(log)
-      else earlier.push(log)
-    })
-    return [
-      { label: 'LATEST', rows: today },
-      { label: 'EARLIER', rows: earlier },
-    ].filter(group => group.rows.length > 0)
-  }, [auditLogs])
+  const groups = useMemo(() => {
+    const notes = [...auditNotes].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    const grouped = new Map<string, ReadModelAuditNote[]>()
 
-  const actionIcon = (log: (typeof auditLogs)[number]) => {
-    if (log.agentId) return <Bot className="w-3 h-3 text-accent" />
-    return <User className="w-3 h-3 text-status-done" />
-  }
+    for (const note of notes) {
+      const label = formatGroupLabel(new Date(note.createdAt))
+      const bucket = grouped.get(label) ?? []
+      bucket.push(note)
+      grouped.set(label, bucket)
+    }
+
+    return [...grouped.entries()].map(([label, rows]) => ({ label, rows }))
+  }, [auditNotes])
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
@@ -33,35 +76,41 @@ export function AuditView() {
         <span className="text-sm font-medium text-text-secondary">Live vault-backed timeline</span>
       </div>
 
-      <div className="flex flex-col gap-6 bg-surface border border-border rounded-lg p-6">
-        {groupedLogs.map(group => (
+      <div className="flex flex-col gap-6 rounded-lg border border-border bg-surface p-6">
+        {groups.map(group => (
           <div key={group.label} className="flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider pl-4">{group.label}</h3>
-            <div className="relative border-l-2 border-border ml-5 pl-5 flex flex-col gap-6">
-              {group.rows.map(log => {
-                const agent = agents.find(a => a.id === log.agentId)
+            <h3 className="pl-4 text-xs font-bold uppercase tracking-wider text-text-tertiary">{group.label}</h3>
+            <div className="relative ml-5 flex flex-col gap-5 border-l-2 border-border pl-5">
+              {group.rows.map(note => {
+                const kind = deriveKind(note)
+                const isUser = !note.source.startsWith('agent-')
+
                 return (
                   <button
-                    key={log.id}
-                    onClick={() => log.taskId && openDetail(log.taskId)}
+                    key={note.id}
+                    type="button"
+                    onClick={() => note.taskId && openDetail(note.taskId)}
                     className="relative text-left"
-                    disabled={!log.taskId}
+                    disabled={!note.taskId}
                   >
-                    <div className="absolute -left-[27px] top-1 bg-surface border-2 border-border rounded-full p-0.5">
-                      {actionIcon(log)}
+                    <div className="absolute -left-[27px] top-1 rounded-full border-2 border-border bg-surface p-0.5">
+                      {iconFor(kind)}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
-                      <span className="w-16 shrink-0 pt-0.5 text-sm font-semibold text-text-tertiary">{log.time}</span>
-                      <div className="flex-1 flex flex-col gap-1">
+                      <span className="w-16 shrink-0 pt-0.5 text-sm font-semibold text-text-tertiary">
+                        {formatTime(note.createdAt)}
+                      </span>
+                      <div className="flex flex-1 flex-col gap-1">
                         <div className="text-sm">
-                          {log.agentId ? (
-                            <><span className="font-semibold text-text-primary">{agent?.name || log.agentId}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
-                          ) : (
-                            <><span className="inline-flex items-center gap-1 font-semibold text-status-done"><CheckCircle2 className="w-3.5 h-3.5" /> {log.userId || 'human-user'}</span> <span className="text-text-secondary">{log.action}</span> <span className="font-medium text-text-primary">{log.taskId}</span></>
-                          )}
+                          <span className={isUser ? 'inline-flex items-center gap-1 font-semibold text-status-done' : 'font-semibold text-text-primary'}>
+                            {isUser ? <User2 className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                            {note.source}
+                          </span>{' '}
+                          <span className="text-text-secondary">{note.message}</span>
+                          {note.taskId && <span className="font-medium text-text-primary"> {note.taskId}</span>}
                         </div>
                         <div className="max-w-3xl rounded border border-border/50 bg-surface-secondary p-2 text-sm text-text-secondary/80">
-                          {log.description}
+                          {note.sourcePath}
                         </div>
                       </div>
                     </div>
@@ -73,5 +122,5 @@ export function AuditView() {
         ))}
       </div>
     </div>
-  );
+  )
 }

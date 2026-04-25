@@ -182,8 +182,12 @@ export function WorldCanvas() {
         const avatar = new PIXI.Graphics();
         avatar.circle(0, 0, 16);
         const isStale = agent.state === 'stale'
-        avatar.fill({ color: isStale ? 0x64748b : 0x2563eb });
-        avatar.stroke({ width: 3, color: isStale ? 0x94a3b8 : 0x60a5fa });
+        const isWaiting = agent.state === 'waiting';
+        const isActive = agent.state === 'active';
+        const fillColor = isStale ? 0x64748b : isWaiting ? 0xf59e0b : 0x2563eb;
+        const strokeColor = isStale ? 0x94a3b8 : isWaiting ? 0xfbbf24 : isActive ? 0x60a5fa : 0x64748b;
+        avatar.fill({ color: fillColor });
+        avatar.stroke({ width: 3, color: strokeColor });
         sprite.addChild(avatar);
 
         const initials = agent.name.slice(0, 2).toUpperCase();
@@ -294,7 +298,7 @@ export function WorldCanvas() {
           let targetX = desk.centerX;
           let targetY = desk.centerY;
 
-          if (activeTask) {
+          if (activeTask && agent.state !== 'stale') {
              const taskSprite = taskSprites.get(activeTask.id);
              if (taskSprite) {
                // Agent holds task
@@ -302,13 +306,15 @@ export function WorldCanvas() {
                targetY = taskSprite.y + 12;
 
                // Bop animation for working
-                if (activeTask.status === 'in-progress' && agent.state !== 'stale') {
+                if (activeTask.status === 'in-progress') {
                   sprite.scale.y = 1 + Math.sin(performance.now() * 0.015) * 0.1;
                   sprite.scale.x = 1 - Math.sin(performance.now() * 0.015) * 0.05;
                 } else {
-                 sprite.scale.set(1);
-               }
-             }
+                  sprite.scale.set(1);
+                }
+              }
+          } else if (agent.state === 'stale') {
+             sprite.scale.set(1);
           } else {
              sprite.scale.set(1);
           }
