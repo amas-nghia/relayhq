@@ -29,9 +29,13 @@ export function BoardView() {
     }
 
     if (status === 'in-progress') {
-      return filteredTasks.filter(t => t.status === 'in-progress' || t.status === 'blocked');
+      return filteredTasks
+        .filter(t => t.status === 'in-progress' || t.status === 'blocked')
+        .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
     }
-    return filteredTasks.filter(t => t.status === status);
+    return filteredTasks
+      .filter(t => t.status === status)
+      .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
   };
 
   return (

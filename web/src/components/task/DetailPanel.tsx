@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, ShieldAlert, SquareCheckBig, X } from 'lucide-react'
 import clsx from 'clsx'
@@ -71,7 +72,8 @@ const approvalClasses: Record<string, string> = {
   pending: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
 }
 
-export function DetailPanel({ taskId }: { taskId: string }) {
+export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode?: 'preview' | 'page' }) {
+  const navigate = useNavigate()
   const task = useAppStore(state => state.tasks.find(t => t.id === taskId))
   const closeDetail = useAppStore(state => state.closeTaskDetail)
   const approveTask = useAppStore(state => state.approveTask)
@@ -110,14 +112,18 @@ export function DetailPanel({ taskId }: { taskId: string }) {
     <div className="flex h-full flex-col bg-surface-secondary">
       <div className="flex items-center justify-between border-b border-border bg-surface p-4">
         <div className="flex items-center gap-2 text-sm text-text-tertiary">
-          <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={closeDetail}>
-            <X className="w-4 h-4" />
-          </Button>
+          {mode === 'preview' && (
+            <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={closeDetail}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
           <span>{task.id}</span>
         </div>
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={closeDetail}>
-          <X className="w-5 h-5 text-text-secondary" />
-        </Button>
+        {mode === 'preview' && (
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={closeDetail}>
+            <X className="w-5 h-5 text-text-secondary" />
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -384,9 +390,13 @@ export function DetailPanel({ taskId }: { taskId: string }) {
             </Badge>
           )) : <span className="text-xs text-text-tertiary">No tags</span>}
         </div>
-        <button className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
-          Open full record <ExternalLink className="w-3.5 h-3.5" />
-        </button>
+        {mode === 'preview' ? (
+          <button type="button" onClick={() => navigate(`/tasks/${task.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
+            Open full record <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <span className="text-sm text-text-tertiary">Full task record</span>
+        )}
       </div>
     </div>
   )

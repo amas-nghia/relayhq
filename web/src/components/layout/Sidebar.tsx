@@ -1,6 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, User2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
+import { NewProjectDialog } from '../project/NewProjectDialog';
 import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '../ui/badge';
@@ -15,7 +16,9 @@ export function Sidebar() {
   const projects = useAppStore(state => state.projects);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
   const agents = useAppStore(state => state.agents);
+  const loadData = useAppStore(state => state.loadData);
   const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -91,6 +94,7 @@ export function Sidebar() {
           variant="outline"
           size="icon"
           className="mt-1 border-dashed"
+          onClick={() => setIsNewProjectOpen(true)}
         >
           <FolderKanban className="w-4 h-4" />
         </Button>
@@ -190,6 +194,15 @@ export function Sidebar() {
           </Card>
         )}
       </div>
+
+      <NewProjectDialog
+        open={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        onCreated={async (projectId) => {
+          await loadData()
+          navigate(`/projects/${projectId}`)
+        }}
+      />
     </aside>
   );
 }

@@ -1,8 +1,39 @@
 {
-  "name": "create-relayhq",
+  "name": "relayhq",
   "version": "0.1.0",
+  "description": "Vault-first coordination workspace for AI agents — init, start, stop, destroy",
   "type": "module",
   "bin": {
-    "create-relayhq": "scripts/create-relayhq.mjs"
+    "relayhq": "scripts/relayhq.mjs"
+  },
+  "files": [
+    "scripts/relayhq.mjs",
+    "template/",
+    "app/",
+    "web/",
+    "backend/",
+    "cli/",
+    "docs/",
+    "ecosystem.config.cjs",
+    "CLAUDE.md",
+    "README.md"
+  ],
+  "keywords": [
+    "relayhq",
+    "ai-agent",
+    "task-management",
+    "mcp",
+    "claude",
+    "cursor",
+    "vault",
+    "kanban"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/relayhq/relayhq"
   }
 }

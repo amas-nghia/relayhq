@@ -1,0 +1,34 @@
+# Dependencies
+app/node_modules/
+web/node_modules/
+node_modules/
+
+# Build outputs
+app/.nuxt/
+app/.output/
+web/dist/
+
+# Dev/local files
+.env
+.env.*
+*.local
+
+# Vault user data (never publish real vault data)
+vault/
+!template/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Test artifacts
+coverage/
+*.test.ts.snap
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,37 +1,39 @@
 import { useMemo } from 'react'
-import { Bot, CheckCircle2, Clock3, Plus, TriangleAlert, User2, X } from 'lucide-react'
+import { AlertTriangle, Bot, CheckCircle2, Clock3, Plus, User2 } from 'lucide-react'
 
 import { useAppStore } from '../store/appStore'
-import type { ReadModelAuditNote } from '../api/contract'
+type TaskActivityKind = 'created' | 'claimed' | 'done' | 'blocked' | 'waiting-approval'
 
-type AuditKind = 'claimed' | 'approved' | 'rejected' | 'completed' | 'created' | 'blocked' | 'requested-approval'
-
-function deriveKind(note: ReadModelAuditNote): AuditKind {
-  const text = `${note.source} ${note.message}`.toLowerCase()
-  if (text.includes('request')) return 'requested-approval'
-  if (text.includes('reject')) return 'rejected'
-  if (text.includes('approved')) return 'approved'
-  if (text.includes('claim')) return 'claimed'
-  if (text.includes('block')) return 'blocked'
-  if (text.includes('complete') || text.includes('coverage') || text.includes('seed')) return 'completed'
-  return 'created'
+type TaskActivityEvent = {
+  id: string
+  taskId: string
+  title: string
+  actor: string
+  timestamp: string
+  kind: TaskActivityKind
 }
 
-function iconFor(kind: AuditKind) {
+function iconFor(kind: TaskActivityKind) {
   switch (kind) {
     case 'claimed':
       return <Bot className="h-3.5 w-3.5 text-brand" />
-    case 'approved':
-    case 'completed':
+    case 'done':
       return <CheckCircle2 className="h-3.5 w-3.5 text-status-done" />
-    case 'rejected':
     case 'blocked':
-      return <X className="h-3.5 w-3.5 text-status-blocked" />
-    case 'requested-approval':
+      return <AlertTriangle className="h-3.5 w-3.5 text-status-blocked" />
+    case 'waiting-approval':
       return <Clock3 className="h-3.5 w-3.5 text-status-waiting" />
     default:
       return <Plus className="h-3.5 w-3.5 text-text-tertiary" />
   }
+}
+
+function actionLabel(kind: TaskActivityKind): string {
+  if (kind === 'created') return 'created task'
+  if (kind === 'claimed') return 'claimed task'
+  if (kind === 'blocked') return 'blocked task'
+  if (kind === 'waiting-approval') return 'requested approval for'
+  return 'completed task'
 }
 
 function formatGroupLabel(date: Date): string {
@@ -51,22 +53,76 @@ function formatTime(value: string): string {
 }
 
 export function AuditView() {
-  const auditNotes = useAppStore(state => state.auditNotes)
+  const tasks = useAppStore(state => state.tasks)
   const openDetail = useAppStore(state => state.openTaskDetail)
 
   const groups = useMemo(() => {
-    const notes = [...auditNotes].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    const grouped = new Map<string, ReadModelAuditNote[]>()
+    const events: TaskActivityEvent[] = tasks.flatMap((task) => {
+      const rows: TaskActivityEvent[] = []
+      if (task.createdAt && task.createdBy) {
+        rows.push({
+          id: `${task.id}-created`,
+          taskId: task.id,
+          title: task.title,
+          actor: task.createdBy,
+          timestamp: task.createdAt,
+          kind: 'created',
+        })
+      }
+      if (task.executionStartedAt && task.assigneeId) {
+        rows.push({
+          id: `${task.id}-claimed`,
+          taskId: task.id,
+          title: task.title,
+          actor: task.assigneeId,
+          timestamp: task.executionStartedAt,
+          kind: 'claimed',
+        })
+      }
+      if (task.blockedTime && task.assigneeId && task.status === 'blocked') {
+        rows.push({
+          id: `${task.id}-blocked`,
+          taskId: task.id,
+          title: task.title,
+          actor: task.assigneeId,
+          timestamp: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
+          kind: 'blocked',
+        })
+      }
+      if (task.requestedApprovalTime && task.assigneeId && task.status === 'waiting-approval') {
+        rows.push({
+          id: `${task.id}-waiting-approval`,
+          taskId: task.id,
+          title: task.title,
+          actor: task.assigneeId,
+          timestamp: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
+          kind: 'waiting-approval',
+        })
+      }
+      if (task.completedAt && task.assigneeId) {
+        rows.push({
+          id: `${task.id}-done`,
+          taskId: task.id,
+          title: task.title,
+          actor: task.assigneeId,
+          timestamp: task.completedAt,
+          kind: 'done',
+        })
+      }
+      return rows
+    }).sort((left, right) => right.timestamp.localeCompare(left.timestamp))
 
-    for (const note of notes) {
-      const label = formatGroupLabel(new Date(note.createdAt))
+    const grouped = new Map<string, TaskActivityEvent[]>()
+
+    for (const event of events) {
+      const label = formatGroupLabel(new Date(event.timestamp))
       const bucket = grouped.get(label) ?? []
-      bucket.push(note)
+      bucket.push(event)
       grouped.set(label, bucket)
     }
 
     return [...grouped.entries()].map(([label, rows]) => ({ label, rows }))
-  }, [auditNotes])
+  }, [tasks])
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
@@ -81,36 +137,35 @@ export function AuditView() {
           <div key={group.label} className="flex flex-col gap-4">
             <h3 className="pl-4 text-xs font-bold uppercase tracking-wider text-text-tertiary">{group.label}</h3>
             <div className="relative ml-5 flex flex-col gap-5 border-l-2 border-border pl-5">
-              {group.rows.map(note => {
-                const kind = deriveKind(note)
-                const isUser = !note.source.startsWith('agent-')
+              {group.rows.map(event => {
+                const isUser = !event.actor.startsWith('agent-')
 
                 return (
                   <button
-                    key={note.id}
+                    key={event.id}
                     type="button"
-                    onClick={() => note.taskId && openDetail(note.taskId)}
+                    onClick={() => event.taskId && openDetail(event.taskId)}
                     className="relative text-left"
-                    disabled={!note.taskId}
+                    disabled={!event.taskId}
                   >
                     <div className="absolute -left-[27px] top-1 rounded-full border-2 border-border bg-surface p-0.5">
-                      {iconFor(kind)}
+                      {iconFor(event.kind)}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
                       <span className="w-16 shrink-0 pt-0.5 text-sm font-semibold text-text-tertiary">
-                        {formatTime(note.createdAt)}
+                        {formatTime(event.timestamp)}
                       </span>
                       <div className="flex flex-1 flex-col gap-1">
                         <div className="text-sm">
                           <span className={isUser ? 'inline-flex items-center gap-1 font-semibold text-status-done' : 'font-semibold text-text-primary'}>
                             {isUser ? <User2 className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-                            {note.source}
+                            {event.actor}
                           </span>{' '}
-                          <span className="text-text-secondary">{note.message}</span>
-                          {note.taskId && <span className="font-medium text-text-primary"> {note.taskId}</span>}
+                          <span className="text-text-secondary">{actionLabel(event.kind)}</span>
+                          <span className="font-medium text-text-primary"> {event.title}</span>
                         </div>
                         <div className="max-w-3xl rounded border border-border/50 bg-surface-secondary p-2 text-sm text-text-secondary/80">
-                          {note.sourcePath}
+                          {event.taskId}
                         </div>
                       </div>
                     </div>

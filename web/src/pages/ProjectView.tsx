@@ -1,10 +1,12 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAppStore } from '../store/appStore'
-import { CheckCircle2, Circle, AlertTriangle, Clock, Ban, KanbanSquare, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, Circle, AlertTriangle, Clock, Ban, KanbanSquare, ArrowLeft, Settings } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
+import { ProjectSettingsDialog } from '../components/project/ProjectSettingsDialog'
 import type { Task, TaskStatus } from '../types'
 import clsx from 'clsx'
 
@@ -51,6 +53,9 @@ export function ProjectView() {
   const navigate = useNavigate()
   const projects = useAppStore(state => state.projects)
   const tasks = useAppStore(state => state.tasks)
+  const settings = useAppStore(state => state.settings)
+  const loadData = useAppStore(state => state.loadData)
+  const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false)
 
   const project = projects.find(p => p.id === id)
   const projectTasks = tasks.filter(t => t.projectId === id)
@@ -89,10 +94,15 @@ export function ProjectView() {
           </div>
         </div>
         {project.boardId && (
-          <Button variant="outline" className="shrink-0 gap-2" onClick={() => navigate(`/boards/${project.boardId}`)}>
-            <KanbanSquare className="h-4 w-4" />
-            Open board
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="shrink-0" onClick={() => setIsProjectSettingsOpen(true)}>
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" className="shrink-0 gap-2" onClick={() => navigate(`/boards/${project.boardId}`)}>
+              <KanbanSquare className="h-4 w-4" />
+              Open board
+            </Button>
+          </div>
         )}
       </div>
 
@@ -129,6 +139,14 @@ export function ProjectView() {
           No tasks yet.
         </div>
       )}
+
+      <ProjectSettingsDialog
+        open={isProjectSettingsOpen}
+        project={project}
+        vaultPath={settings?.vaultRoot || settings?.resolvedRoot || ''}
+        onClose={() => setIsProjectSettingsOpen(false)}
+        onSaved={loadData}
+      />
     </div>
   )
 }
