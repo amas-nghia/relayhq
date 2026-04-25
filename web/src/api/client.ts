@@ -214,10 +214,20 @@ export interface AgentPatchPayload {
   }
 }
 
+export interface AgentActivityEvent {
+  readonly timestamp: string
+  readonly event_type: string
+  readonly taskId: string | null
+  readonly tokens_used: number | null
+  readonly model: string | null
+}
+
 export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
   getActiveAgents: () => request<ReadonlyArray<ActiveAgentSession>>('/api/agent/active'),
   getAgentContext: () => request<AgentContextResponse>('/api/agent/context'),
+  getAgentActivity: (agentId: string) => request<ReadonlyArray<AgentActivityEvent>>(`/api/agent/${encodeURIComponent(agentId)}/activity`),
+  getCostSummary: () => request<{ total_tokens: number; total_cost_usd: number; model_breakdown: ReadonlyArray<{ model: string; task_count: number; tokens_used: number; cost_usd: number }>; agent_breakdown: ReadonlyArray<{ agent_id: string; tokens_used: number; cost_usd: number }>; context_reuse_savings: number }>('/api/agent/cost-summary'),
   getSettings: () => request<RelayHQSettingsResponse>('/api/settings'),
   initVault: (payload: RelayHQVaultInitPayload) => request<RelayHQVaultInitResponse>('/api/vault/init', {
     method: 'POST',

@@ -68,6 +68,11 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {typeof task.costUsd === 'number' && task.costUsd > 0 && (
+            <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
+              ${task.costUsd.toFixed(2)}
+            </Badge>
+          )}
           {task.createdAt && (
             <span className="text-[10px] text-text-tertiary">{new Date(task.createdAt).toLocaleDateString()}</span>
           )}

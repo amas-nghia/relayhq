@@ -74,6 +74,9 @@ export interface TaskFrontmatter {
   readonly blocked_since: string | null;
   readonly result: string | null;
   readonly completed_at: string | null;
+  readonly tokens_used?: number | null;
+  readonly model?: string | null;
+  readonly cost_usd?: number | null;
   readonly parent_task_id: string | null;
   readonly source_issue_id?: string | null;
   readonly github_issue_id?: string | null;
@@ -441,6 +444,15 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   requireNullableTimestampField(input, "blocked_since", issues);
   requireNullableStringField(input, "result", issues);
   requireNullableTimestampField(input, "completed_at", issues);
+  if (hasKey(input, "tokens_used") && input.tokens_used !== null && !isInteger(input.tokens_used)) {
+    pushIssue(issues, "tokens_used", "must be an integer or null");
+  }
+  if (hasKey(input, "model")) {
+    requireNullableStringField(input, "model", issues)
+  }
+  if (hasKey(input, "cost_usd") && input.cost_usd !== null && !isFiniteNumber(input.cost_usd)) {
+    pushIssue(issues, "cost_usd", "must be a number or null");
+  }
   requireNullableStringField(input, "parent_task_id", issues);
   if (hasKey(input, "source_issue_id")) {
     requireNullableStringField(input, "source_issue_id", issues);

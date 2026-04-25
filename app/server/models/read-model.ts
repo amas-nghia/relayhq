@@ -159,6 +159,9 @@ export interface ReadModelTask {
   readonly blockedSince: string | null;
   readonly result: string | null;
   readonly completedAt: string | null;
+  readonly tokensUsed?: number | null;
+  readonly model?: string | null;
+  readonly costUsd?: number | null;
   readonly parentTaskId: string | null;
   readonly sourceIssueId?: string | null;
   readonly githubIssueId?: string | null;
@@ -587,6 +590,9 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     blockedSince: document.frontmatter.blocked_since,
     result: document.frontmatter.result,
     completedAt: document.frontmatter.completed_at,
+    tokensUsed: document.frontmatter.tokens_used ?? null,
+    model: document.frontmatter.model ?? null,
+    costUsd: document.frontmatter.cost_usd ?? null,
     parentTaskId: document.frontmatter.parent_task_id,
     sourceIssueId: document.frontmatter.source_issue_id ?? null,
     githubIssueId: document.frontmatter.github_issue_id ?? null,

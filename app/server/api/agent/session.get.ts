@@ -2,6 +2,7 @@ import { defineEventHandler, getQuery } from "h3";
 import { execSync } from "node:child_process";
 
 import { filterVaultReadModelByWorkspaceId } from "../../models/read-model";
+import { writeAuditNote } from "../../services/vault/audit-write";
 import { createVaultAgent } from "../../services/vault/agent-create";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, readExposedVaultRoot, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
@@ -150,6 +151,15 @@ export async function readAgentSession(
   const activeSession = providedSessionToken ? sessionStore.touch(providedSessionToken, now) : null;
   const sessionToken = activeSession === null ? sessionStore.issue(options.agent, now) : providedSessionToken!;
   const vaultRoot = resolveRoot();
+  if (activeSession === null) {
+    await writeAuditNote({
+      vaultRoot,
+      taskId: "system-agent-session",
+      source: options.agent,
+      message: `session_start for ${options.agent}`,
+      now,
+    }).catch(() => undefined)
+  }
   let readModel = await readModelReader(vaultRoot);
   if (!readModel.agents.some((agent) => agent.id === options.agent)) {
     await autoRegisterAgent(vaultRoot, options.agent, env, now);

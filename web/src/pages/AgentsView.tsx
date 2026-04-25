@@ -1,6 +1,6 @@
-import { ArrowRight, Circle, Pencil, Play, ScanSearch, X } from 'lucide-react';
+import { ArrowRight, Circle, Coins, Pencil, Play, ScanSearch, X } from 'lucide-react';
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { relayhqApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
@@ -84,6 +84,9 @@ export function AgentsView() {
   const [approvalRequiredFor, setApprovalRequiredFor] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  const [tab, setTab] = useState<'activity' | 'cost'>('activity')
+  const [activityByAgent, setActivityByAgent] = useState<Record<string, Array<any>>>({})
+  const [costSummary, setCostSummary] = useState<{ total_tokens: number; total_cost_usd: number; model_breakdown: Array<any>; agent_breakdown: Array<any>; context_reuse_savings: number } | null>(null)
 
   const editingAgent = agents.find(agent => agent.id === editingAgentId) ?? null
 
@@ -128,6 +131,18 @@ export function AgentsView() {
     }
   }
 
+  useEffect(() => {
+    if (tab !== 'activity') return
+    void Promise.all(agents.map(async (agent) => [agent.id, await relayhqApi.getAgentActivity(agent.id)] as const)).then(entries => {
+      setActivityByAgent(Object.fromEntries(entries))
+    })
+  }, [agents, tab])
+
+  useEffect(() => {
+    if (tab !== 'cost') return
+    void relayhqApi.getCostSummary().then(setCostSummary)
+  }, [tab])
+
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -143,6 +158,37 @@ export function AgentsView() {
       </div>
 
       <div className="flex flex-col gap-6">
+        <div className="flex gap-2 rounded-xl border border-border bg-surface p-1 w-fit">
+          <Button type="button" variant={tab === 'activity' ? 'secondary' : 'ghost'} onClick={() => setTab('activity')}>Activity</Button>
+          <Button type="button" variant={tab === 'cost' ? 'secondary' : 'ghost'} onClick={() => setTab('cost')}><Coins className="h-4 w-4" /> Cost & Usage</Button>
+        </div>
+
+        {tab === 'cost' && costSummary && (
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl bg-surface-secondary p-3"><div className="text-xs text-text-tertiary">Total tokens</div><div className="text-xl font-semibold text-text-primary">{costSummary.total_tokens.toLocaleString()}</div></div>
+              <div className="rounded-xl bg-surface-secondary p-3"><div className="text-xs text-text-tertiary">Total cost</div><div className="text-xl font-semibold text-text-primary">${costSummary.total_cost_usd.toFixed(2)}</div></div>
+              <div className="rounded-xl bg-surface-secondary p-3"><div className="text-xs text-text-tertiary">Context reuse savings</div><div className="text-xl font-semibold text-text-primary">{Math.round(costSummary.context_reuse_savings).toLocaleString()}</div></div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-border bg-surface-secondary p-4">
+                <div className="mb-2 text-sm font-semibold text-text-primary">By model</div>
+                <div className="space-y-2 text-sm text-text-secondary">
+                  {costSummary.model_breakdown.map(entry => <div key={entry.model} className="flex justify-between gap-3"><span>{entry.model}</span><span>{entry.tokens_used.toLocaleString()} tokens · ${entry.cost_usd.toFixed(2)}</span></div>)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface-secondary p-4">
+                <div className="mb-2 text-sm font-semibold text-text-primary">By agent</div>
+                <div className="space-y-2 text-sm text-text-secondary">
+                  {costSummary.agent_breakdown.map(entry => <div key={entry.agent_id} className="flex justify-between gap-3"><span>{entry.agent_id}</span><span>{entry.tokens_used.toLocaleString()} tokens · ${entry.cost_usd.toFixed(2)}</span></div>)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'activity' && (
+          <>
         <div className="flex flex-col gap-3">
           <h3 className="px-1 text-xs font-bold uppercase tracking-wider text-text-tertiary">
             AGENT ACTIVITY
@@ -226,6 +272,17 @@ export function AgentsView() {
                             </button>
                           </div>
                         )}
+
+                        <div className="space-y-1 rounded-lg bg-surface-secondary/80 p-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeline</div>
+                          {(activityByAgent[agent.id] ?? []).slice(0, 10).map((event, index) => (
+                            <div key={`${event.timestamp}-${index}`} className="flex items-center justify-between gap-3 text-xs text-text-secondary">
+                              <span>{event.event_type}</span>
+                              <span>{new Date(event.timestamp).toLocaleString()}</span>
+                            </div>
+                          ))}
+                          {(activityByAgent[agent.id] ?? []).length === 0 && <div className="text-xs text-text-tertiary">No recent activity. Last seen {agent.lastHeartbeat}.</div>}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -254,6 +311,8 @@ export function AgentsView() {
             ))}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {editingAgent && (

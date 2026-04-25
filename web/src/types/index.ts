@@ -44,9 +44,12 @@ export interface Task {
    approvalRequestedBy?: string
    approvedBy?: string
    approvedAt?: string
-   result?: string
-   completedAt?: string
-   parentTaskId?: string
+    result?: string
+    completedAt?: string
+    tokensUsed?: number | null
+    model?: string | null
+    costUsd?: number | null
+    parentTaskId?: string
    sourceIssueId?: string
    dependsOn?: string[]
    links?: Array<{ projectId: string; threadId: string }>

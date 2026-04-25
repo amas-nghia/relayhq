@@ -155,6 +155,9 @@ type TaskFrontmatter struct {
 	BlockedSince        *time.Time
 	Result              *string
 	CompletedAt         *time.Time
+	TokensUsed          *int
+	Model               *string
+	CostUSD             *float64
 	ParentTaskID        *string
 	GitHubIssueID       *string
 	DependsOn           []string

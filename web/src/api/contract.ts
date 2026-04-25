@@ -116,6 +116,9 @@ export interface ReadModelTask {
   readonly blockedSince: string | null
   readonly result: string | null
   readonly completedAt: string | null
+  readonly tokensUsed?: number | null
+  readonly model?: string | null
+  readonly costUsd?: number | null
   readonly parentTaskId: string | null
   readonly sourceIssueId?: string | null
   readonly dependsOn: ReadonlyArray<string>

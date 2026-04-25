@@ -1,6 +1,8 @@
 import { assertMethod, createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { writeAuditNote } from "../../../../services/vault/audit-write";
 import { heartbeatTaskLifecycle } from "../../../../services/vault/task-lifecycle";
+import { resolveVaultWorkspaceRoot } from "../../../../services/vault/runtime";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -20,5 +22,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
-  return await heartbeatTaskLifecycle({ taskId, actorId: body.actorId });
+  const result = await heartbeatTaskLifecycle({ taskId, actorId: body.actorId });
+  await writeAuditNote({
+    vaultRoot: resolveVaultWorkspaceRoot(),
+    taskId,
+    source: body.actorId,
+    message: `heartbeat from ${body.actorId}`,
+  }).catch(() => undefined)
+  return result;
 });
