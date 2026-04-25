@@ -178,6 +178,15 @@ export interface VaultDocPatchPayload {
   }
 }
 
+export interface TaskTemplateCreatePayload {
+  readonly name: string
+  readonly title: string
+  readonly objective: string
+  readonly acceptanceCriteria: string
+  readonly contextFiles: string
+  readonly constraints: string
+}
+
 export interface RegisterAgentsPayload {
   readonly toolIds: ReadonlyArray<string>
 }
@@ -233,6 +242,7 @@ export const relayhqApi = {
   getDoc: (docId: string) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; workspace_id: string; project_id: string | null; created_at: string; updated_at: string; tags: ReadonlyArray<string>; body: string; sourcePath: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`),
   createDoc: (payload: VaultDocCreatePayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; sourcePath: string }>>('/api/vault/docs', { method: 'POST', body: JSON.stringify(payload) }),
   patchDoc: (docId: string, payload: VaultDocPatchPayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; updated_at: string; body: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  createTaskTemplate: (payload: TaskTemplateCreatePayload) => request<{ success: boolean; data: { name: string; path: string }; error: string | null }>('/api/vault/task-templates', { method: 'POST', body: JSON.stringify(payload) }),
 
   writeShellProfile: (target: 'zshrc' | 'bashrc') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
     method: 'POST',

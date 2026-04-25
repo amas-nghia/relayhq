@@ -2,6 +2,7 @@ import { useAppStore } from '../../store/appStore';
 import { X } from 'lucide-react';
 import React, { useState } from 'react';
 import { TaskPriority } from '../../types';
+import { relayhqApi } from '../../api/client';
 import { Button } from '../ui/button';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -25,9 +26,61 @@ export function NewTaskModal() {
   const [projectId, setProjectId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [templateName, setTemplateName] = useState('')
   const selectedProject = projects.find(project => project.id === projectId)
   const acceptanceCriteriaCount = acceptanceCriteria.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
   const contextFilesCount = contextFiles.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
+
+  const builtInTemplates = [
+    {
+      name: 'Fix Bug',
+      title: 'Fix production bug',
+      objective: 'Resolve the reported bug and preserve the existing happy path behaviour.',
+      acceptanceCriteria: 'Bug is reproducible before the fix\nBug is no longer reproducible after the fix\nRegression path is covered by tests',
+      contextFiles: 'app/server/api/\nweb/src/pages/',
+      constraints: 'Do not break the current API contract',
+    },
+    {
+      name: 'Write Tests',
+      title: 'Add regression coverage',
+      objective: 'Add targeted automated tests that catch the reported regression and prove the current flow.',
+      acceptanceCriteria: 'New tests fail before the change\nNew tests pass after the change',
+      contextFiles: 'app/server/api/\napp/server/services/',
+      constraints: 'Prefer focused regression coverage over broad rewrites',
+    },
+    {
+      name: 'Code Review',
+      title: 'Review a risky change',
+      objective: 'Inspect the target change for regressions, security issues, and missing test coverage.',
+      acceptanceCriteria: 'Findings are prioritized by severity\nEach finding has file references',
+      contextFiles: 'README.md\ndocs/',
+      constraints: 'Focus on bugs and risks before style comments',
+    },
+    {
+      name: 'Research Spike',
+      title: 'Research implementation options',
+      objective: 'Compare realistic implementation approaches and document the trade-offs clearly.',
+      acceptanceCriteria: 'At least two options are compared\nRecommendation is evidence-based',
+      contextFiles: 'docs/\napp/server/',
+      constraints: 'Do not build production code during the spike',
+    },
+    {
+      name: 'Refactor Module',
+      title: 'Refactor a module safely',
+      objective: 'Improve the target module structure without changing user-visible behaviour.',
+      acceptanceCriteria: 'Behaviour stays unchanged\nComplexity is reduced\nTests still pass',
+      contextFiles: 'web/src/\napp/server/',
+      constraints: 'Prefer small, reviewable refactors',
+    },
+    {
+      name: 'Write Docs',
+      title: 'Write implementation docs',
+      objective: 'Document the feature or workflow clearly enough for another engineer or agent to execute it.',
+      acceptanceCriteria: 'Docs explain what and why\nExamples are included',
+      contextFiles: 'docs/\nREADME.md',
+      constraints: 'Keep docs grounded in the implemented behaviour',
+    },
+  ] as const
 
   React.useEffect(() => {
     if (!projectId && projects[0]) setProjectId(projects[0].id)
@@ -61,6 +114,28 @@ export function NewTaskModal() {
     setPriority('medium');
   };
 
+  const applyTemplate = (name: string) => {
+    const template = builtInTemplates.find(entry => entry.name === name)
+    if (!template) return
+    setTemplateName(name)
+    setTitle(template.title)
+    setObjective(template.objective)
+    setAcceptanceCriteria(template.acceptanceCriteria)
+    setContextFiles(template.contextFiles)
+    setConstraints(template.constraints)
+  }
+
+  const saveCurrentAsTemplate = async () => {
+    await relayhqApi.createTaskTemplate({
+      name: templateName.trim() || title.trim() || 'Custom Template',
+      title,
+      objective,
+      acceptanceCriteria,
+      contextFiles,
+      constraints,
+    })
+  }
+
   return (
     <Dialog open={isNewTaskModalOpen}>
       <DialogOverlay />
@@ -75,6 +150,21 @@ export function NewTaskModal() {
 
           <DialogBody>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-primary">Template</label>
+              <Select value={templateName} onChange={e => applyTemplate(e.target.value)}>
+                <option value="">Skip template</option>
+                {builtInTemplates.map(template => (
+                  <option key={template.name} value={template.name}>{template.name}</option>
+                ))}
+              </Select>
+            </div>
+            <Button type="button" variant="outline" onClick={() => void saveCurrentAsTemplate()}>
+              Save as template
+            </Button>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-text-primary">Title *</label>
             <Input 
