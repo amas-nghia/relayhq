@@ -57,6 +57,7 @@ interface AppState {
   }) => Promise<void>
   approveTask: (taskId: string) => Promise<void>
   rejectTask: (taskId: string, reason: string) => Promise<void>
+  startAutoRun: (taskId: string) => Promise<void>
 }
 
 function isTheme(value: string | null): value is Theme {
@@ -405,6 +406,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ selectedTaskId: null, isDetailPanelOpen: false, isMutating: false })
     } catch (error) {
       set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to reject task.' })
+      throw error
+    }
+  },
+
+  startAutoRun: async (taskId) => {
+    set({ isMutating: true, mutationError: null })
+    try {
+      await relayhqApi.patchTask(taskId, { actorId: 'human-user', patch: {}, autoRun: true } as never)
+      await get().loadData()
+      set({ isMutating: false })
+    } catch (error) {
+      set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to start auto-run.' })
       throw error
     }
   },

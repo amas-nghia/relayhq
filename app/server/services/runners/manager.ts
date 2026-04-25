@@ -12,10 +12,17 @@ export interface AgentRunner {
   startTime: Date;
 }
 
+interface RunnerHooks {
+	readonly onStdout?: (chunk: string) => void
+	readonly onStderr?: (chunk: string) => void
+	readonly onClose?: (code: number | null) => void
+	readonly onError?: (error: Error) => void
+}
+
 class RunnerManager {
   private runners: Map<string, { info: AgentRunner; process: ChildProcess }> = new Map();
 
-  startRunner(config: { agentName: string; taskId?: string; provider: string, prompt: string }) {
+  startRunner(config: { agentName: string; taskId?: string; provider: string, prompt: string } & RunnerHooks) {
     const runnerId = `runner-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     let command = config.provider;
     let args: string[] = [];
@@ -59,6 +66,7 @@ class RunnerManager {
       if (entry) {
         entry.info.status = code === 0 ? 'completed' : 'failed';
       }
+      config.onClose?.(code)
     });
 
     child.on('error', (err) => {
@@ -67,7 +75,11 @@ class RunnerManager {
       if (entry) {
         entry.info.status = 'failed';
       }
+      config.onError?.(err)
     });
+
+    child.stdout?.on('data', (chunk) => config.onStdout?.(chunk.toString()))
+    child.stderr?.on('data', (chunk) => config.onStderr?.(chunk.toString()))
 
     return info;
   }

@@ -1,5 +1,6 @@
 import { assertMethod, createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { startTaskAutorun } from "../../../services/agents/autorun";
 import { patchTaskLifecycle } from "../../../services/vault/task-lifecycle";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -20,9 +21,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId and patch are required." });
   }
 
-  return await patchTaskLifecycle({
+  const result = await patchTaskLifecycle({
     taskId,
     actorId: body.actorId,
     patch: body.patch,
   });
+
+  if (body.autoRun === true) {
+    const runner = await startTaskAutorun(taskId)
+    return { ...result, autoRun: { started: true, ...runner } }
+  }
+
+  return result
 });

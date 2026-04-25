@@ -76,6 +76,7 @@ export function DetailPanel({ taskId }: { taskId: string }) {
   const closeDetail = useAppStore(state => state.closeTaskDetail)
   const approveTask = useAppStore(state => state.approveTask)
   const rejectTask = useAppStore(state => state.rejectTask)
+  const startAutoRun = useAppStore(state => state.startAutoRun)
   const agent = useAppStore(state => state.agents.find(a => a.id === task?.assigneeId))
   const project = useAppStore(state => state.projects.find(p => p.id === task?.projectId))
   const auditLogs = useAppStore(state => state.auditLogs)
@@ -272,6 +273,13 @@ export function DetailPanel({ taskId }: { taskId: string }) {
 
           <Section title="Execution Notes">
             {task.executionNotes ? <p className="text-sm leading-6 text-text-primary">{task.executionNotes}</p> : <EmptyCopy>No execution notes captured yet.</EmptyCopy>}
+            {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'done' && task.status !== 'cancelled' && (
+              <div className="mt-4">
+                <Button type="button" variant="outline" onClick={() => void startAutoRun(task.id)} disabled={isMutating}>
+                  {isMutating ? 'Starting…' : 'Auto-run'}
+                </Button>
+              </div>
+            )}
           </Section>
 
           <Section title="Approval">
