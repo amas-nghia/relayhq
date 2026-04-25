@@ -8,13 +8,24 @@ export interface McpSnippetDescriptor {
   readonly instruction: string;
 }
 
-export function generateMcpSnippet(toolId: string, vaultRoot: string, baseUrl: string, homeDirectory = homedir()): McpSnippetDescriptor {
-  const preset = getAgentToolPreset(toolId, homeDirectory);
-  if (preset === null) {
-    throw new Error(`Unsupported tool id: ${toolId}`);
+function buildSnippet(toolId: string, vaultRoot: string, baseUrl: string): string {
+  if (toolId === "opencode") {
+    return JSON.stringify({
+      mcp: {
+        relayhq: {
+          type: "local",
+          command: ["npx", "relayhq-mcp"],
+          environment: {
+            RELAYHQ_BASE_URL: baseUrl,
+            RELAYHQ_VAULT_ROOT: vaultRoot,
+          },
+          enabled: true,
+        },
+      },
+    }, null, 2);
   }
 
-  const snippet = JSON.stringify({
+  return JSON.stringify({
     mcpServers: {
       relayhq: {
         command: "npx",
@@ -26,9 +37,16 @@ export function generateMcpSnippet(toolId: string, vaultRoot: string, baseUrl: s
       },
     },
   }, null, 2);
+}
+
+export function generateMcpSnippet(toolId: string, vaultRoot: string, baseUrl: string, homeDirectory = homedir()): McpSnippetDescriptor {
+  const preset = getAgentToolPreset(toolId, homeDirectory);
+  if (preset === null) {
+    throw new Error(`Unsupported tool id: ${toolId}`);
+  }
 
   return {
-    snippet,
+    snippet: buildSnippet(toolId, vaultRoot, baseUrl),
     configFilePath: preset.configPath,
     instruction: `Paste this JSON into ${preset.configPath} and restart ${preset.name}.`,
   };

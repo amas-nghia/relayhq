@@ -93,6 +93,18 @@ const TOOL_PRESETS = [
     portrait: "forge",
     configPath: join(".kiro", "settings", "mcp.json"),
   },
+  {
+    id: "opencode",
+    name: "OpenCode",
+    role: "implementation",
+    roles: ["implementation"],
+    provider: "opencode",
+    model: "opencode-agent",
+    capabilities: ["write-code", "run-tests", "multi-file-edit"],
+    taskTypesAccepted: ["feature-implementation", "bug-fix", "refactoring"],
+    portrait: "circuit",
+    configPath: join(".config", "opencode", "opencode.json"),
+  },
 ] as const satisfies ReadonlyArray<Omit<AgentToolPreset, "vaultRoot" | "env" | "now">>;
 
 async function fileExists(path: string): Promise<boolean> {
