@@ -107,6 +107,14 @@ export interface RelayHQProjectCreatePayload {
   readonly codebaseRoot?: string | null
 }
 
+export interface RelayHQProjectPatchPayload {
+  readonly actorId?: string
+  readonly patch: {
+    readonly name?: string
+    readonly codebase_root?: string | null
+  }
+}
+
 export interface RelayHQProjectCreateResponse {
   readonly project: { id: string; name: string; codebaseRoot: string | null }
   readonly board: { id: string; name: string }
@@ -215,6 +223,13 @@ export const relayhqApi = {
   createProject: (payload: RelayHQProjectCreatePayload) => request<RelayHQProjectCreateResponse>('/api/vault/projects', {
     method: 'POST',
     body: JSON.stringify(payload),
+  }),
+  patchProject: (projectId: string, payload: RelayHQProjectPatchPayload) => request<{ id: string; name: string; codebases: ReadonlyArray<{ name: string; path: string }>; description: string | null; status: string | null }>(`/api/vault/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+  deleteProject: (projectId: string) => request<{ success: boolean; deletedPaths: ReadonlyArray<string> }>(`/api/vault/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),

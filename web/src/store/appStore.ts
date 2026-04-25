@@ -158,6 +158,7 @@ function mapProjects(model: VaultReadModel): Project[] {
     name: project.name,
     boardId: project.boardIds[0],
     lastActive: model.tasks.some((task) => task.projectId === project.id && task.status !== 'done' && task.status !== 'cancelled'),
+    codebaseRoot: project.codebases[0]?.path ?? null,
   }))
 }
 

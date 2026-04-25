@@ -20,6 +20,7 @@ export interface Project {
   name: string
   boardId?: string
   lastActive: boolean
+  codebaseRoot?: string | null
 }
 
 export interface Task {
