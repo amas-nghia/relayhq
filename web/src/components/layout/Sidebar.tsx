@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, User2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
@@ -10,9 +10,8 @@ import { Separator } from '../ui/separator';
 
 export function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length);
-  const selectedProjectId = useAppStore(state => state.selectedProjectId);
-  const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
   const projects = useAppStore(state => state.projects);
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
   const agents = useAppStore(state => state.agents);
@@ -69,14 +68,14 @@ export function Sidebar() {
         <Separator className="mb-2 w-6" />
         {projects.map(proj => {
           const initials = proj.name.slice(0, 2).toUpperCase();
-          const isSelected = selectedProjectId === proj.id;
+          const isSelected = location.pathname === `/projects/${proj.id}`;
           return (
-            <button 
-              key={proj.id} 
-              title={proj.name}
-              onClick={() => setSelectedProjectId(isSelected ? null : proj.id)}
-              className={clsx(
-                "relative w-10 h-10 rounded-md border flex items-center justify-center text-xs font-bold transition-colors",
+             <button 
+               key={proj.id} 
+               title={proj.name}
+               onClick={() => navigate(`/projects/${proj.id}`)}
+               className={clsx(
+                 "relative w-10 h-10 rounded-md border flex items-center justify-center text-xs font-bold transition-colors",
                 isSelected 
                   ? "bg-brand text-surface border-brand" 
                   : "bg-surface-secondary border-border text-text-secondary hover:bg-surface hover:text-text-primary hover:border-text-tertiary"
