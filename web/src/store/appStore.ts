@@ -48,6 +48,7 @@ interface AppState {
     projectId: string
     boardId?: string
     assigneeId?: string
+    requiredCapability?: string
     priority: Task['priority']
     objective?: string
     acceptanceCriteria?: string[]
@@ -369,7 +370,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         boardId,
         columnId: todoColumnId,
         priority: payload.priority,
-        assignee: payload.assigneeId ?? 'human-user',
+        ...(payload.assigneeId ? { assignee: payload.assigneeId } : {}),
+        ...(payload.requiredCapability ? { requiredCapability: payload.requiredCapability } : {}),
         objective: payload.objective ?? (payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`),
         acceptanceCriteria: payload.acceptanceCriteria ?? ['Task is created in the canonical vault', 'Task is visible to the React web app'],
         constraints: payload.constraints,

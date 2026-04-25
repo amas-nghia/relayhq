@@ -25,9 +25,12 @@ export function NewTaskModal() {
   const [constraints, setConstraints] = useState('');
   const [projectId, setProjectId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
+  const [routingMode, setRoutingMode] = useState<'manual' | 'capability'>('manual')
+  const [requiredCapability, setRequiredCapability] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [templateName, setTemplateName] = useState('')
   const selectedProject = projects.find(project => project.id === projectId)
+  const availableCapabilities = [...new Set(agents.flatMap(agent => agent.capabilities ?? []))].sort()
   const acceptanceCriteriaCount = acceptanceCriteria.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
   const contextFilesCount = contextFiles.split(/\r?\n/).map(item => item.trim()).filter(Boolean).length
 
@@ -102,7 +105,8 @@ export function NewTaskModal() {
       constraints: constraints.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
       projectId,
       boardId: selectedProject?.boardId,
-      assigneeId,
+      ...(routingMode === 'manual' ? { assigneeId } : {}),
+      ...(routingMode === 'capability' ? { requiredCapability } : {}),
       priority,
     });
     closeNewTaskModal();
@@ -221,6 +225,16 @@ export function NewTaskModal() {
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-primary">Routing</label>
+              <Select value={routingMode} onChange={e => setRoutingMode(e.target.value as 'manual' | 'capability')}>
+                <option value="manual">Manual assignee</option>
+                <option value="capability">Auto-route by capability</option>
+              </Select>
+            </div>
+          </div>
+
+          {routingMode === 'manual' ? (
+            <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-text-primary">Assignee</label>
               <Select 
                 value={assigneeId}
@@ -231,7 +245,17 @@ export function NewTaskModal() {
                 ))}
               </Select>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-primary">Required capability</label>
+              <Select value={requiredCapability} onChange={e => setRequiredCapability(e.target.value)}>
+                <option value="">Select capability</option>
+                {availableCapabilities.map(capability => (
+                  <option key={capability} value={capability}>{capability}</option>
+                ))}
+              </Select>
+            </div>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm font-medium text-text-primary">
@@ -272,7 +296,7 @@ export function NewTaskModal() {
             <DialogFooter className="px-0 pb-0">
               {mutationError && <p className="mr-auto text-sm text-status-blocked">{mutationError}</p>}
               <Button variant="outline" onClick={closeNewTaskModal}>Cancel</Button>
-              <Button type="submit" disabled={isMutating || title.trim().length === 0 || objective.trim().length < 50 || acceptanceCriteriaCount < 2 || contextFilesCount < 1}>{isMutating ? 'Creating...' : 'Create Task'}</Button>
+              <Button type="submit" disabled={isMutating || title.trim().length === 0 || objective.trim().length < 50 || acceptanceCriteriaCount < 2 || contextFilesCount < 1 || (routingMode === 'manual' ? assigneeId.length === 0 : requiredCapability.length === 0)}>{isMutating ? 'Creating...' : 'Create Task'}</Button>
             </DialogFooter>
             </form>
           </DialogBody>

@@ -7,6 +7,7 @@ import {
   type TaskPriority,
 } from "../../../shared/vault/schema";
 import { containsSecretMaterial } from "../security/secrets";
+import { readCanonicalVaultReadModel } from "./read";
 import { readSharedVaultCollections } from "./read";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
 import { createTaskDocument, type CreateTaskDocumentResult } from "./write";
@@ -26,7 +27,8 @@ export interface CreateTaskInput {
   readonly boardId: string;
   readonly columnId: string;
   readonly priority: TaskPriority;
-  readonly assignee: string;
+  readonly assignee?: string;
+  readonly requiredCapability?: string;
   readonly tags?: ReadonlyArray<string>;
   readonly dependsOn?: ReadonlyArray<string>;
   readonly body?: string;
@@ -44,6 +46,11 @@ export class TaskCreateError extends Error {
     this.name = "TaskCreateError";
     this.statusCode = statusCode;
   }
+}
+
+export interface AutoAssignmentDecision {
+  readonly assignee: string;
+  readonly reason: string;
 }
 
 function normalizeString(value: string, field: string): string {
@@ -139,7 +146,6 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
   const title = normalizeString(input.title, "title");
   const projectId = normalizeString(input.projectId, "projectId");
   const boardId = normalizeString(input.boardId, "boardId");
-  const assignee = normalizeString(input.assignee, "assignee");
   const columnId = normalizeString(input.columnId, "columnId");
   const priorityValue = normalizeString(input.priority, "priority");
   const tags = normalizeStringArray(input.tags, "tags");
@@ -150,6 +156,7 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
   const now = input.now ?? new Date();
   const vaultRoot = input.vaultRoot ?? resolveVaultWorkspaceRoot();
   const collections = await readSharedVaultCollections(vaultRoot);
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
 
   const project = collections.projects.find((entry) => entry.frontmatter.id === projectId)?.frontmatter;
   if (project === undefined) {
@@ -179,6 +186,37 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     if (dependencyTask === undefined) {
       throw new TaskCreateError(400, `Dependency task ${dependencyId} was not found.`);
     }
+  }
+
+  let assignee = typeof input.assignee === "string" && input.assignee.trim().length > 0
+    ? normalizeString(input.assignee, "assignee")
+    : "unassigned";
+
+  if (input.requiredCapability && input.requiredCapability.trim().length > 0) {
+    const capability = normalizeString(input.requiredCapability, "requiredCapability");
+    const activeLoads = new Map<string, number>();
+    for (const task of readModel.tasks) {
+      if (task.status === "in-progress" || task.status === "waiting-approval" || task.status === "blocked") {
+        activeLoads.set(task.assignee, (activeLoads.get(task.assignee) ?? 0) + 1);
+      }
+    }
+
+    const eligibleAgents = readModel.agents
+      .filter((agent) => agent.capabilities.includes(capability))
+      .filter((agent) => agent.status === "available")
+      .filter((agent) => {
+        const budget = agent.monthlyBudgetUsd;
+        if (budget == null) return true;
+        const spent = readModel.tasks
+          .filter((task) => task.assignee === agent.id)
+          .filter((task) => task.status === "done")
+          .filter((task) => (task.completedAt ?? "").startsWith(now.toISOString().slice(0, 7)))
+          .reduce((sum, task) => sum + (task.costUsd ?? 0), 0);
+        return spent < budget;
+      })
+      .sort((left, right) => (activeLoads.get(left.id) ?? 0) - (activeLoads.get(right.id) ?? 0) || left.id.localeCompare(right.id));
+
+    assignee = eligibleAgents[0]?.id ?? "unassigned";
   }
 
   const taskId = `task-${randomUUID()}`;

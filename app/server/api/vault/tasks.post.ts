@@ -1,9 +1,11 @@
 import { createError, defineEventHandler, readBody } from "h3";
 
 import type { TaskPriority } from "../../../shared/vault/schema";
+import { writeAuditNote } from "../../services/vault/audit-write";
 import { formatTaskInputIssues, validateTaskInput } from "../../services/vault/task-input";
 import { VaultSchemaError } from "../../services/vault/write";
 import { createVaultTask, TaskCreateError } from "../../services/vault/task-create";
+import { resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 
 export function buildBody(
   objective: string | undefined,
@@ -44,6 +46,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     "columnId",
     "priority",
     "assignee",
+    "requiredCapability",
     "tags",
     "dependsOn",
     "objective",
@@ -66,11 +69,12 @@ export async function createVaultTaskFromBody(body: unknown) {
     typeof body.boardId !== "string" ||
     typeof body.columnId !== "string" ||
     typeof body.priority !== "string" ||
-    typeof body.assignee !== "string"
+    (body.assignee !== undefined && typeof body.assignee !== "string") ||
+    (body.requiredCapability !== undefined && typeof body.requiredCapability !== "string")
   ) {
     throw createError({
       statusCode: 400,
-      statusMessage: "title, projectId, boardId, columnId, priority, and assignee are required.",
+      statusMessage: "title, projectId, boardId, columnId, and priority are required.",
     });
   }
 
@@ -95,19 +99,33 @@ export async function createVaultTaskFromBody(body: unknown) {
     throw createError({ statusCode: 400, statusMessage: formatTaskInputIssues(issues) });
   }
 
+  const vaultRoot = resolveVaultWorkspaceRoot();
   const result = await createVaultTask({
     title: body.title,
     projectId: body.projectId,
     boardId: body.boardId,
     columnId: body.columnId as string,
     priority: body.priority as TaskPriority,
-    assignee: body.assignee,
+    assignee: typeof body.assignee === "string" ? body.assignee : undefined,
+    requiredCapability: typeof body.requiredCapability === "string" ? body.requiredCapability : undefined,
     tags: body.tags,
     dependsOn: body.dependsOn,
     body: buildBody(body.objective, body.acceptanceCriteria, body.constraints, body.contextFiles),
     sourceIssueId: typeof body.sourceIssueId === "string" && body.sourceIssueId.trim().length > 0 ? body.sourceIssueId.trim() : undefined,
     githubIssueId: typeof body.github_issue_id === "string" && body.github_issue_id.trim().length > 0 ? body.github_issue_id.trim() : undefined,
+    vaultRoot,
   });
+
+  if (typeof body.requiredCapability === "string" && body.requiredCapability.trim().length > 0) {
+    await writeAuditNote({
+      vaultRoot,
+      taskId: result.frontmatter.id,
+      source: "relayhq-web",
+      message: result.frontmatter.assignee === "unassigned"
+        ? `auto_route fallback: no eligible agent found for capability ${body.requiredCapability.trim()}`
+        : `auto_route selected ${result.frontmatter.assignee} for capability ${body.requiredCapability.trim()}`,
+    });
+  }
 
   return {
     taskId: result.frontmatter.id,

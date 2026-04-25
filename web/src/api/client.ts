@@ -61,7 +61,8 @@ export interface VaultTaskCreatePayload {
   readonly boardId: string
   readonly columnId: string
   readonly priority: string
-  readonly assignee: string
+  readonly assignee?: string
+  readonly requiredCapability?: string
   readonly objective?: string
   readonly acceptanceCriteria?: ReadonlyArray<string>
   readonly constraints?: ReadonlyArray<string>
