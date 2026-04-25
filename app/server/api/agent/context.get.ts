@@ -2,6 +2,7 @@ import { defineEventHandler, getQuery } from "h3";
 
 import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../models/read-model";
 import { filterDocsForAgent, resolveAgentDocumentAccessContext, writeDeniedDocAccessAudit } from "../../services/authz/doc-access";
+import { getRelevantDocsForTask } from "../../services/authz/relevant-docs";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, readExposedVaultRoot, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 import { countTokens, computeSaving, recordTokenSaving } from "../../services/metrics/tracker";
@@ -43,6 +44,7 @@ export interface AgentContextResponse {
   readonly pendingApprovalCount: number;
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>;
   readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>;
+  readonly relevant_docs: ReadonlyArray<{ taskId: string; docs: ReadonlyArray<{ id: string; title: string; doc_type: string; path: string; summary: string }> }>;
   readonly activeSessions: ReadonlyArray<ActiveSession>;
 }
 
@@ -55,7 +57,7 @@ interface ReadAgentContextDependencies {
   readonly now?: () => Date;
 }
 
-function toAgentContextResponse(readModel: VaultReadModel, activeSessions: ReadonlyArray<ActiveSession>): AgentContextResponse {
+function toAgentContextResponse(readModel: VaultReadModel, activeSessions: ReadonlyArray<ActiveSession>, agentId: string | null): AgentContextResponse {
   const workspace = readModel.workspaces[0] ?? null;
   const tasksByColumnId = new Map<string, number>();
   const exposedVaultRoot = readExposedVaultRoot();
@@ -85,6 +87,13 @@ function toAgentContextResponse(readModel: VaultReadModel, activeSessions: Reado
       visibility: doc.visibility,
       updatedAt: doc.updatedAt,
     })),
+    relevant_docs: readModel.tasks
+      .filter((task) => agentId !== null && task.assignee === agentId)
+      .filter((task) => task.status === "in-progress" || task.status === "waiting-approval" || task.status === "blocked")
+      .map((task) => ({
+        taskId: task.id,
+        docs: getRelevantDocsForTask(readModel, task, { agentId: task.assignee }),
+      })),
     activeSessions,
     boardSummary: readModel.boards.map((board) => ({
       id: board.id,
@@ -135,7 +144,7 @@ export async function readAgentContext(
     });
   }
 
-  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now));
+  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now), options.agentId ?? null);
 }
 
 export default defineEventHandler(async (event) => {

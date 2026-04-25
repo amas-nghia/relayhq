@@ -99,7 +99,7 @@ function createReadModel(): VaultReadModel {
         status: "in-progress",
         priority: "high",
         title: "Implement agent endpoint",
-        assignee: "agent-backend-dev",
+        assignee: "agent-claude-code",
         createdBy: "@owner",
         createdAt: "2026-04-19T10:00:00Z",
         updatedAt: "2026-04-19T10:00:00Z",
@@ -296,7 +296,7 @@ function createReadModel(): VaultReadModel {
         createdAt: "2026-04-19T10:00:00Z",
         updatedAt: "2026-04-19T10:00:00Z",
         tags: ["brief"],
-        body: "visible body should never leak",
+        body: "visible document content should never leak in full",
         sourcePath: "vault/shared/docs/doc-visible.md",
       },
       {
@@ -403,6 +403,20 @@ describe("GET /api/agent/context", () => {
           status: "draft",
           visibility: "project",
           updatedAt: "2026-04-19T10:00:00Z",
+        },
+      ],
+      relevant_docs: [
+        {
+          taskId: "task-open",
+          docs: [
+            {
+              id: "doc-visible",
+              title: "Visible doc",
+              doc_type: "brief",
+              path: "vault/shared/docs/doc-visible.md",
+              summary: "visible document content should never leak in full",
+            },
+          ],
         },
       ],
     }));
