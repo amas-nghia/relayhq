@@ -2,11 +2,13 @@ import { execSync } from "node:child_process";
 
 import { createError } from "h3";
 
+import { runHttpAgentAdapter } from "./http-adapter";
 import { agentRunnerManager } from "../runners/manager";
 import { writeAuditNote } from "../vault/audit-write";
 import { claimTaskLifecycle } from "../vault/task-lifecycle";
 import { resolveVaultWorkspaceRoot } from "../vault/runtime";
 import { readTaskDocument } from "../vault/write";
+import { readCanonicalVaultReadModel } from "../vault/read";
 
 function readSection(body: string, heading: string): string | null {
   const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -51,13 +53,32 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
     throw createError({ statusCode: 422, statusMessage: "Task must be assigned to an agent before auto-run can start." })
   }
 
-  const provider = assignee.startsWith("claude") || assignee.includes("claude") ? "claude" : assignee
+  const model = await readCanonicalVaultReadModel(vaultRoot)
+  const agent = model.agents.find((entry) => entry.id === assignee)
+  const provider = agent?.provider ?? (assignee.startsWith("claude") || assignee.includes("claude") ? "claude" : assignee)
   const command = providerCommand(provider)
-  ensureCommandAvailable(command)
 
   await claimTaskLifecycle({ taskId, actorId: assignee, assignee, vaultRoot })
 
   const prompt = buildPrompt(taskId, vaultRoot, task.body)
+
+  if ((provider === "codex" || provider === "openai") && agent?.apiKeyRef) {
+    await writeAuditNote({ vaultRoot, taskId, source: assignee, message: `http adapter started for ${provider}` })
+    void runHttpAgentAdapter({
+      vaultRoot,
+      taskId,
+      agentId: assignee,
+      provider,
+      model: agent.model,
+      apiKeyRef: agent.apiKeyRef,
+      prompt,
+    }).catch((error) => {
+      void writeAuditNote({ vaultRoot, taskId, source: assignee, message: `http adapter failed: ${error instanceof Error ? error.message : String(error)}` }).catch(() => undefined)
+    })
+    return { runnerId: `http-${taskId}`, command: `${provider}:chat-completions` }
+  }
+
+  ensureCommandAvailable(command)
   const runner = agentRunnerManager.startRunner({
     agentName: assignee,
     taskId,
