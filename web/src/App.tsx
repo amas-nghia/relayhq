@@ -2,11 +2,9 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './components/layout/Shell';
 
-const BoardView = lazy(async () => ({ default: (await import('./pages/BoardView')).BoardView }));
-const TasksView = lazy(async () => ({ default: (await import('./pages/TasksView')).TasksView }));
+const WorkspaceView = lazy(async () => ({ default: (await import('./pages/WorkspaceView')).default }));
 const ApprovalsView = lazy(async () => ({ default: (await import('./pages/ApprovalsView')).ApprovalsView }));
 const AgentsView = lazy(async () => ({ default: (await import('./pages/AgentsView')).AgentsView }));
-const AuditView = lazy(async () => ({ default: (await import('./pages/AuditView')).AuditView }));
 
 function RouteFallback() {
   return (
@@ -21,13 +19,13 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Shell />}>
-          <Route path="/boards/:id" element={<Suspense fallback={<RouteFallback />}><BoardView /></Suspense>} />
-          <Route path="/tasks" element={<Suspense fallback={<RouteFallback />}><TasksView /></Suspense>} />
+          <Route path="/boards/:id" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
+          <Route path="/tasks" element={<Navigate to="/" replace />} />
           <Route path="/approvals" element={<Suspense fallback={<RouteFallback />}><ApprovalsView /></Suspense>} />
           <Route path="/agents" element={<Suspense fallback={<RouteFallback />}><AgentsView /></Suspense>} />
-          <Route path="/audit" element={<Suspense fallback={<RouteFallback />}><AuditView /></Suspense>} />
+          <Route path="/audit" element={<Navigate to="/" replace />} />
           
-          <Route path="/" element={<Navigate to="/boards/main" replace />} />
+          <Route path="/" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
