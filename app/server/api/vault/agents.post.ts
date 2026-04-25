@@ -60,6 +60,7 @@ export async function registerVaultAgent(
     provider: String(body.provider).trim(),
     ...(typeof body.apiKeyRef === "string" && body.apiKeyRef.trim().length > 0 ? { api_key_ref: body.apiKeyRef.trim() } : {}),
     model: String(body.model).trim(),
+    ...(typeof body.monthlyBudgetUsd === "number" ? { monthly_budget_usd: body.monthlyBudgetUsd } : {}),
     capabilities: [],
     task_types_accepted: [],
     approval_required_for: [],
@@ -72,7 +73,7 @@ export async function registerVaultAgent(
     updated_at: timestamp,
   };
   assertAgentFrontmatter(frontmatter);
-  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\n${frontmatter.account_id === undefined ? '' : `account_id: ${JSON.stringify(frontmatter.account_id)}\n`}role: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\n${frontmatter.api_key_ref === undefined ? '' : `api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}\n`}model: ${JSON.stringify(frontmatter.model)}\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\nstatus: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
+  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\n${frontmatter.account_id === undefined ? '' : `account_id: ${JSON.stringify(frontmatter.account_id)}\n`}role: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\n${frontmatter.api_key_ref === undefined ? '' : `api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}\n`}model: ${JSON.stringify(frontmatter.model)}\n${frontmatter.monthly_budget_usd === undefined ? '' : `monthly_budget_usd: ${frontmatter.monthly_budget_usd}\n`}capabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\nstatus: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
   await writeFile(filePath, markdown, { flag: "wx" });
   return {
     agent: frontmatter,

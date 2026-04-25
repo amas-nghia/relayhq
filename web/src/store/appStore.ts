@@ -190,6 +190,7 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       roles: [...agent.roles],
       provider: agent.provider,
       apiKeyRef: agent.apiKeyRef,
+      monthlyBudgetUsd: agent.monthlyBudgetUsd,
       capabilities: [...agent.capabilities],
       approvalRequiredFor: [...agent.approvalRequiredFor],
       skillFile: agent.skillFile,

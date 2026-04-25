@@ -217,6 +217,7 @@ export interface AgentPatchPayload {
     readonly name?: string
     readonly account_id?: string
     readonly api_key_ref?: string
+    readonly monthly_budget_usd?: number
     readonly capabilities?: ReadonlyArray<string>
     readonly approval_required_for?: ReadonlyArray<string>
   }

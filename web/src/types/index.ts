@@ -13,6 +13,7 @@ export interface Agent {
   roles?: ReadonlyArray<string>
   provider?: string
   apiKeyRef?: string | null
+  monthlyBudgetUsd?: number | null
   capabilities?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string

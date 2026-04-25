@@ -390,6 +390,7 @@ function parseAgentFrontmatter(record: Record<string, unknown>, filePath: string
     provider: requireString(record, "provider", filePath),
     ...(record.api_key_ref === undefined ? {} : { api_key_ref: requireNullableString(record, "api_key_ref", filePath) }),
     model: requireString(record, "model", filePath),
+    ...(record.monthly_budget_usd === undefined ? {} : { monthly_budget_usd: record.monthly_budget_usd === null ? null : requireNumber(record, "monthly_budget_usd", filePath) }),
     capabilities: [...requireStringArray(record, "capabilities", filePath)].sort(compareText),
     task_types_accepted: [...requireStringArray(record, "task_types_accepted", filePath)].sort(compareText),
     approval_required_for: [...requireStringArray(record, "approval_required_for", filePath)].sort(compareText),

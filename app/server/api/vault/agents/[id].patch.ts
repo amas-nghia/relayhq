@@ -17,12 +17,12 @@ function normalizeStringArray(value: unknown, field: string): string[] {
   return [...new Set(value.map((entry) => entry.trim()).filter((entry) => entry.length > 0))]
 }
 
-function upsertFrontmatterLine(content: string, key: string, value: string | undefined): string {
+function upsertFrontmatterLine(content: string, key: string, value: string | number | undefined): string {
   if (value === undefined) {
     return content
   }
 
-  const line = `${key}: ${JSON.stringify(value)}`
+  const line = `${key}: ${typeof value === 'number' ? value : JSON.stringify(value)}`
   const pattern = new RegExp(`^${key}:\\s.*$`, 'm')
   if (pattern.test(content)) {
     return content.replace(pattern, line)
@@ -58,6 +58,7 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
 
   next = upsertFrontmatterLine(next, "account_id", typeof patch.account_id === "string" && patch.account_id.trim().length > 0 ? patch.account_id.trim() : undefined)
   next = upsertFrontmatterLine(next, "api_key_ref", typeof patch.api_key_ref === "string" && patch.api_key_ref.trim().length > 0 ? patch.api_key_ref.trim() : undefined)
+  next = upsertFrontmatterLine(next, "monthly_budget_usd", typeof patch.monthly_budget_usd === "number" ? patch.monthly_budget_usd : undefined)
 
   await writeFile(filePath, next, "utf8")
   return { success: true, agentId }

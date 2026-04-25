@@ -546,6 +546,7 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     provider: document.frontmatter.provider,
     apiKeyRef: document.frontmatter.api_key_ref ?? null,
     model: document.frontmatter.model,
+    monthlyBudgetUsd: document.frontmatter.monthly_budget_usd ?? null,
     capabilities: sortStrings(document.frontmatter.capabilities),
     taskTypesAccepted: sortStrings(document.frontmatter.task_types_accepted),
     approvalRequiredFor: sortStrings(document.frontmatter.approval_required_for),

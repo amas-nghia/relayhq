@@ -99,6 +99,7 @@ export function AgentsView() {
   const [agentName, setAgentName] = useState('')
   const [accountId, setAccountId] = useState('')
   const [apiKeyRef, setApiKeyRef] = useState('')
+  const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState('')
   const [capabilities, setCapabilities] = useState('')
   const [approvalRequiredFor, setApprovalRequiredFor] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -130,6 +131,7 @@ export function AgentsView() {
     setAgentName(agent.name)
     setAccountId(agent.accountId ?? '')
     setApiKeyRef(agent.apiKeyRef ?? '')
+    setMonthlyBudgetUsd(agent.monthlyBudgetUsd != null ? String(agent.monthlyBudgetUsd) : '')
     setCapabilities((agent.capabilities ?? []).join('\n'))
     setApprovalRequiredFor((agent.approvalRequiredFor ?? []).join('\n'))
   }
@@ -143,6 +145,7 @@ export function AgentsView() {
           name: agentName,
           account_id: accountId || undefined,
           api_key_ref: apiKeyRef || undefined,
+          monthly_budget_usd: monthlyBudgetUsd.trim().length > 0 ? Number(monthlyBudgetUsd) : undefined,
           capabilities: capabilities.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
           approval_required_for: approvalRequiredFor.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
         },
@@ -202,8 +205,28 @@ export function AgentsView() {
               </div>
               <div className="rounded-xl border border-border bg-surface-secondary p-4">
                 <div className="mb-2 text-sm font-semibold text-text-primary">By agent</div>
-                <div className="space-y-2 text-sm text-text-secondary">
-                  {costSummary.agent_breakdown.map(entry => <div key={entry.agent_id} className="flex justify-between gap-3"><span>{entry.agent_id}</span><span>{entry.tokens_used.toLocaleString()} tokens · ${entry.cost_usd.toFixed(2)}</span></div>)}
+                <div className="space-y-3 text-sm text-text-secondary">
+                  {costSummary.agent_breakdown.map(entry => {
+                    const ratio = typeof entry.monthly_budget_usd === 'number' && entry.monthly_budget_usd > 0
+                      ? Math.min(100, Math.max(0, (entry.cost_usd / entry.monthly_budget_usd) * 100))
+                      : 0
+                    return (
+                      <div key={entry.agent_id} className="rounded-lg border border-border bg-surface p-3">
+                        <div className="flex justify-between gap-3"><span>{entry.agent_id}</span><span>{entry.tokens_used.toLocaleString()} tokens · ${entry.cost_usd.toFixed(2)}</span></div>
+                        {typeof entry.monthly_budget_usd === 'number' && (
+                          <>
+                            <div className="mt-2 flex justify-between text-xs text-text-tertiary">
+                              <span>Budget ${entry.monthly_budget_usd.toFixed(2)}</span>
+                              <span className={entry.exceeded ? 'text-status-blocked' : ''}>{entry.exceeded ? 'Exceeded' : `$${entry.remaining_budget_usd.toFixed(2)} left`}</span>
+                            </div>
+                            <div className="mt-1 h-2 rounded-full bg-border">
+                              <div className={clsx('h-2 rounded-full', entry.exceeded ? 'bg-status-blocked' : 'bg-status-active')} style={{ width: `${ratio}%` }} />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -387,6 +410,10 @@ export function AgentsView() {
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
                     API key ref
                     <Input value={apiKeyRef} onChange={event => setApiKeyRef(event.target.value)} placeholder="env:OPENAI_API_KEY_ACCOUNT_1" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    Monthly budget USD
+                    <Input value={monthlyBudgetUsd} onChange={event => setMonthlyBudgetUsd(event.target.value)} placeholder="25" />
                   </label>
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
                     Capabilities

@@ -83,6 +83,7 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 		Provider:    "claude",
 		APIKeyRef:   ptrString("env:ANTHROPIC_API_KEY_ACCOUNT_1"),
 		Model:       "claude-sonnet-4-6",
+		MonthlyBudgetUSD: ptrFloat64(25),
 		SkillFile:   "skills/relayhq-backend-dev.md",
 		Status:      "available",
 		WorkspaceID: "ws-acme",
@@ -96,6 +97,7 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 }
 
 func ptrString(value string) *string { return &value }
+func ptrFloat64(value float64) *float64 { return &value }
 
 func TestValidateProviderOverlayFrontmatter(t *testing.T) {
 	t.Parallel()

@@ -16,6 +16,7 @@ export interface CreateAgentInput {
   readonly provider: string;
   readonly apiKeyRef?: string | null;
   readonly model: string;
+  readonly monthlyBudgetUsd?: number | null;
   readonly capabilities?: ReadonlyArray<string>;
   readonly taskTypesAccepted?: ReadonlyArray<string>;
   readonly approvalRequiredFor?: ReadonlyArray<string>;
@@ -99,6 +100,7 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     `provider: ${serializeValue(frontmatter.provider)}`,
     ...(frontmatter.api_key_ref === undefined ? [] : [`api_key_ref: ${serializeValue(frontmatter.api_key_ref)}`]),
     `model: ${serializeValue(frontmatter.model)}`,
+    ...(frontmatter.monthly_budget_usd === undefined ? [] : [`monthly_budget_usd: ${serializeValue(frontmatter.monthly_budget_usd)}`]),
     `capabilities: ${serializeValue(frontmatter.capabilities)}`,
     `task_types_accepted: ${serializeValue(frontmatter.task_types_accepted)}`,
     `approval_required_for: ${serializeValue(frontmatter.approval_required_for)}`,
@@ -145,6 +147,7 @@ function buildAgentFrontmatter(input: {
   readonly provider: string;
   readonly apiKeyRef: string | null;
   readonly model: string;
+  readonly monthlyBudgetUsd: number | null;
   readonly workspaceId: string;
   readonly now: Date;
   readonly capabilities: ReadonlyArray<string>;
@@ -166,6 +169,7 @@ function buildAgentFrontmatter(input: {
     provider: input.provider,
     ...(input.apiKeyRef === null ? {} : { api_key_ref: input.apiKeyRef }),
     model: input.model,
+    ...(input.monthlyBudgetUsd === null ? {} : { monthly_budget_usd: input.monthlyBudgetUsd }),
     capabilities: input.capabilities,
     task_types_accepted: input.taskTypesAccepted,
     approval_required_for: input.approvalRequiredFor,
@@ -206,6 +210,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     provider,
     apiKeyRef: input.apiKeyRef ?? null,
     model,
+    monthlyBudgetUsd: input.monthlyBudgetUsd ?? null,
     workspaceId,
     now,
     capabilities,

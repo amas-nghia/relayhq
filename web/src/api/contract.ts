@@ -212,6 +212,7 @@ export interface ReadModelAgent {
   readonly provider: string
   readonly apiKeyRef: string | null
   readonly model: string
+  readonly monthlyBudgetUsd: number | null
   readonly capabilities: ReadonlyArray<string>
   readonly taskTypesAccepted: ReadonlyArray<string>
   readonly approvalRequiredFor: ReadonlyArray<string>

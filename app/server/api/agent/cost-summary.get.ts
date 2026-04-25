@@ -11,6 +11,7 @@ export async function readCostSummary() {
 
   const modelMap = new Map()
   const agentMap = new Map()
+  const monthPrefix = new Date().toISOString().slice(0, 7)
   for (const task of completedTasks) {
     const modelKey = task.model ?? 'unknown'
     const agentKey = task.assignee
@@ -20,9 +21,16 @@ export async function readCostSummary() {
     modelEntry.cost_usd += task.costUsd ?? 0
     modelMap.set(modelKey, modelEntry)
 
-    const agentEntry = agentMap.get(agentKey) ?? { agent_id: agentKey, tokens_used: 0, cost_usd: 0 }
+    const agent = model.agents.find(entry => entry.id === agentKey)
+    const agentEntry = agentMap.get(agentKey) ?? { agent_id: agentKey, tokens_used: 0, cost_usd: 0, monthly_budget_usd: agent?.monthlyBudgetUsd ?? null, remaining_budget_usd: agent?.monthlyBudgetUsd ?? null, exceeded: false }
     agentEntry.tokens_used += task.tokensUsed ?? 0
-    agentEntry.cost_usd += task.costUsd ?? 0
+    if ((task.completedAt ?? '').startsWith(monthPrefix)) {
+      agentEntry.cost_usd += task.costUsd ?? 0
+    }
+    if (typeof agentEntry.monthly_budget_usd === 'number') {
+      agentEntry.remaining_budget_usd = Number((agentEntry.monthly_budget_usd - agentEntry.cost_usd).toFixed(2))
+      agentEntry.exceeded = agentEntry.remaining_budget_usd < 0
+    }
     agentMap.set(agentKey, agentEntry)
   }
 

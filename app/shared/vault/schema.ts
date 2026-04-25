@@ -98,6 +98,7 @@ export interface AgentFrontmatter {
   readonly provider: string;
   readonly api_key_ref?: string | null;
   readonly model: string;
+  readonly monthly_budget_usd?: number | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
   readonly approval_required_for: ReadonlyArray<string>;
@@ -524,6 +525,9 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
     }
   }
   requireStringField(input, "model", issues);
+  if (hasKey(input, "monthly_budget_usd") && input.monthly_budget_usd !== null && !isFiniteNumber(input.monthly_budget_usd)) {
+    pushIssue(issues, "monthly_budget_usd", "must be a number or null");
+  }
   requireStringArrayField(input, "capabilities", issues);
   requireStringArrayField(input, "task_types_accepted", issues);
   requireStringArrayField(input, "approval_required_for", issues);

@@ -154,6 +154,7 @@ describe("other frontmatter validators", () => {
         provider: "claude",
         api_key_ref: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
         model: "claude-sonnet-4-6",
+        monthly_budget_usd: 25,
         capabilities: ["write-go-code"],
         task_types_accepted: ["feature-implementation"],
         approval_required_for: ["breaking-api-change"],

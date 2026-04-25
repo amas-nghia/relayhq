@@ -177,6 +177,7 @@ type AgentFrontmatter struct {
 	Provider            string
 	APIKeyRef           *string
 	Model               string
+	MonthlyBudgetUSD    *float64
 	Capabilities        []string
 	TaskTypesAccepted   []string
 	ApprovalRequiredFor []string
