@@ -178,6 +178,11 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       name: agent.name,
       state,
       lastHeartbeat: session ? relativeTime(session.lastSeenAt) : 'offline',
+      role: agent.role,
+      roles: [...agent.roles],
+      capabilities: [...agent.capabilities],
+      approvalRequiredFor: [...agent.approvalRequiredFor],
+      skillFile: agent.skillFile,
     }
   })
 }

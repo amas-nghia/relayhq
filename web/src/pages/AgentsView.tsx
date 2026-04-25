@@ -1,6 +1,13 @@
-import { ArrowRight, Circle, Play } from 'lucide-react';
+import { ArrowRight, Circle, Pencil, Play, ScanSearch, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useState } from 'react';
+
+import { relayhqApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
+import { Button } from '../components/ui/button';
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 
 function AgentFeedPanel() {
   const agents = useAppStore(state => state.agents)
@@ -68,16 +75,71 @@ export function AgentsView() {
   const tasks = useAppStore(state => state.tasks);
   const projects = useAppStore(state => state.projects);
   const openDetail = useAppStore(state => state.openTaskDetail);
+  const loadData = useAppStore(state => state.loadData);
   const activeAgents = agents.filter(a => a.state !== 'idle');
   const idleAgents = agents.filter(a => a.state === 'idle');
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
+  const [agentName, setAgentName] = useState('')
+  const [capabilities, setCapabilities] = useState('')
+  const [approvalRequiredFor, setApprovalRequiredFor] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+
+  const editingAgent = agents.find(agent => agent.id === editingAgentId) ?? null
+
+  async function handleScan() {
+    setIsScanning(true)
+    try {
+      const response = await relayhqApi.scanAgents()
+      const toolIds = response.discovered.filter(tool => tool.detected && !tool.alreadyRegistered).map(tool => tool.id)
+      if (toolIds.length > 0) {
+        await relayhqApi.registerAgents({ toolIds })
+        await loadData()
+      }
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  function startEdit(agentId: string) {
+    const agent = agents.find(entry => entry.id === agentId)
+    if (!agent) return
+    setEditingAgentId(agentId)
+    setAgentName(agent.name)
+    setCapabilities((agent.capabilities ?? []).join('\n'))
+    setApprovalRequiredFor((agent.approvalRequiredFor ?? []).join('\n'))
+  }
+
+  async function saveAgent() {
+    if (!editingAgentId) return
+    setIsSaving(true)
+    try {
+      await relayhqApi.patchAgent(editingAgentId, {
+        patch: {
+          name: agentName,
+          capabilities: capabilities.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
+          approval_required_for: approvalRequiredFor.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
+        },
+      })
+      await loadData()
+      setEditingAgentId(null)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-text-primary">Agents</h1>
-        <p className="text-sm text-text-secondary">
-          {activeAgents.length} active / {agents.length} total
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-text-primary">Agents</h1>
+          <p className="text-sm text-text-secondary">
+            {activeAgents.length} active / {agents.length} total
+          </p>
+        </div>
+        <Button type="button" variant="outline" onClick={() => void handleScan()} disabled={isScanning}>
+          <ScanSearch className="h-4 w-4" /> {isScanning ? 'Scanning...' : 'Scan for installed tools'}
+        </Button>
       </div>
 
       <div className="flex flex-col gap-6">
@@ -113,6 +175,9 @@ export function AgentsView() {
                       </div>
                       <span className="font-semibold text-text-primary text-sm">{agent.name}</span>
                     </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => startEdit(agent.id)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     {task && (
                       <span className={clsx(
                         "text-[11px] font-bold uppercase tracking-wider",
@@ -182,11 +247,50 @@ export function AgentsView() {
                 <span className="text-text-tertiary">Idle</span>
                 <span className="text-text-tertiary">•</span>
                 <span>No active task</span>
+                <Button type="button" variant="ghost" size="icon" className="ml-auto" onClick={() => startEdit(agent.id)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      {editingAgent && (
+        <Dialog open>
+          <DialogOverlay />
+          <DialogContent>
+            <DialogPanel className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit agent</DialogTitle>
+                <Button variant="ghost" size="icon" onClick={() => setEditingAgentId(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogHeader>
+              <DialogBody>
+                <div className="flex flex-col gap-4">
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    Name
+                    <Input value={agentName} onChange={event => setAgentName(event.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    Capabilities
+                    <Textarea value={capabilities} onChange={event => setCapabilities(event.target.value)} rows={4} />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    Approval required for
+                    <Textarea value={approvalRequiredFor} onChange={event => setApprovalRequiredFor(event.target.value)} rows={3} />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setEditingAgentId(null)}>Cancel</Button>
+                    <Button type="button" onClick={() => void saveAgent()} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save'}</Button>
+                  </div>
+                </div>
+              </DialogBody>
+            </DialogPanel>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

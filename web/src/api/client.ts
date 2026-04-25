@@ -191,6 +191,14 @@ export interface RegisterAgentsPayload {
   readonly toolIds: ReadonlyArray<string>
 }
 
+export interface AgentPatchPayload {
+  readonly patch: {
+    readonly name?: string
+    readonly capabilities?: ReadonlyArray<string>
+    readonly approval_required_for?: ReadonlyArray<string>
+  }
+}
+
 export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
   getActiveAgents: () => request<ReadonlyArray<ActiveAgentSession>>('/api/agent/active'),
@@ -212,6 +220,10 @@ export const relayhqApi = {
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
   registerAgents: (payload: RegisterAgentsPayload) => request<{ created: ReadonlyArray<{ id: string; sourcePath: string }>; skipped: ReadonlyArray<{ id: string; reason: 'not-detected' | 'already-registered' }> }>('/api/settings/register-agents', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  patchAgent: (agentId: string, payload: AgentPatchPayload) => request<{ success: boolean; agentId: string }>(`/api/vault/agents/${encodeURIComponent(agentId)}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   }),
 

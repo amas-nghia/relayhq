@@ -8,6 +8,11 @@ export interface Agent {
   name: string
   state: AgentState
   lastHeartbeat: string
+  role?: string
+  roles?: ReadonlyArray<string>
+  capabilities?: ReadonlyArray<string>
+  approvalRequiredFor?: ReadonlyArray<string>
+  skillFile?: string
 }
 
 export interface Project {
