@@ -172,6 +172,9 @@ export interface VaultDocCreatePayload {
   readonly doc_type: string
   readonly project_id?: string | null
   readonly status?: string
+  readonly visibility?: string
+  readonly access_roles?: ReadonlyArray<string>
+  readonly sensitive?: boolean
   readonly tags?: ReadonlyArray<string>
   readonly body?: string
 }
@@ -182,6 +185,9 @@ export interface VaultDocPatchPayload {
     readonly doc_type?: string
     readonly status?: string
     readonly project_id?: string | null
+    readonly visibility?: string
+    readonly access_roles?: ReadonlyArray<string>
+    readonly sensitive?: boolean
     readonly tags?: ReadonlyArray<string>
     readonly body?: string
   }
@@ -266,10 +272,10 @@ export const relayhqApi = {
   patchIssue: (issueId: string, payload: VaultIssuePatchPayload) => request<unknown>(`/api/vault/issues/${encodeURIComponent(issueId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   commentIssue: (issueId: string, actorId: string, body: string) => request<unknown>(`/api/vault/issues/${encodeURIComponent(issueId)}/comments`, { method: 'POST', body: JSON.stringify({ actorId, body }) }),
 
-  listDocs: (projectId?: string) => request<VaultDocEnvelope<ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; workspace_id: string; project_id: string | null; updated_at: string; created_at: string; tags: ReadonlyArray<string>; sourcePath: string }>>>(`/api/vault/docs${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`),
-  getDoc: (docId: string) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; workspace_id: string; project_id: string | null; created_at: string; updated_at: string; tags: ReadonlyArray<string>; body: string; sourcePath: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`),
-  createDoc: (payload: VaultDocCreatePayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; sourcePath: string }>>('/api/vault/docs', { method: 'POST', body: JSON.stringify(payload) }),
-  patchDoc: (docId: string, payload: VaultDocPatchPayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; project_id: string | null; updated_at: string; body: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  listDocs: (projectId?: string) => request<VaultDocEnvelope<ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; workspace_id: string; project_id: string | null; updated_at: string; created_at: string; tags: ReadonlyArray<string>; sourcePath: string }>>>(`/api/vault/docs${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`),
+  getDoc: (docId: string) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; workspace_id: string; project_id: string | null; created_at: string; updated_at: string; tags: ReadonlyArray<string>; body: string; sourcePath: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`),
+  createDoc: (payload: VaultDocCreatePayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; project_id: string | null; sourcePath: string }>>('/api/vault/docs', { method: 'POST', body: JSON.stringify(payload) }),
+  patchDoc: (docId: string, payload: VaultDocPatchPayload) => request<VaultDocEnvelope<{ id: string; title: string; doc_type: string; status: string; visibility: string; access_roles: ReadonlyArray<string>; sensitive: boolean; project_id: string | null; updated_at: string; body: string }>>(`/api/vault/docs/${encodeURIComponent(docId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   createTaskTemplate: (payload: TaskTemplateCreatePayload) => request<{ success: boolean; data: { name: string; path: string }; error: string | null }>('/api/vault/task-templates', { method: 'POST', body: JSON.stringify(payload) }),
 
   writeShellProfile: (target: 'zshrc' | 'bashrc') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {

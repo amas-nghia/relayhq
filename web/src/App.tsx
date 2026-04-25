@@ -5,6 +5,7 @@ import { Shell } from './components/layout/Shell';
 const WorkspaceView = lazy(async () => ({ default: (await import('./pages/WorkspaceView')).default }));
 const ApprovalsView = lazy(async () => ({ default: (await import('./pages/ApprovalsView')).ApprovalsView }));
 const AgentsView = lazy(async () => ({ default: (await import('./pages/AgentsView')).AgentsView }));
+const DocsView = lazy(async () => ({ default: (await import('./pages/DocsView')).DocsView }));
 
 function RouteFallback() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/tasks" element={<Navigate to="/" replace />} />
           <Route path="/approvals" element={<Suspense fallback={<RouteFallback />}><ApprovalsView /></Suspense>} />
           <Route path="/agents" element={<Suspense fallback={<RouteFallback />}><AgentsView /></Suspense>} />
+          <Route path="/docs" element={<Suspense fallback={<RouteFallback />}><DocsView /></Suspense>} />
           <Route path="/audit" element={<Navigate to="/" replace />} />
           
           <Route path="/" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
