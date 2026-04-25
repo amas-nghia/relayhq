@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 
-import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertDocFrontmatter, assertIssueFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
+import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertDocFrontmatter, assertIssueFrontmatter, assertProjectFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
 import {
   buildVaultReadModel,
   type VaultReadModel,
@@ -318,11 +318,28 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
     type: "project",
     workspace_id: requireString(record, "workspace_id", filePath),
     name: requireString(record, "name", filePath),
+    ...(record.description === undefined ? {} : { description: requireString(record, "description", filePath) }),
+    ...(record.budget === undefined ? {} : { budget: requireString(record, "budget", filePath) }),
+    ...(record.deadline === undefined ? {} : { deadline: requireTimestamp(record, "deadline", filePath) }),
+    ...(record.status === undefined ? {} : { status: requireString(record, "status", filePath) as ProjectFrontmatter["status"] }),
+    ...(Array.isArray(record.links)
+      ? {
+          links: record.links.flatMap((entry) => {
+            if (typeof entry !== "object" || entry === null) return [];
+            const item = entry as Record<string, unknown>;
+            if (typeof item.label !== "string" || typeof item.url !== "string") return [];
+            return [{ label: item.label.trim(), url: item.url.trim() }];
+          }),
+        }
+      : {}),
     ...(record.codebase_root === undefined ? {} : { codebase_root: requireNullableString(record, "codebase_root", filePath) }),
     codebases,
     created_at: requireTimestamp(record, "created_at", filePath),
     updated_at: requireTimestamp(record, "updated_at", filePath),
-  };
+  } satisfies ProjectFrontmatter;
+
+  assertProjectFrontmatter(frontmatter);
+  return frontmatter;
 }
 
 function parseBoardFrontmatter(record: Record<string, unknown>, filePath: string): BoardFrontmatter {

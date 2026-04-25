@@ -225,11 +225,38 @@ type CodebaseEntry struct {
 	Primary bool
 }
 
+type ProjectLinkEntry struct {
+	Label string
+	URL   string
+}
+
+type ProjectStatus string
+
+const (
+	ProjectStatusActive ProjectStatus = "active"
+	ProjectStatusPaused ProjectStatus = "paused"
+	ProjectStatusDone   ProjectStatus = "done"
+)
+
+func (s ProjectStatus) Valid() bool {
+	switch s {
+	case ProjectStatusActive, ProjectStatusPaused, ProjectStatusDone:
+		return true
+	default:
+		return false
+	}
+}
+
 type ProjectFrontmatter struct {
 	ID           string
 	Type         string
 	WorkspaceID  string
 	Name         string
+	Description  *string
+	Budget       *string
+	Deadline     *time.Time
+	Status       *ProjectStatus
+	Links        []ProjectLinkEntry
 	CodebaseRoot *string
 	Codebases    []CodebaseEntry
 	CreatedAt    time.Time
@@ -491,6 +518,17 @@ func ValidateProjectFrontmatter(project ProjectFrontmatter) error {
 	}
 	if project.Name == "" {
 		errs = appendError(errs, "name", "required")
+	}
+	if project.Status != nil && !project.Status.Valid() {
+		errs = appendError(errs, "status", "invalid")
+	}
+	for index, link := range project.Links {
+		if strings.TrimSpace(link.Label) == "" {
+			errs = appendError(errs, fmt.Sprintf("links[%d].label", index), "required")
+		}
+		if strings.TrimSpace(link.URL) == "" {
+			errs = appendError(errs, fmt.Sprintf("links[%d].url", index), "required")
+		}
 	}
 	if project.CreatedAt.IsZero() {
 		errs = appendError(errs, "created_at", "required")

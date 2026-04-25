@@ -8,6 +8,7 @@ import {
   VAULT_SCHEMA_VERSION,
   validateAgentFrontmatter,
   validateAuditNoteFrontmatter,
+  validateProjectFrontmatter,
   validateProviderOverlayFrontmatter,
   validateTaskFrontmatter,
   validateWorkspaceFrontmatter,
@@ -249,6 +250,26 @@ describe("other frontmatter validators", () => {
       }).valid,
     ).toBe(true);
   });
+
+  test("accepts valid project schema extensions", () => {
+    expect(
+      validateProjectFrontmatter({
+        id: "project-acme",
+        type: "project",
+        workspace_id: "ws-acme",
+        name: "Acme Project",
+        description: "Internal product delivery workspace",
+        budget: "$12,000/mo",
+        deadline: "2026-06-01T00:00:00Z",
+        status: "active",
+        links: [{ label: "PRD", url: "https://notion.so/prd" }],
+        codebase_root: null,
+        codebases: [{ name: "frontend", path: "/repo/frontend", primary: true }],
+        created_at: "2026-04-14T10:00:00Z",
+        updated_at: "2026-04-14T10:00:00Z",
+      }).valid,
+    ).toBe(true)
+  })
 });
 
 describe("schema constants", () => {

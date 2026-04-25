@@ -158,11 +158,24 @@ export interface ProjectCodebaseEntry {
   readonly primary?: boolean;
 }
 
+export interface ProjectLinkEntry {
+  readonly label: string;
+  readonly url: string;
+}
+
+export const PROJECT_STATUSES = ["active", "paused", "done"] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
 export interface ProjectFrontmatter {
   readonly id: string;
   readonly type: "project";
   readonly workspace_id: string;
   readonly name: string;
+  readonly description?: string;
+  readonly budget?: string;
+  readonly deadline?: string;
+  readonly status?: ProjectStatus;
+  readonly links?: ReadonlyArray<ProjectLinkEntry>;
   readonly codebase_root?: string | null;
   readonly codebases?: ReadonlyArray<ProjectCodebaseEntry>;
   readonly created_at: string;
@@ -629,6 +642,62 @@ export function validateWorkspaceFrontmatter(input: unknown): ValidationResult {
   return { valid: issues.length === 0, issues };
 }
 
+function validateProjectLink(value: unknown, index: number, issues: ValidationIssue[]): value is ProjectLinkEntry {
+  if (!isRecord(value)) {
+    pushIssue(issues, `links[${index}]`, "must be an object with label and url fields");
+    return false;
+  }
+
+  const label = value.label;
+  const url = value.url;
+  if (!isNonEmptyString(label)) {
+    pushIssue(issues, `links[${index}].label`, "required");
+  }
+  if (!isNonEmptyString(url)) {
+    pushIssue(issues, `links[${index}].url`, "required");
+  }
+  return isNonEmptyString(label) && isNonEmptyString(url);
+}
+
+export function validateProjectFrontmatter(input: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isRecord(input)) {
+    pushIssue(issues, "_self", "must be an object");
+    return { valid: false, issues };
+  }
+
+  requireStringField(input, "id", issues);
+
+  const type = requireStringField(input, "type", issues);
+  if (type !== undefined && type !== "project") {
+    pushIssue(issues, "type", "must be project");
+  }
+
+  requireStringField(input, "workspace_id", issues);
+  requireStringField(input, "name", issues);
+  if (hasKey(input, "description")) requireStringField(input, "description", issues);
+  if (hasKey(input, "budget")) requireStringField(input, "budget", issues);
+  if (hasKey(input, "deadline")) requireRequiredTimestampField(input, "deadline", issues);
+  if (hasKey(input, "status")) requireEnumField(input, "status", PROJECT_STATUSES, issues);
+  if (hasKey(input, "links")) {
+    const links = requireField(input, "links", issues);
+    if (!Array.isArray(links)) {
+      pushIssue(issues, "links", "must be an array");
+    } else {
+      links.forEach((link, index) => validateProjectLink(link, index, issues));
+    }
+  }
+  if (hasKey(input, "codebase_root")) requireNullableStringField(input, "codebase_root", issues);
+  if (hasKey(input, "codebases") && !Array.isArray(input.codebases)) {
+    pushIssue(issues, "codebases", "must be an array when provided");
+  }
+  requireRequiredTimestampField(input, "created_at", issues);
+  requireRequiredTimestampField(input, "updated_at", issues);
+
+  return { valid: issues.length === 0, issues };
+}
+
 export function validateAuditNoteFrontmatter(input: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -683,6 +752,13 @@ export function assertProviderOverlayFrontmatter(input: unknown): asserts input 
 
 export function assertWorkspaceFrontmatter(input: unknown): asserts input is WorkspaceFrontmatter {
   const result = validateWorkspaceFrontmatter(input);
+  if (!result.valid) {
+    throw new VaultSchemaError(result.issues);
+  }
+}
+
+export function assertProjectFrontmatter(input: unknown): asserts input is ProjectFrontmatter {
+  const result = validateProjectFrontmatter(input);
   if (!result.valid) {
     throw new VaultSchemaError(result.issues);
   }

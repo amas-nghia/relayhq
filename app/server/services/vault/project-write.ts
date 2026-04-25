@@ -10,7 +10,7 @@ import {
   DEFAULT_LOCK_TTL_MS,
   DEFAULT_STALE_AFTER_MS,
 } from "./lock";
-import { VaultSchemaError } from "../../../shared/vault/schema";
+import { assertProjectFrontmatter, VaultSchemaError } from "../../../shared/vault/schema";
 import { validateProjectWrite } from "./validation";
 
 const PROJECT_FRONTMATTER_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = [
@@ -18,6 +18,11 @@ const PROJECT_FRONTMATTER_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = [
   "type",
   "workspace_id",
   "name",
+  "description",
+  "budget",
+  "deadline",
+  "status",
+  "links",
   "codebase_root",
   "codebases",
   "created_at",
@@ -182,11 +187,29 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
     ]);
   }
 
-  return {
+  const parsed = {
     id: record.id,
     type: "project",
     workspace_id: record.workspace_id,
     name: record.name,
+    ...(typeof record.description === "string" ? { description: record.description } : {}),
+    ...(typeof record.budget === "string" ? { budget: record.budget } : {}),
+    ...(typeof record.deadline === "string" ? { deadline: record.deadline } : {}),
+    ...(typeof record.status === "string" ? { status: record.status as ProjectFrontmatter["status"] } : {}),
+    ...(Array.isArray(record.links)
+      ? {
+          links: record.links.flatMap((entry) => {
+            if (typeof entry !== "object" || entry === null) {
+              return [];
+            }
+            const item = entry as Record<string, unknown>;
+            if (typeof item.label !== "string" || typeof item.url !== "string") {
+              return [];
+            }
+            return [{ label: item.label, url: item.url }];
+          }),
+        }
+      : {}),
     codebase_root: typeof record.codebase_root === "string" ? record.codebase_root : null,
     codebases: Array.isArray(record.codebases)
       ? record.codebases.flatMap((entry) => {
@@ -207,7 +230,10 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
       : [],
     created_at: record.created_at,
     updated_at: record.updated_at,
-  };
+  } satisfies ProjectFrontmatter;
+
+  assertProjectFrontmatter(parsed);
+  return parsed;
 }
 
 function serializeProjectFrontmatter(frontmatter: ProjectFrontmatter): string {
@@ -287,6 +313,8 @@ export async function syncProjectDocument(request: SyncProjectRequest): Promise<
 
     const next = applyProjectPatch(current.frontmatter, patch as Readonly<Partial<ProjectFrontmatter>>, now);
     const nextBody = request.mutateBody ? request.mutateBody(current.body) : current.body;
+
+    assertProjectFrontmatter(next);
 
     await writeProjectDocumentAtomic(request.filePath, { frontmatter: next, body: nextBody });
 

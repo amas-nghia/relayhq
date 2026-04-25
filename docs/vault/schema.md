@@ -142,6 +142,11 @@ id: project-auth
 type: project
 workspace_id: ws-acme
 name: Authentication
+description: Core auth and account lifecycle workstream
+budget: $12,000/mo
+deadline: 2026-06-01T00:00:00Z
+status: active
+links: [{"label":"PRD","url":"https://notion.so/prd"}]
 codebases:
   - name: frontend
     path: /home/amas/code/auth-frontend
@@ -154,6 +159,13 @@ created_at: 2026-04-14T10:00:00Z
 updated_at: 2026-04-14T10:00:00Z
 ---
 ```
+
+Optional project metadata:
+- `description`: short project summary
+- `budget`: free-form budget string
+- `deadline`: ISO timestamp for target completion
+- `status`: `active | paused | done`
+- `links`: array of `{ label, url }`
 
 Backward compatibility rule:
 - legacy `codebase_root` is still accepted by validators

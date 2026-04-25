@@ -276,3 +276,30 @@ func TestValidateDocFrontmatter(t *testing.T) {
 		t.Fatal("expected error for invalid doc type, got nil")
 	}
 }
+
+func TestValidateProjectFrontmatterWithExtendedFields(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	deadline := now.Add(24 * time.Hour)
+	status := ProjectStatusActive
+	root := "/repo/main"
+	project := ProjectFrontmatter{
+		ID:           "project-auth",
+		Type:         "project",
+		WorkspaceID:  "ws-acme",
+		Name:         "Authentication",
+		Description:  ptrString("Internal delivery workspace"),
+		Budget:       ptrString("$12,000/mo"),
+		Deadline:     &deadline,
+		Status:       &status,
+		Links:        []ProjectLinkEntry{{Label: "PRD", URL: "https://notion.so/prd"}},
+		CodebaseRoot: &root,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := ValidateProjectFrontmatter(project); err != nil {
+		t.Fatalf("expected valid project with extended fields, got error: %v", err)
+	}
+}
