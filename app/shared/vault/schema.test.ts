@@ -148,8 +148,11 @@ describe("other frontmatter validators", () => {
         id: "agent-backend-dev",
         type: "agent",
         name: "Backend Developer",
+        account_id: "claude-account-1",
         role: "implementation",
+        roles: ["implementation"],
         provider: "claude",
+        api_key_ref: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
         model: "claude-sonnet-4-6",
         capabilities: ["write-go-code"],
         task_types_accepted: ["feature-implementation"],
@@ -164,6 +167,32 @@ describe("other frontmatter validators", () => {
       }).valid,
     ).toBe(true);
   });
+
+  test("rejects an agent schema that exposes a raw api key", () => {
+    const result = validateAgentFrontmatter({
+      id: "agent-backend-dev",
+      type: "agent",
+      name: "Backend Developer",
+      role: "implementation",
+      roles: ["implementation"],
+      provider: "claude",
+      api_key_ref: "sk-live-raw-secret",
+      model: "claude-sonnet-4-6",
+      capabilities: ["write-go-code"],
+      task_types_accepted: ["feature-implementation"],
+      approval_required_for: ["breaking-api-change"],
+      cannot_do: ["frontend-code"],
+      accessible_by: ["@alice"],
+      skill_file: "skills/relayhq-backend-dev.md",
+      status: "available",
+      workspace_id: "ws-acme",
+      created_at: "2026-04-14T10:00:00Z",
+      updated_at: "2026-04-14T10:00:00Z",
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.issues.some((issue) => issue.field === 'api_key_ref')).toBe(true)
+  })
 
   test("rejects a provider overlay that exposes a raw key", () => {
     const result = validateProviderOverlayFrontmatter({

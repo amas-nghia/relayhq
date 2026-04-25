@@ -78,8 +78,10 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 		ID:          "agent-backend-dev",
 		Type:        "agent",
 		Name:        "Backend Developer",
+		AccountID:   ptrString("claude-account-1"),
 		Role:        "implementation",
 		Provider:    "claude",
+		APIKeyRef:   ptrString("env:ANTHROPIC_API_KEY_ACCOUNT_1"),
 		Model:       "claude-sonnet-4-6",
 		SkillFile:   "skills/relayhq-backend-dev.md",
 		Status:      "available",
@@ -92,6 +94,8 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 		t.Fatalf("expected valid agent, got error: %v", err)
 	}
 }
+
+func ptrString(value string) *string { return &value }
 
 func TestValidateProviderOverlayFrontmatter(t *testing.T) {
 	t.Parallel()

@@ -206,9 +206,11 @@ export interface ReadModelAgent {
   readonly type: 'agent'
   readonly workspaceId: string
   readonly name: string
+  readonly accountId: string | null
   readonly role: string
   readonly roles: ReadonlyArray<string>
   readonly provider: string
+  readonly apiKeyRef: string | null
   readonly model: string
   readonly capabilities: ReadonlyArray<string>
   readonly taskTypesAccepted: ReadonlyArray<string>

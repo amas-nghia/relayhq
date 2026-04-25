@@ -183,10 +183,13 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
     return {
       id: agent.id,
       name: agent.name,
+      accountId: agent.accountId,
       state,
       lastHeartbeat: session ? relativeTime(session.lastSeenAt) : 'offline',
       role: agent.role,
       roles: [...agent.roles],
+      provider: agent.provider,
+      apiKeyRef: agent.apiKeyRef,
       capabilities: [...agent.capabilities],
       approvalRequiredFor: [...agent.approvalRequiredFor],
       skillFile: agent.skillFile,

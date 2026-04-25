@@ -42,22 +42,26 @@ describe("POST /api/vault/agents", () => {
       const response = await registerVaultAgent(
         {
           name: "Backend Developer",
+          accountId: "claude-account-1",
           role: "backend-developer",
           model: "claude-sonnet-4-6",
           provider: "anthropic",
+          apiKeyRef: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
         },
         { vaultRoot: root, env: { ...process.env, RELAYHQ_WORKSPACE_ID: "ws-demo" } },
       );
 
       expect(response).toEqual({
         agent: expect.objectContaining({
-          id: "backend-developer",
-          type: "agent",
-          name: "Backend Developer",
-          role: "backend-developer",
-          roles: ["backend-developer"],
-          provider: "anthropic",
-          model: "claude-sonnet-4-6",
+            id: "backend-developer",
+            type: "agent",
+            name: "Backend Developer",
+            account_id: "claude-account-1",
+            role: "backend-developer",
+            roles: ["backend-developer"],
+            provider: "anthropic",
+            api_key_ref: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
+            model: "claude-sonnet-4-6",
           capabilities: [],
           task_types_accepted: [],
           approval_required_for: [],
@@ -92,9 +96,11 @@ describe("POST /api/vault/agents", () => {
     const root = await createWorkspaceRoot([{ id: "ws-demo", name: "Demo Workspace" }]);
     const request = {
       name: "Backend Developer",
+      accountId: "claude-account-1",
       role: "backend-developer",
       model: "claude-sonnet-4-6",
       provider: "anthropic",
+      apiKeyRef: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
     };
 
     try {

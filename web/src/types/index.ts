@@ -6,10 +6,13 @@ export type Theme = 'light' | 'dark' | 'system'
 export interface Agent {
   id: string
   name: string
+  accountId?: string | null
   state: AgentState
   lastHeartbeat: string
   role?: string
   roles?: ReadonlyArray<string>
+  provider?: string
+  apiKeyRef?: string | null
   capabilities?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string

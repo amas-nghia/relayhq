@@ -92,9 +92,11 @@ export interface AgentFrontmatter {
   readonly id: string;
   readonly type: "agent";
   readonly name: string;
+  readonly account_id?: string | null;
   readonly role: string;
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
+  readonly api_key_ref?: string | null;
   readonly model: string;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
@@ -509,9 +511,18 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   }
 
   requireStringField(input, "name", issues);
+  if (hasKey(input, "account_id")) {
+    requireNullableStringField(input, "account_id", issues);
+  }
   requireStringField(input, "role", issues);
   requireStringArrayField(input, "roles", issues);
   requireStringField(input, "provider", issues);
+  if (hasKey(input, "api_key_ref")) {
+    const apiKeyRef = requireNullableStringField(input, "api_key_ref", issues);
+    if (apiKeyRef !== undefined && apiKeyRef !== null && !isSecureKeyReference(apiKeyRef)) {
+      pushIssue(issues, "api_key_ref", "must reference a secret by env:, secret:, or vault:");
+    }
+  }
   requireStringField(input, "model", issues);
   requireStringArrayField(input, "capabilities", issues);
   requireStringArrayField(input, "task_types_accepted", issues);

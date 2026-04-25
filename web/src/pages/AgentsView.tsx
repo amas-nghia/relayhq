@@ -97,6 +97,8 @@ export function AgentsView() {
   const idleAgents = agents.filter(a => a.state === 'idle');
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
   const [agentName, setAgentName] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [apiKeyRef, setApiKeyRef] = useState('')
   const [capabilities, setCapabilities] = useState('')
   const [approvalRequiredFor, setApprovalRequiredFor] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -126,6 +128,8 @@ export function AgentsView() {
     if (!agent) return
     setEditingAgentId(agentId)
     setAgentName(agent.name)
+    setAccountId(agent.accountId ?? '')
+    setApiKeyRef(agent.apiKeyRef ?? '')
     setCapabilities((agent.capabilities ?? []).join('\n'))
     setApprovalRequiredFor((agent.approvalRequiredFor ?? []).join('\n'))
   }
@@ -137,6 +141,8 @@ export function AgentsView() {
       await relayhqApi.patchAgent(editingAgentId, {
         patch: {
           name: agentName,
+          account_id: accountId || undefined,
+          api_key_ref: apiKeyRef || undefined,
           capabilities: capabilities.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
           approval_required_for: approvalRequiredFor.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
         },
@@ -237,6 +243,9 @@ export function AgentsView() {
                         )}
                       </div>
                       <span className="font-semibold text-text-primary text-sm">{agent.name}</span>
+                      {(agent.accountId || agent.provider) && (
+                        <span className="text-xs text-text-tertiary">{agent.provider}{agent.accountId ? `/${agent.accountId}` : ''}</span>
+                      )}
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => startEdit(agent.id)}>
                       <Pencil className="h-4 w-4" />
@@ -322,6 +331,8 @@ export function AgentsView() {
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
                   <Circle className="h-3 w-3 fill-current text-text-tertiary" />
                   <span className="inline-block w-32 font-semibold text-text-primary">{agent.name}</span>
+                  {(agent.accountId || agent.provider) && <span className="text-text-tertiary">{agent.provider}{agent.accountId ? `/${agent.accountId}` : ''}</span>}
+                  <span className="text-text-tertiary">•</span>
                   <span className="text-text-tertiary">Idle</span>
                   <span className="text-text-tertiary">•</span>
                   <span>No active task</span>
@@ -368,6 +379,14 @@ export function AgentsView() {
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
                     Name
                     <Input value={agentName} onChange={event => setAgentName(event.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    Account id
+                    <Input value={accountId} onChange={event => setAccountId(event.target.value)} placeholder="codex-account-1" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
+                    API key ref
+                    <Input value={apiKeyRef} onChange={event => setApiKeyRef(event.target.value)} placeholder="env:OPENAI_API_KEY_ACCOUNT_1" />
                   </label>
                   <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
                     Capabilities

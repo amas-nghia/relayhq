@@ -172,8 +172,10 @@ type AgentFrontmatter struct {
 	ID                  string
 	Type                string
 	Name                string
+	AccountID           *string
 	Role                string
 	Provider            string
+	APIKeyRef           *string
 	Model               string
 	Capabilities        []string
 	TaskTypesAccepted   []string
@@ -387,6 +389,14 @@ func ValidateAgentFrontmatter(agent AgentFrontmatter) error {
 	}
 	if agent.Name == "" {
 		errs = appendError(errs, "name", "required")
+	}
+	if agent.APIKeyRef != nil {
+		ref := strings.TrimSpace(*agent.APIKeyRef)
+		if ref == "" {
+			errs = appendError(errs, "api_key_ref", "must not be empty when set")
+		} else if !(strings.HasPrefix(ref, "env:") || strings.HasPrefix(ref, "secret:") || strings.HasPrefix(ref, "vault:")) {
+			errs = appendError(errs, "api_key_ref", "must reference env:, secret:, or vault:")
+		}
 	}
 	if agent.Role == "" {
 		errs = appendError(errs, "role", "required")

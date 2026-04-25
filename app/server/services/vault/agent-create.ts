@@ -10,9 +10,11 @@ import { readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "./runtime"
 export interface CreateAgentInput {
   readonly id?: string;
   readonly name: string;
+  readonly accountId?: string | null;
   readonly role: string;
   readonly roles?: ReadonlyArray<string>;
   readonly provider: string;
+  readonly apiKeyRef?: string | null;
   readonly model: string;
   readonly capabilities?: ReadonlyArray<string>;
   readonly taskTypesAccepted?: ReadonlyArray<string>;
@@ -92,8 +94,10 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     `id: ${serializeValue(frontmatter.id)}`,
     `type: ${frontmatter.type}`,
     `name: ${serializeValue(frontmatter.name)}`,
+    ...(frontmatter.account_id === undefined ? [] : [`account_id: ${serializeValue(frontmatter.account_id)}`]),
     `role: ${serializeValue(frontmatter.role)}`,
     `provider: ${serializeValue(frontmatter.provider)}`,
+    ...(frontmatter.api_key_ref === undefined ? [] : [`api_key_ref: ${serializeValue(frontmatter.api_key_ref)}`]),
     `model: ${serializeValue(frontmatter.model)}`,
     `capabilities: ${serializeValue(frontmatter.capabilities)}`,
     `task_types_accepted: ${serializeValue(frontmatter.task_types_accepted)}`,
@@ -135,9 +139,11 @@ function resolveWorkspaceId(
 function buildAgentFrontmatter(input: {
   readonly id: string;
   readonly name: string;
+  readonly accountId: string | null;
   readonly role: string;
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
+  readonly apiKeyRef: string | null;
   readonly model: string;
   readonly workspaceId: string;
   readonly now: Date;
@@ -154,9 +160,11 @@ function buildAgentFrontmatter(input: {
     id: input.id,
     type: "agent",
     name: input.name,
+    ...(input.accountId === null ? {} : { account_id: input.accountId }),
     role: input.role,
     roles: input.roles,
     provider: input.provider,
+    ...(input.apiKeyRef === null ? {} : { api_key_ref: input.apiKeyRef }),
     model: input.model,
     capabilities: input.capabilities,
     task_types_accepted: input.taskTypesAccepted,
@@ -192,9 +200,11 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   const frontmatter = buildAgentFrontmatter({
     id,
     name,
+    accountId: input.accountId ?? null,
     role,
     roles,
     provider,
+    apiKeyRef: input.apiKeyRef ?? null,
     model,
     workspaceId,
     now,
