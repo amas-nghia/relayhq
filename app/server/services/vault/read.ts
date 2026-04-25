@@ -332,6 +332,16 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
           }),
         }
       : {}),
+    ...(Array.isArray(record.attachments)
+      ? {
+          attachments: record.attachments.flatMap((entry) => {
+            if (typeof entry !== "object" || entry === null) return [];
+            const item = entry as Record<string, unknown>;
+            if (typeof item.label !== "string" || typeof item.url !== "string" || typeof item.type !== "string" || typeof item.addedAt !== "string") return [];
+            return [{ label: item.label.trim(), url: item.url.trim(), type: item.type as NonNullable<ProjectFrontmatter["attachments"]>[number]["type"], addedAt: item.addedAt }];
+          }),
+        }
+      : {}),
     ...(record.codebase_root === undefined ? {} : { codebase_root: requireNullableString(record, "codebase_root", filePath) }),
     codebases,
     created_at: requireTimestamp(record, "created_at", filePath),

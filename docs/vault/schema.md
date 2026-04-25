@@ -147,6 +147,7 @@ budget: $12,000/mo
 deadline: 2026-06-01T00:00:00Z
 status: active
 links: [{"label":"PRD","url":"https://notion.so/prd"}]
+attachments: [{"label":"Kickoff doc","url":"https://drive.google.com/doc","type":"doc","addedAt":"2026-04-14T10:00:00Z"}]
 codebases:
   - name: frontend
     path: /home/amas/code/auth-frontend
@@ -166,6 +167,15 @@ Optional project metadata:
 - `deadline`: ISO timestamp for target completion
 - `status`: `active | paused | done`
 - `links`: array of `{ label, url }`
+- `attachments`: array of `{ label, url, type, addedAt }`
+
+Attachment types:
+- `doc`
+- `audio`
+- `video`
+- `sheet`
+- `image`
+- `link`
 
 Backward compatibility rule:
 - legacy `codebase_root` is still accepted by validators

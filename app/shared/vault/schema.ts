@@ -163,6 +163,16 @@ export interface ProjectLinkEntry {
   readonly url: string;
 }
 
+export const PROJECT_ATTACHMENT_TYPES = ["doc", "audio", "video", "sheet", "image", "link"] as const;
+export type ProjectAttachmentType = (typeof PROJECT_ATTACHMENT_TYPES)[number];
+
+export interface ProjectAttachmentEntry {
+  readonly label: string;
+  readonly url: string;
+  readonly type: ProjectAttachmentType;
+  readonly addedAt: string;
+}
+
 export const PROJECT_STATUSES = ["active", "paused", "done"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
@@ -176,6 +186,7 @@ export interface ProjectFrontmatter {
   readonly deadline?: string;
   readonly status?: ProjectStatus;
   readonly links?: ReadonlyArray<ProjectLinkEntry>;
+  readonly attachments?: ReadonlyArray<ProjectAttachmentEntry>;
   readonly codebase_root?: string | null;
   readonly codebases?: ReadonlyArray<ProjectCodebaseEntry>;
   readonly created_at: string;
@@ -659,6 +670,23 @@ function validateProjectLink(value: unknown, index: number, issues: ValidationIs
   return isNonEmptyString(label) && isNonEmptyString(url);
 }
 
+function validateProjectAttachment(value: unknown, index: number, issues: ValidationIssue[]): value is ProjectAttachmentEntry {
+  if (!isRecord(value)) {
+    pushIssue(issues, `attachments[${index}]`, "must be an object with label, url, type, and addedAt fields");
+    return false;
+  }
+
+  const label = value.label;
+  const url = value.url;
+  const type = value.type;
+  const addedAt = value.addedAt;
+  if (!isNonEmptyString(label)) pushIssue(issues, `attachments[${index}].label`, "required");
+  if (!isNonEmptyString(url)) pushIssue(issues, `attachments[${index}].url`, "required");
+  if (typeof type !== "string" || !PROJECT_ATTACHMENT_TYPES.includes(type as ProjectAttachmentType)) pushIssue(issues, `attachments[${index}].type`, `must be one of: ${PROJECT_ATTACHMENT_TYPES.join(", ")}`);
+  if (!isTimestamp(addedAt)) pushIssue(issues, `attachments[${index}].addedAt`, "must be an ISO-8601 timestamp string");
+  return isNonEmptyString(label) && isNonEmptyString(url) && typeof type === "string" && PROJECT_ATTACHMENT_TYPES.includes(type as ProjectAttachmentType) && isTimestamp(addedAt);
+}
+
 export function validateProjectFrontmatter(input: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -686,6 +714,14 @@ export function validateProjectFrontmatter(input: unknown): ValidationResult {
       pushIssue(issues, "links", "must be an array");
     } else {
       links.forEach((link, index) => validateProjectLink(link, index, issues));
+    }
+  }
+  if (hasKey(input, "attachments")) {
+    const attachments = requireField(input, "attachments", issues);
+    if (!Array.isArray(attachments)) {
+      pushIssue(issues, "attachments", "must be an array");
+    } else {
+      attachments.forEach((attachment, index) => validateProjectAttachment(attachment, index, issues));
     }
   }
   if (hasKey(input, "codebase_root")) requireNullableStringField(input, "codebase_root", issues);

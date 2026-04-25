@@ -294,6 +294,7 @@ func TestValidateProjectFrontmatterWithExtendedFields(t *testing.T) {
 		Deadline:     &deadline,
 		Status:       &status,
 		Links:        []ProjectLinkEntry{{Label: "PRD", URL: "https://notion.so/prd"}},
+		Attachments:  []ProjectAttachmentEntry{{Label: "Kickoff doc", URL: "https://drive.google.com/doc", Type: ProjectAttachmentTypeDoc, AddedAt: now}},
 		CodebaseRoot: &root,
 		CreatedAt:    now,
 		UpdatedAt:    now,

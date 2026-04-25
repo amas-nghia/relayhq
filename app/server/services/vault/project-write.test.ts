@@ -38,7 +38,7 @@ describe("vault project write flow", () => {
       filePath,
         actorId: "agent-backend-dev",
         now,
-        mutate: () => ({ name: "Identity Platform", budget: "$12,000/mo", status: "active", links: [{ label: "PRD", url: "https://notion.so/prd" }] }),
+        mutate: () => ({ name: "Identity Platform", budget: "$12,000/mo", status: "active", links: [{ label: "PRD", url: "https://notion.so/prd" }], attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-14T12:00:00Z" }] }),
       });
 
     expect(result.previous.name).toBe("Authentication");
@@ -51,6 +51,7 @@ describe("vault project write flow", () => {
     const diskState = await readProjectDocument(filePath);
     expect(diskState.frontmatter.name).toBe("Identity Platform");
     expect(diskState.frontmatter.links).toEqual([{ label: "PRD", url: "https://notion.so/prd" }]);
+    expect(diskState.frontmatter.attachments).toEqual([{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-14T12:00:00Z" }]);
   });
 
   test("rejects stale write locks before overwrite", async () => {

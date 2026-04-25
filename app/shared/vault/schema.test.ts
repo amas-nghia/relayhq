@@ -263,6 +263,7 @@ describe("other frontmatter validators", () => {
         deadline: "2026-06-01T00:00:00Z",
         status: "active",
         links: [{ label: "PRD", url: "https://notion.so/prd" }],
+        attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-14T10:00:00Z" }],
         codebase_root: null,
         codebases: [{ name: "frontend", path: "/repo/frontend", primary: true }],
         created_at: "2026-04-14T10:00:00Z",

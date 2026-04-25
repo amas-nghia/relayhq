@@ -23,6 +23,7 @@ const PROJECT_FRONTMATTER_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = [
   "deadline",
   "status",
   "links",
+  "attachments",
   "codebase_root",
   "codebases",
   "created_at",
@@ -207,6 +208,20 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
               return [];
             }
             return [{ label: item.label, url: item.url }];
+          }),
+        }
+      : {}),
+    ...(Array.isArray(record.attachments)
+      ? {
+          attachments: record.attachments.flatMap((entry) => {
+            if (typeof entry !== "object" || entry === null) {
+              return [];
+            }
+            const item = entry as Record<string, unknown>;
+            if (typeof item.label !== "string" || typeof item.url !== "string" || typeof item.type !== "string" || typeof item.addedAt !== "string") {
+              return [];
+            }
+            return [{ label: item.label, url: item.url, type: item.type as NonNullable<ProjectFrontmatter["attachments"]>[number]["type"], addedAt: item.addedAt }];
           }),
         }
       : {}),

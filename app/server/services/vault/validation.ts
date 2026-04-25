@@ -45,7 +45,7 @@ const TASK_MUTABLE_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
 
 const PROJECT_IMMUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["id", "type", "workspace_id", "created_at", "updated_at"] as const;
 
-const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name", "description", "budget", "deadline", "status", "links", "codebase_root", "codebases"] as const;
+const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name", "description", "budget", "deadline", "status", "links", "attachments", "codebase_root", "codebases"] as const;
 
 export interface TaskWriteValidationInput {
   readonly current: TaskFrontmatter;

@@ -230,6 +230,33 @@ type ProjectLinkEntry struct {
 	URL   string
 }
 
+type ProjectAttachmentType string
+
+const (
+	ProjectAttachmentTypeDoc   ProjectAttachmentType = "doc"
+	ProjectAttachmentTypeAudio ProjectAttachmentType = "audio"
+	ProjectAttachmentTypeVideo ProjectAttachmentType = "video"
+	ProjectAttachmentTypeSheet ProjectAttachmentType = "sheet"
+	ProjectAttachmentTypeImage ProjectAttachmentType = "image"
+	ProjectAttachmentTypeLink  ProjectAttachmentType = "link"
+)
+
+func (t ProjectAttachmentType) Valid() bool {
+	switch t {
+	case ProjectAttachmentTypeDoc, ProjectAttachmentTypeAudio, ProjectAttachmentTypeVideo, ProjectAttachmentTypeSheet, ProjectAttachmentTypeImage, ProjectAttachmentTypeLink:
+		return true
+	default:
+		return false
+	}
+}
+
+type ProjectAttachmentEntry struct {
+	Label   string
+	URL     string
+	Type    ProjectAttachmentType
+	AddedAt time.Time
+}
+
 type ProjectStatus string
 
 const (
@@ -257,6 +284,7 @@ type ProjectFrontmatter struct {
 	Deadline     *time.Time
 	Status       *ProjectStatus
 	Links        []ProjectLinkEntry
+	Attachments  []ProjectAttachmentEntry
 	CodebaseRoot *string
 	Codebases    []CodebaseEntry
 	CreatedAt    time.Time
@@ -528,6 +556,20 @@ func ValidateProjectFrontmatter(project ProjectFrontmatter) error {
 		}
 		if strings.TrimSpace(link.URL) == "" {
 			errs = appendError(errs, fmt.Sprintf("links[%d].url", index), "required")
+		}
+	}
+	for index, attachment := range project.Attachments {
+		if strings.TrimSpace(attachment.Label) == "" {
+			errs = appendError(errs, fmt.Sprintf("attachments[%d].label", index), "required")
+		}
+		if strings.TrimSpace(attachment.URL) == "" {
+			errs = appendError(errs, fmt.Sprintf("attachments[%d].url", index), "required")
+		}
+		if !attachment.Type.Valid() {
+			errs = appendError(errs, fmt.Sprintf("attachments[%d].type", index), "invalid")
+		}
+		if attachment.AddedAt.IsZero() {
+			errs = appendError(errs, fmt.Sprintf("attachments[%d].added_at", index), "required")
 		}
 	}
 	if project.CreatedAt.IsZero() {
