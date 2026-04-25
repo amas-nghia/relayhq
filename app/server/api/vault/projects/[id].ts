@@ -13,6 +13,11 @@ function readOptionalString(value: unknown): string | null | undefined {
   throw createError({ statusCode: 400, statusMessage: "Project patch fields must be strings or null." });
 }
 
+function readOptionalProjectStatus(value: unknown): string | null | undefined {
+  const normalized = readOptionalString(value)
+  return typeof normalized === 'string' ? normalized.toLowerCase() : normalized
+}
+
 function readOptionalCodebases(value: unknown) {
   if (value === undefined) {
     return undefined;
@@ -35,6 +40,40 @@ function readOptionalCodebases(value: unknown) {
       ...(typeof record.primary === "boolean" ? { primary: record.primary } : {}),
     };
   });
+}
+
+function readOptionalLinks(value: unknown) {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw createError({ statusCode: 400, statusMessage: "links must be an array when provided." })
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw createError({ statusCode: 400, statusMessage: `links[${index}] must be an object.` })
+    }
+    const record = entry as Record<string, unknown>
+    if (typeof record.label !== "string" || record.label.trim().length === 0 || typeof record.url !== "string" || record.url.trim().length === 0) {
+      throw createError({ statusCode: 400, statusMessage: `links[${index}] requires label and url.` })
+    }
+    return { label: record.label.trim(), url: record.url.trim() }
+  })
+}
+
+function readOptionalAttachments(value: unknown) {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw createError({ statusCode: 400, statusMessage: "attachments must be an array when provided." })
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw createError({ statusCode: 400, statusMessage: `attachments[${index}] must be an object.` })
+    }
+    const record = entry as Record<string, unknown>
+    if (typeof record.label !== "string" || typeof record.url !== "string" || typeof record.type !== "string" || typeof record.addedAt !== "string") {
+      throw createError({ statusCode: 400, statusMessage: `attachments[${index}] requires label, url, type, and addedAt.` })
+    }
+    return { label: record.label.trim(), url: record.url.trim(), type: record.type.trim(), addedAt: record.addedAt.trim() }
+  })
 }
 
 function readSection(body: string, heading: string): string | null {
@@ -93,12 +132,21 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
     throw createError({ statusCode: 400, statusMessage: "name must not be empty when provided." });
   }
   const description = readOptionalString(patch.description);
-  const status = readOptionalString(patch.status);
+  const budget = readOptionalString(patch.budget);
+  const deadline = readOptionalString(patch.deadline);
+  const status = readOptionalProjectStatus(patch.status);
+  const links = readOptionalLinks(patch.links);
+  const attachments = readOptionalAttachments(patch.attachments);
   const codebaseRoot = readOptionalString(patch.codebase_root);
   const codebases = readOptionalCodebases(patch.codebases);
 
   const frontmatterPatch = {
     ...(name === undefined ? {} : { name: name ?? current.frontmatter.name }),
+    ...(budget === undefined ? {} : { budget: budget ?? undefined }),
+    ...(deadline === undefined ? {} : { deadline: deadline ?? undefined }),
+    ...(status === undefined ? {} : { status: status ?? undefined }),
+    ...(links === undefined ? {} : { links }),
+    ...(attachments === undefined ? {} : { attachments }),
     ...(codebaseRoot === undefined ? {} : { codebase_root: codebaseRoot }),
     ...(codebases === undefined ? {} : { codebases }),
   };
@@ -124,9 +172,13 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
   return {
     id: result.frontmatter.id,
     name: result.frontmatter.name,
+    budget: result.frontmatter.budget ?? null,
+    deadline: result.frontmatter.deadline ?? null,
+    links: result.frontmatter.links ?? [],
+    attachments: result.frontmatter.attachments ?? [],
     codebases: result.frontmatter.codebases ?? (result.frontmatter.codebase_root ? [{ name: "main", path: result.frontmatter.codebase_root, primary: true }] : []),
     description: readSection(result.body, "Description"),
-    status: readSection(result.body, "Status"),
+    status: result.frontmatter.status ?? readSection(result.body, "Status"),
   };
 }
 

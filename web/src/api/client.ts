@@ -112,6 +112,11 @@ export interface RelayHQProjectPatchPayload {
   readonly actorId?: string
   readonly patch: {
     readonly name?: string
+    readonly budget?: string | null
+    readonly deadline?: string | null
+    readonly status?: string | null
+    readonly links?: ReadonlyArray<{ label: string; url: string }>
+    readonly attachments?: ReadonlyArray<{ label: string; url: string; type: string; addedAt: string }>
     readonly codebase_root?: string | null
   }
 }

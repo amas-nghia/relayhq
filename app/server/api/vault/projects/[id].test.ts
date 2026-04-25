@@ -75,7 +75,11 @@ describe("PATCH /api/vault/projects/[id]", () => {
       patch: {
         name: "Renamed Project",
         description: "New description",
+        budget: "$12,000/mo",
+        deadline: "2026-06-01T00:00:00Z",
         status: "Paused",
+        links: [{ label: "PRD", url: "https://notion.so/prd" }],
+        attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-24T00:00:00Z" }],
         codebases: [{ name: "frontend", path: "../repo", tech: "Nuxt", primary: true }],
       },
     }, { vaultRoot: root });
@@ -83,16 +87,23 @@ describe("PATCH /api/vault/projects/[id]", () => {
     expect(response).toEqual({
       id: "project-demo",
       name: "Renamed Project",
+      budget: "$12,000/mo",
+      deadline: "2026-06-01T00:00:00Z",
+      links: [{ label: "PRD", url: "https://notion.so/prd" }],
+      attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-24T00:00:00Z" }],
       codebases: [{ name: "frontend", path: "../repo", tech: "Nuxt", primary: true }],
       description: "New description",
-      status: "Paused",
+      status: "paused",
     });
 
     const projectDocument = await readFile(join(root, "vault", "shared", "projects", "project-demo.md"), "utf8");
     expect(projectDocument).toContain('name: "Renamed Project"');
+    expect(projectDocument).toContain('budget: "$12,000/mo"');
+    expect(projectDocument).toContain('deadline: "2026-06-01T00:00:00Z"');
+    expect(projectDocument).toContain('links: [{"label":"PRD","url":"https://notion.so/prd"}]');
+    expect(projectDocument).toContain('attachments: [{"label":"Kickoff doc","url":"https://drive.google.com/doc","type":"doc","addedAt":"2026-04-24T00:00:00Z"}]');
     expect(projectDocument).toContain('codebases: [{"name":"frontend","path":"../repo","tech":"Nuxt","primary":true}]');
     expect(projectDocument).toContain("## Description\nNew description");
-    expect(projectDocument).toContain("## Status\nPaused");
 
     const auditFiles = await readdir(join(root, "vault", "shared", "audit"));
     expect(auditFiles).toHaveLength(1);
