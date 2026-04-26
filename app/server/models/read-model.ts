@@ -43,6 +43,9 @@ export interface ReadModelAgent {
   readonly model: string;
   readonly fallbackModels: ReadonlyArray<string>;
   readonly monthlyBudgetUsd: number | null;
+  readonly aliases: ReadonlyArray<string>;
+  readonly runCommand: string | null;
+  readonly runMode: string | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly taskTypesAccepted: ReadonlyArray<string>;
   readonly approvalRequiredFor: ReadonlyArray<string>;
@@ -576,6 +579,9 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     model: document.frontmatter.model,
     fallbackModels: [...(document.frontmatter.fallback_models ?? [])].sort(),
     monthlyBudgetUsd: document.frontmatter.monthly_budget_usd ?? null,
+    aliases: [...(document.frontmatter.aliases ?? [])].sort(),
+    runCommand: document.frontmatter.run_command ?? null,
+    runMode: document.frontmatter.run_mode ?? null,
     capabilities: sortStrings(document.frontmatter.capabilities),
     taskTypesAccepted: sortStrings(document.frontmatter.task_types_accepted),
     approvalRequiredFor: sortStrings(document.frontmatter.approval_required_for),

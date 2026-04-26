@@ -106,6 +106,23 @@ func (p TaskPriority) Valid() bool {
 	}
 }
 
+type AgentRunMode string
+
+const (
+	AgentRunModeManual     AgentRunMode = "manual"
+	AgentRunModeSubprocess AgentRunMode = "subprocess"
+	AgentRunModeWebhook    AgentRunMode = "webhook"
+)
+
+func (m AgentRunMode) Valid() bool {
+	switch m {
+	case AgentRunModeManual, AgentRunModeSubprocess, AgentRunModeWebhook:
+		return true
+	default:
+		return false
+	}
+}
+
 type ApprovalOutcome string
 
 const (
@@ -182,6 +199,9 @@ type AgentFrontmatter struct {
 	Model               string
 	FallbackModels      []string
 	MonthlyBudgetUSD    *float64
+	Aliases             []string
+	RunCommand          *string
+	RunMode             *AgentRunMode
 	Capabilities        []string
 	TaskTypesAccepted   []string
 	ApprovalRequiredFor []string
@@ -469,6 +489,12 @@ func ValidateAgentFrontmatter(agent AgentFrontmatter) error {
 	}
 	if agent.Model == "" {
 		errs = appendError(errs, "model", "required")
+	}
+	if agent.RunCommand != nil && strings.TrimSpace(*agent.RunCommand) == "" {
+		errs = appendError(errs, "run_command", "must not be empty when set")
+	}
+	if agent.RunMode != nil && !agent.RunMode.Valid() {
+		errs = appendError(errs, "run_mode", "invalid")
 	}
 	if agent.SkillFile == "" {
 		errs = appendError(errs, "skill_file", "required")

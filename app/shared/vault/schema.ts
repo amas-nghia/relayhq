@@ -17,6 +17,8 @@ export const TASK_COLUMNS = ["todo", "in-progress", "review", "done"] as const;
 
 export const TASK_PRIORITIES = ["critical", "high", "medium", "low"] as const;
 
+export const AGENT_RUN_MODES = ["manual", "subprocess", "webhook"] as const;
+
 export const APPROVAL_OUTCOMES = ["approved", "rejected", "pending"] as const;
 
 export const ALLOWED_MODELS = [
@@ -50,6 +52,7 @@ export function isExpensiveModel(value: string): boolean {
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskColumn = (typeof TASK_COLUMNS)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+export type AgentRunMode = (typeof AGENT_RUN_MODES)[number];
 export type ApprovalOutcome = (typeof APPROVAL_OUTCOMES)[number];
 
 export interface ValidationIssue {
@@ -143,6 +146,9 @@ export interface AgentFrontmatter {
   readonly model: string;
   readonly fallback_models?: ReadonlyArray<string>;
   readonly monthly_budget_usd?: number | null;
+  readonly aliases?: ReadonlyArray<string>;
+  readonly run_command?: string;
+  readonly run_mode?: AgentRunMode;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
   readonly approval_required_for: ReadonlyArray<string>;
@@ -668,6 +674,15 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   }
   if (hasKey(input, "monthly_budget_usd") && input.monthly_budget_usd !== null && !isFiniteNumber(input.monthly_budget_usd)) {
     pushIssue(issues, "monthly_budget_usd", "must be a number or null");
+  }
+  if (hasKey(input, "aliases")) {
+    requireStringArrayField(input, "aliases", issues);
+  }
+  if (hasKey(input, "run_command")) {
+    requireStringField(input, "run_command", issues);
+  }
+  if (hasKey(input, "run_mode")) {
+    requireEnumField(input, "run_mode", AGENT_RUN_MODES, issues);
   }
   requireStringArrayField(input, "capabilities", issues);
   requireStringArrayField(input, "task_types_accepted", issues);

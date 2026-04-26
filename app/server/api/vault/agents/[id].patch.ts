@@ -18,7 +18,7 @@ function normalizeStringArray(value: unknown, field: string): string[] {
   return [...new Set(value.map((entry) => entry.trim()).filter((entry) => entry.length > 0))]
 }
 
-function upsertFrontmatterLine(content: string, key: string, value: string | number | undefined): string {
+function upsertFrontmatterLine(content: string, key: string, value: string | number | ReadonlyArray<string> | undefined): string {
   if (value === undefined) {
     return content
   }
@@ -61,6 +61,9 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   next = upsertFrontmatterLine(next, "account_id", typeof patch.account_id === "string" && patch.account_id.trim().length > 0 ? patch.account_id.trim() : undefined)
   next = upsertFrontmatterLine(next, "api_key_ref", typeof patch.api_key_ref === "string" && patch.api_key_ref.trim().length > 0 ? patch.api_key_ref.trim() : undefined)
   next = upsertFrontmatterLine(next, "monthly_budget_usd", typeof patch.monthly_budget_usd === "number" ? patch.monthly_budget_usd : undefined)
+  next = upsertFrontmatterLine(next, "aliases", patch.aliases !== undefined ? normalizeStringArray(patch.aliases, "aliases") : undefined)
+  next = upsertFrontmatterLine(next, "run_command", typeof patch.run_command === "string" && patch.run_command.trim().length > 0 ? patch.run_command.trim() : undefined)
+  next = upsertFrontmatterLine(next, "run_mode", typeof patch.run_mode === "string" && patch.run_mode.trim().length > 0 ? patch.run_mode.trim() : undefined)
 
   if (patch.fallback_models !== undefined) {
     const line = `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}`

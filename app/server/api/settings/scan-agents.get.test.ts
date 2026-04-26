@@ -28,7 +28,7 @@ describe("GET /api/settings/scan-agents", () => {
 
       const response = await scanAgents({ vaultRoot: root, homeDirectory: home });
 
-      expect(response.discovered).toHaveLength(6);
+      expect(response.discovered).toHaveLength(7);
       expect(response.discovered).toEqual(expect.arrayContaining([
         {
           id: "claude-code",

@@ -5,6 +5,9 @@ name: Claude Code
 role: implementation
 provider: claude
 model: claude-sonnet-4-6
+aliases: ["claude-code", "operator"]
+run_command: "bun run ./cli/relayhq.ts run --taskId={taskId}"
+run_mode: subprocess
 capabilities: ["write-code", "run-tests", "review-code", "write-docs"]
 task_types_accepted: ["feature-implementation", "bug-fix", "refactoring", "test-writing", "documentation"]
 approval_required_for: ["breaking-api-change", "vault-schema-change", "deploy"]

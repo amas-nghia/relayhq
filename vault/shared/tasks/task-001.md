@@ -5,18 +5,18 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-demo"
 board_id: "board-demo"
-column: "in-progress"
-status: "in-progress"
+column: "done"
+status: "done"
 priority: "high"
 title: "Seed shared vault demo data"
 assignee: "agent-backend-dev"
 created_by: "@alice"
 created_at: "2026-04-15T09:00:00Z"
-updated_at: "2026-04-16T00:18:17.806Z"
-heartbeat_at: "2026-04-16T00:18:17.806Z"
+updated_at: "2026-04-26T00:00:00Z"
+heartbeat_at: "2026-04-26T00:00:00Z"
 execution_started_at: null
 execution_notes: null
-progress: 0
+progress: 100
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
@@ -25,15 +25,15 @@ approved_at: null
 approval_outcome: "pending"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Seeded shared vault demo data is in place."
+completed_at: "2026-04-26T00:00:00Z"
 parent_task_id: null
 depends_on: []
 tags: ["phase-1","vault","seed"]
 links: [{"project":"project-demo","thread":"thread-phase-1"}]
-locked_by: "@alice"
-locked_at: "2026-04-16T00:18:17.806Z"
-lock_expires_at: "2026-04-16T00:23:17.806Z"
+locked_by: null
+locked_at: null
+lock_expires_at: null
 ---
 
 # Seed shared vault demo data

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createError, defineEventHandler, readBody } from "h3";
@@ -21,6 +20,14 @@ function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    return [];
+  }
+
+  return [...new Set(value.map((entry) => entry.trim()).filter((entry) => entry.length > 0))];
+}
+
 export async function registerVaultAgent(
   body: unknown,
   options: { vaultRoot?: string; now?: Date; env?: NodeJS.ProcessEnv } = {},
@@ -37,6 +44,7 @@ export async function registerVaultAgent(
   }
 
   const id = slugify(String(body.name));
+  const aliases = normalizeStringArray(body.aliases);
   const sharedRoot = resolveSharedVaultPath(vaultRoot);
   const filePath = join(sharedRoot, "agents", `${id}.md`);
   try {
@@ -61,6 +69,9 @@ export async function registerVaultAgent(
     ...(typeof body.apiKeyRef === "string" && body.apiKeyRef.trim().length > 0 ? { api_key_ref: body.apiKeyRef.trim() } : {}),
     model: String(body.model).trim(),
     ...(typeof body.monthlyBudgetUsd === "number" ? { monthly_budget_usd: body.monthlyBudgetUsd } : {}),
+    ...(aliases.length > 0 ? { aliases } : {}),
+    ...(typeof body.runCommand === "string" && body.runCommand.trim().length > 0 ? { run_command: body.runCommand.trim() } : {}),
+    ...(typeof body.runMode === "string" && body.runMode.trim().length > 0 ? { run_mode: body.runMode.trim() as AgentFrontmatter["run_mode"] } : {}),
     capabilities: [],
     task_types_accepted: [],
     approval_required_for: [],
@@ -74,8 +85,40 @@ export async function registerVaultAgent(
     updated_at: timestamp,
   };
   assertAgentFrontmatter(frontmatter);
-  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\n${frontmatter.account_id === undefined ? '' : `account_id: ${JSON.stringify(frontmatter.account_id)}\n`}role: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\n${frontmatter.api_key_ref === undefined ? '' : `api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}\n`}model: ${JSON.stringify(frontmatter.model)}\n${frontmatter.monthly_budget_usd === undefined ? '' : `monthly_budget_usd: ${frontmatter.monthly_budget_usd}\n`}capabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\n${frontmatter.skill_files === undefined ? '' : `skill_files: ${JSON.stringify(frontmatter.skill_files)}\n`}status: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
-  await writeFile(filePath, markdown, { flag: "wx" });
+
+  const markdownLines = [
+    "---",
+    `id: ${JSON.stringify(id)}`,
+    "type: agent",
+    `name: ${JSON.stringify(frontmatter.name)}`,
+    ...(frontmatter.account_id === undefined ? [] : [`account_id: ${JSON.stringify(frontmatter.account_id)}`]),
+    `role: ${JSON.stringify(frontmatter.role)}`,
+    `roles: ${JSON.stringify(frontmatter.roles)}`,
+    `provider: ${JSON.stringify(frontmatter.provider)}`,
+    ...(frontmatter.api_key_ref === undefined ? [] : [`api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}`]),
+    `model: ${JSON.stringify(frontmatter.model)}`,
+    ...(frontmatter.monthly_budget_usd === undefined ? [] : [`monthly_budget_usd: ${frontmatter.monthly_budget_usd}`]),
+    ...(frontmatter.aliases === undefined ? [] : [`aliases: ${JSON.stringify(frontmatter.aliases)}`]),
+    ...(frontmatter.run_command === undefined ? [] : [`run_command: ${JSON.stringify(frontmatter.run_command)}`]),
+    ...(frontmatter.run_mode === undefined ? [] : [`run_mode: ${JSON.stringify(frontmatter.run_mode)}`]),
+    "capabilities: []",
+    "task_types_accepted: []",
+    "approval_required_for: []",
+    "cannot_do: []",
+    "accessible_by: []",
+    `skill_file: ${JSON.stringify(frontmatter.skill_file)}`,
+    ...(frontmatter.skill_files === undefined ? [] : [`skill_files: ${JSON.stringify(frontmatter.skill_files)}`]),
+    'status: "available"',
+    `workspace_id: ${JSON.stringify(workspaceId)}`,
+    `created_at: ${timestamp}`,
+    `updated_at: ${timestamp}`,
+    "---",
+    "",
+    `# ${frontmatter.name}`,
+    "",
+  ];
+
+  await writeFile(filePath, `${markdownLines.join("\n")}`, { flag: "wx" });
   return {
     agent: frontmatter,
     sourcePath: join("vault", "shared", "agents", `${id}.md`),

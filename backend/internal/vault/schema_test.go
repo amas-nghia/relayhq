@@ -88,21 +88,24 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 
 	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
 	agent := AgentFrontmatter{
-		ID:          "agent-backend-dev",
-		Type:        "agent",
-		Name:        "Backend Developer",
-		AccountID:   ptrString("claude-account-1"),
-		Role:        "implementation",
-		Provider:    "claude",
-		APIKeyRef:   ptrString("env:ANTHROPIC_API_KEY_ACCOUNT_1"),
-		Model:       "claude-sonnet-4-6",
-		FallbackModels: []string{"claude-haiku-4-5", "gpt-4o-mini"},
+		ID:               "agent-backend-dev",
+		Type:             "agent",
+		Name:             "Backend Developer",
+		AccountID:        ptrString("claude-account-1"),
+		Role:             "implementation",
+		Provider:         "claude",
+		APIKeyRef:        ptrString("env:ANTHROPIC_API_KEY_ACCOUNT_1"),
+		Model:            "claude-sonnet-4-6",
+		FallbackModels:   []string{"claude-haiku-4-5", "gpt-4o-mini"},
 		MonthlyBudgetUSD: ptrFloat64(25),
-		SkillFile:   "skills/relayhq-backend-dev.md",
-		Status:      "available",
-		WorkspaceID: "ws-acme",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Aliases:          []string{"backend-dev", "code-assistant"},
+		RunCommand:       ptrString("bun run ./cli/relayhq.ts run --taskId={taskId}"),
+		RunMode:          ptrAgentRunMode(AgentRunModeSubprocess),
+		SkillFile:        "skills/relayhq-backend-dev.md",
+		Status:           "available",
+		WorkspaceID:      "ws-acme",
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	if err := ValidateAgentFrontmatter(agent); err != nil {
@@ -110,8 +113,9 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 	}
 }
 
-func ptrString(value string) *string { return &value }
-func ptrFloat64(value float64) *float64 { return &value }
+func ptrString(value string) *string                   { return &value }
+func ptrFloat64(value float64) *float64                { return &value }
+func ptrAgentRunMode(value AgentRunMode) *AgentRunMode { return &value }
 
 func TestValidateProviderOverlayFrontmatter(t *testing.T) {
 	t.Parallel()
@@ -179,7 +183,7 @@ func TestValidateProjectFrontmatter(t *testing.T) {
 				Type:        "project",
 				WorkspaceID: "ws-acme",
 				Name:        "Authentication",
-				Codebases: []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Primary: true}},
+				Codebases:   []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Primary: true}},
 				CreatedAt:   now,
 				UpdatedAt:   now,
 			},
@@ -192,7 +196,7 @@ func TestValidateProjectFrontmatter(t *testing.T) {
 				Type:        "project",
 				WorkspaceID: "ws-acme",
 				Name:        "Authentication",
-				Codebases: []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Tech: "Next.js", Primary: true}, {Name: "backend", Path: "/repo/backend", Tech: "NestJS"}},
+				Codebases:   []CodebaseEntry{{Name: "frontend", Path: "/repo/frontend", Tech: "Next.js", Primary: true}, {Name: "backend", Path: "/repo/backend", Tech: "NestJS"}},
 				CreatedAt:   now,
 				UpdatedAt:   now,
 			},

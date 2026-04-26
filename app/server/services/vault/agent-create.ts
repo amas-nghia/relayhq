@@ -18,6 +18,9 @@ export interface CreateAgentInput {
   readonly apiKeyRef?: string | null;
   readonly model: string;
   readonly monthlyBudgetUsd?: number | null;
+  readonly aliases?: ReadonlyArray<string>;
+  readonly runCommand?: string | null;
+  readonly runMode?: string | null;
   readonly capabilities?: ReadonlyArray<string>;
   readonly taskTypesAccepted?: ReadonlyArray<string>;
   readonly approvalRequiredFor?: ReadonlyArray<string>;
@@ -103,6 +106,9 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     ...(frontmatter.api_key_ref === undefined ? [] : [`api_key_ref: ${serializeValue(frontmatter.api_key_ref)}`]),
     `model: ${serializeValue(frontmatter.model)}`,
     ...(frontmatter.monthly_budget_usd === undefined ? [] : [`monthly_budget_usd: ${serializeValue(frontmatter.monthly_budget_usd)}`]),
+    ...(frontmatter.aliases === undefined ? [] : [`aliases: ${serializeValue(frontmatter.aliases)}`]),
+    ...(frontmatter.run_command === undefined ? [] : [`run_command: ${serializeValue(frontmatter.run_command)}`]),
+    ...(frontmatter.run_mode === undefined ? [] : [`run_mode: ${serializeValue(frontmatter.run_mode)}`]),
     `capabilities: ${serializeValue(frontmatter.capabilities)}`,
     `task_types_accepted: ${serializeValue(frontmatter.task_types_accepted)}`,
     `approval_required_for: ${serializeValue(frontmatter.approval_required_for)}`,
@@ -151,6 +157,9 @@ function buildAgentFrontmatter(input: {
   readonly apiKeyRef: string | null;
   readonly model: string;
   readonly monthlyBudgetUsd: number | null;
+  readonly aliases: ReadonlyArray<string>;
+  readonly runCommand: string | null;
+  readonly runMode: string | null;
   readonly workspaceId: string;
   readonly now: Date;
   readonly capabilities: ReadonlyArray<string>;
@@ -174,6 +183,9 @@ function buildAgentFrontmatter(input: {
     ...(input.apiKeyRef === null ? {} : { api_key_ref: input.apiKeyRef }),
     model: input.model,
     ...(input.monthlyBudgetUsd === null ? {} : { monthly_budget_usd: input.monthlyBudgetUsd }),
+    ...(input.aliases === undefined || input.aliases.length === 0 ? {} : { aliases: [...new Set(input.aliases.map((entry) => entry.trim()).filter((entry) => entry.length > 0))] }),
+    ...(input.runCommand === null || input.runCommand === undefined ? {} : { run_command: input.runCommand }),
+    ...(input.runMode === null || input.runMode === undefined ? {} : { run_mode: input.runMode as AgentFrontmatter["run_mode"] }),
     capabilities: input.capabilities,
     task_types_accepted: input.taskTypesAccepted,
     approval_required_for: input.approvalRequiredFor,
@@ -223,6 +235,9 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     apiKeyRef: input.apiKeyRef ?? null,
     model,
     monthlyBudgetUsd: input.monthlyBudgetUsd ?? null,
+    aliases: input.aliases ?? [],
+    runCommand: input.runCommand ?? null,
+    runMode: input.runMode ?? null,
     workspaceId,
     now,
     capabilities,

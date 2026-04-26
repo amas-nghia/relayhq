@@ -20,6 +20,9 @@ describe("PATCH /api/vault/agents/:id", () => {
         'roles: ["implementation"]',
         'provider: "claude"',
         'model: "claude-sonnet-4-6"',
+        'aliases: ["claude-operator"]',
+        'run_command: "bun run ./cli/relayhq.ts run --taskId={taskId}"',
+        'run_mode: "subprocess"',
         'capabilities: ["write-code"]',
         'task_types_accepted: []',
         'approval_required_for: []',
@@ -33,11 +36,14 @@ describe("PATCH /api/vault/agents/:id", () => {
         "---",
       ].join("\n"), "utf8");
 
-      const response = await patchVaultAgent("agent-claude-code", { patch: { name: "Claude Operator", capabilities: ["write-code", "run-tests"], approval_required_for: ["deploy"] } }, { vaultRoot: root });
+      const response = await patchVaultAgent("agent-claude-code", { patch: { name: "Claude Operator", aliases: ["operator", "coder"], run_command: "bun run ./cli/relayhq.ts run --taskId={taskId}", run_mode: "webhook", capabilities: ["write-code", "run-tests"], approval_required_for: ["deploy"] } }, { vaultRoot: root });
       expect(response.success).toBe(true);
 
       const content = await readFile(join(root, "vault", "shared", "agents", "agent-claude-code.md"), "utf8");
       expect(content).toContain('name: "Claude Operator"');
+      expect(content).toContain('aliases: ["operator","coder"]');
+      expect(content).toContain('run_command: "bun run ./cli/relayhq.ts run --taskId={taskId}"');
+      expect(content).toContain('run_mode: "webhook"');
       expect(content).toContain('capabilities: ["write-code","run-tests"]');
       expect(content).toContain('approval_required_for: ["deploy"]');
     } finally {
