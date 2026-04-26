@@ -118,7 +118,7 @@ export function DocsView() {
 
       {isNewDocOpen && (
         <Dialog open>
-          <DialogOverlay />
+          <DialogOverlay onClick={() => setIsNewDocOpen(false)} />
           <DialogContent>
             <DialogPanel className="max-w-2xl">
               <DialogHeader>

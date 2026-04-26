@@ -207,6 +207,7 @@ export async function appendTaskComment(taskId: string, input: { author: string;
     kind: "vault.changed",
     reason: "task.commented",
     taskId,
+    agentId: null,
     source: author,
     timestamp,
   });

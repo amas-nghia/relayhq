@@ -1,8 +1,17 @@
 import { assertMethod, createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
 import { startTaskAutorun } from "../../../services/agents/autorun";
-import { patchTaskLifecycle } from "../../../services/vault/task-lifecycle";
-import { scheduleTaskLifecycle } from "../../../services/vault/task-lifecycle";
+import { patchTaskLifecycle, scheduleTaskLifecycle } from "../../../services/vault/task-lifecycle";
+import { readCanonicalVaultReadModel } from "../../../services/vault/read";
+import { resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
+
+// Transitions that require a human actor (not a registered agent).
+// review→done: human approves the work as complete.
+// review→todo: human rejects/reopens for rework.
+const HUMAN_ONLY_TRANSITIONS: ReadonlyArray<{ from: string; to: string }> = [
+  { from: "review", to: "done" },
+  { from: "review", to: "todo" },
+];
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -27,14 +36,33 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: "rateLimitedUntil must be an ISO-8601 timestamp." });
     }
 
-    const result = await scheduleTaskLifecycle({
+    return scheduleTaskLifecycle({
       taskId,
       actorId: body.actorId,
       nextRunAt: body.patch.rateLimitedUntil,
       reason: typeof body.patch.blocked_reason === "string" ? body.patch.blocked_reason : "Rate limited",
-    })
+    });
+  }
 
-    return result
+  // Permission check: some transitions are human-only.
+  if (typeof body.patch.status === "string") {
+    const vaultRoot = resolveVaultWorkspaceRoot();
+    const readModel = await readCanonicalVaultReadModel(vaultRoot);
+    const agentIds = new Set(readModel.agents.map((a) => a.id));
+
+    if (agentIds.has(body.actorId)) {
+      const currentTask = readModel.tasks.find((t) => t.id === taskId);
+      const currentStatus = currentTask?.status ?? "";
+      const nextStatus = body.patch.status as string;
+
+      const blocked = HUMAN_ONLY_TRANSITIONS.some((t) => t.from === currentStatus && t.to === nextStatus);
+      if (blocked) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: `Agents cannot move tasks from "${currentStatus}" to "${nextStatus}". Only humans can perform this transition.`,
+        });
+      }
+    }
   }
 
   const result = await patchTaskLifecycle({
@@ -44,9 +72,9 @@ export default defineEventHandler(async (event) => {
   });
 
   if (body.autoRun === true) {
-    const runner = await startTaskAutorun(taskId)
-    return { ...result, autoRun: { started: true, ...runner } }
+    const runner = await startTaskAutorun(taskId);
+    return { ...result, autoRun: { started: true, ...runner } };
   }
 
-  return result
+  return result;
 });

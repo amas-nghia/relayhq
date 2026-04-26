@@ -173,7 +173,10 @@ export async function readAgentSession(
     ? readModel
     : filterVaultReadModelByWorkspaceId(readModel, workspaceId);
 
-  const context = await readAgentContext({ preloadedReadModel: filteredReadModel });
+  const context = await readAgentContext(
+    { preloadedReadModel: filteredReadModel },
+    { agentId: options.agent, taskId: options.taskId ?? null },
+  );
   const protocol: AgentSessionProtocol | null = options.includeProtocol === false
     ? null
     : (() => {
@@ -204,6 +207,8 @@ export async function readAgentSession(
   publishRealtimeUpdate({
     kind: "vault.changed",
     reason: "session.updated",
+    taskId: null,
+    agentId: options.agent,
     source: options.agent,
     timestamp: now.toISOString(),
   });
@@ -226,6 +231,7 @@ export async function readAgentSession(
       inlineContextFiles: options.inlineContextFiles,
       preloadedReadModel: filteredReadModel,
       resolveRoot: () => vaultRoot,
+      agentId: options.agent,
     });
     if (options.since !== undefined && options.since === pack.etag) {
       bootstrap = { changed: false, etag: pack.etag } satisfies BootstrapUnchanged;

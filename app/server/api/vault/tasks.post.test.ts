@@ -77,4 +77,33 @@ describe("POST /api/vault/tasks validation", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  test("accepts recurring tasks with a cron schedule", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-cron-"));
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      await seedBoard(root);
+
+      const response = await createVaultTaskFromBody({
+        title: "Generate daily summary",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "medium",
+        assignee: "agent-claude-code",
+        objective: "Generate the daily summary and keep the workflow scheduled for the next business day so the team receives a fresh run every morning.",
+        acceptanceCriteria: ["Task is created", "Task is scheduled for the next run"],
+        contextFiles: ["docs/standup.md"],
+        cron_schedule: "0 9 * * 1-5",
+      });
+
+      const file = await readFile(join(root, response.sourcePath), "utf8");
+      expect(file).toContain('cron_schedule: "0 9 * * 1-5"');
+      expect(file).toContain('status: "scheduled"');
+      expect(file).toContain('next_run_at:');
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

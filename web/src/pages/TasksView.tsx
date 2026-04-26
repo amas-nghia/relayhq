@@ -7,6 +7,7 @@ import { TaskPriority, TaskStatus } from '../types';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import { useNavigate } from 'react-router-dom'
 
 type SortField = 'id' | 'title' | 'project' | 'status' | 'priority' | 'assignee' | null
 type SortDirection = 'asc' | 'desc' | null
@@ -71,8 +72,8 @@ export function TasksView() {
   const agents = useAppStore(state => state.agents);
   const projects = useAppStore(state => state.projects);
   const isLoading = useAppStore(state => state.isLoading);
-  const openDetail = useAppStore(state => state.openTaskDetail);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
@@ -382,7 +383,7 @@ export function TasksView() {
               return (
                 <tr 
                   key={task.id} 
-                  onClick={() => openDetail(task.id)}
+                  onClick={() => navigate(`/tasks/${task.id}`)}
                   className="hover:bg-surface-secondary/50 transition-colors cursor-pointer group"
                 >
                   <td className="px-4 py-3">

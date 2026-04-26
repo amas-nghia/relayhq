@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type DragEvent, useRef, useState } from 'react';
 
 import { useAppStore } from '../store/appStore';
 import { TaskCard } from '../components/task/TaskCard';
@@ -8,14 +8,13 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Select } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-
-type BoardLaneId = 'todo' | 'in-progress' | 'review' | 'scheduled' | 'done'
+import { resolveBoardDrop, type BoardLaneId } from './boardDrop';
 
 const COLUMNS: { id: BoardLaneId; label: string }[] = [
+  { id: 'todo', label: 'TODO' },
+  { id: 'scheduled', label: 'SCHEDULED' },
   { id: 'in-progress', label: 'IN PROGRESS' },
   { id: 'review', label: 'REVIEW' },
-  { id: 'scheduled', label: 'SCHEDULED' },
-  { id: 'todo', label: 'TODO' },
   { id: 'done', label: 'DONE' }
 ];
 
@@ -26,7 +25,10 @@ export function BoardView() {
   const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
   const projects = useAppStore(state => state.projects);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
+  const moveTaskToStatus = useAppStore(state => state.moveTaskToStatus);
   const [activeLane, setActiveLane] = useState<BoardLaneId>('in-progress');
+  const [dragOverLane, setDragOverLane] = useState<BoardLaneId | null>(null);
+  const [dropHint, setDropHint] = useState<string | null>(null);
   const laneRefs = useRef<Record<BoardLaneId, HTMLDivElement | null>>({ todo: null, 'in-progress': null, review: null, scheduled: null, done: null });
 
   const getTasksByStatus = (status: BoardLaneId) => {
@@ -56,6 +58,31 @@ export function BoardView() {
     return filteredTasks
       .filter(t => t.status === status)
       .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
+  };
+
+  const handleDrop = async (laneId: BoardLaneId, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragOverLane(null);
+    setDropHint(null);
+    const taskId = event.dataTransfer.getData('application/x-relayhq-task-id') || event.dataTransfer.getData('text/plain');
+    if (!taskId) return;
+
+    const task = tasks.find((entry) => entry.id === taskId);
+    if (!task) return;
+
+    const next = resolveBoardDrop(laneId, task.status);
+    if (!next) {
+      if (laneId === 'done' && task.status === 'waiting-approval') {
+        setDropHint('This task is waiting approval. Approve it first, then move it to Done.');
+      } else if (laneId === 'done') {
+        setDropHint('Only review tasks can be dropped into Done.');
+      }
+      return;
+    }
+
+    if (next.status === task.status && next.column === task.columnId) return;
+
+    await moveTaskToStatus(taskId, next.status, task.lockedBy ?? task.assigneeId ?? 'human-user');
   };
 
   return (
@@ -88,6 +115,12 @@ export function BoardView() {
         </Button>
       </div>
 
+      {dropHint && (
+        <div className="rounded-lg border border-status-waiting/30 bg-status-waiting/10 px-4 py-3 text-sm text-status-waiting">
+          {dropHint}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 overflow-x-auto pb-1 xl:hidden">
         {COLUMNS.map((column) => (
           <Button
@@ -110,17 +143,29 @@ export function BoardView() {
           {COLUMNS.map(col => {
             const colTasks = getTasksByStatus(col.id);
             return (
-              <Card
-                key={col.id}
-                ref={(node) => {
-                  laneRefs.current[col.id] = node
-                }}
-                className="flex h-full min-h-0 min-w-full snap-start flex-col overflow-hidden p-4 md:min-w-[calc(50%-0.5rem)] xl:min-w-0"
-              >
+                <Card
+                  key={col.id}
+                  ref={(node) => {
+                    laneRefs.current[col.id] = node
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setDragOverLane(col.id);
+                  }}
+                  onDragLeave={() => setDragOverLane((current) => (current === col.id ? null : current))}
+                  onDrop={(event) => void handleDrop(col.id, event)}
+                  className={
+                    `flex h-full min-h-0 min-w-full snap-start flex-col overflow-hidden p-4 md:min-w-[calc(50%-0.5rem)] xl:min-w-0 ${dragOverLane === col.id ? (col.id === 'done' ? 'border-status-done/50 bg-status-done/10 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]' : 'border-brand/40 bg-brand-muted/20') : ''}`
+                  }
+                >
                 <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
                     {col.label} <Badge variant="secondary" className="ml-1 border-brand/15 bg-brand-muted text-text-tertiary">{colTasks.length}</Badge>
                   </h3>
+                  {dragOverLane === 'done' && col.id === 'done' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-status-done">Drop to finish</span>
+                  )}
                   {col.id === 'todo' && (
                     <Button
                       type="button"
@@ -134,7 +179,18 @@ export function BoardView() {
                   )}
                 </div>
                 
-                <div className="lane-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                <div
+                  className="lane-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1"
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragOverLane(col.id);
+                  }}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setDragOverLane(col.id);
+                  }}
+                  onDrop={(event) => void handleDrop(col.id, event)}
+                >
                   {isLoading && tasks.length === 0 ? (
                     <div className="space-y-3">
                       <div className="h-24 rounded-lg border border-dashed border-border bg-surface-secondary/60 animate-pulse" />

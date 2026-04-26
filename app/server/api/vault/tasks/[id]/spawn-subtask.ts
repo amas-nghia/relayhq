@@ -1,6 +1,6 @@
 import { assertMethod, createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
-import type { TaskPriority } from "../../../../shared/vault/schema";
+import type { TaskPriority } from "../../../../../shared/vault/schema";
 import { readCanonicalVaultReadModel } from "../../../../services/vault/read";
 import { formatTaskInputIssues, validateTaskInput } from "../../../../services/vault/task-input";
 import { createVaultTask, TaskCreateError } from "../../../../services/vault/task-create";

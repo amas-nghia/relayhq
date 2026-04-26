@@ -135,6 +135,11 @@ describe("createVaultTask", () => {
       expect(result.frontmatter.created_by).toBe("@relayhq-web");
       expect(result.frontmatter.status).toBe("todo");
       expect(result.frontmatter.column).toBe("todo");
+      expect(result.frontmatter.history?.[0]).toMatchObject({
+        actor: "@relayhq-web",
+        action: "created",
+        to_status: "todo",
+      });
 
       const diskState = await readTaskDocument(result.filePath);
       expect(diskState.frontmatter.title).toBe("Ship project create flow");

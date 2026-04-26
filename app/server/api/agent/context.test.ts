@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
 import { describe, expect, test } from "bun:test";
 
 import type { VaultReadModel } from "../../models/read-model";
@@ -457,6 +461,38 @@ describe("GET /api/agent/context", () => {
       activeSessions: [],
       boardSummary: [],
     }));
+  });
+
+  test("injects matched skills into the response", async () => {
+    const skillDir = await mkdtemp(join(tmpdir(), "relayhq-skills-"));
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, "code-review@1.0.0.md"), `---\nname: code-review\nversion: 1.0.0\ndescription: Code review skill\nrequires: []\ntask_types:\n  - review\napplies_to_tags:\n  - code-review\n---\n# Code Review Skill\n\nReview content.\n`, "utf8");
+
+    try {
+      const response = await readAgentContext({
+        readModelReader: async () => ({
+          ...createReadModel(),
+          tasks: [
+            {
+              ...createReadModel().tasks[0],
+              tags: ["code-review"],
+            },
+          ],
+        }),
+        resolveRoot: () => "/tmp/relayhq-vault",
+        workspaceIdReader: () => null,
+        skillDir,
+      }, { agentId: 'agent-claude-code', taskId: 'task-open' });
+
+      expect(response.skills).toHaveLength(1);
+      expect(response.skills[0]).toMatchObject({
+        name: "code-review",
+        version: "1.0.0",
+      });
+      expect(response.skills[0]?.content).toContain("Review content.");
+    } finally {
+      await rm(skillDir, { recursive: true, force: true });
+    }
   });
 
   test("includes vaultRoot only when it points outside the default repo root", async () => {

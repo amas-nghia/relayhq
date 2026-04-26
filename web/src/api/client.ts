@@ -69,6 +69,7 @@ export interface VaultTaskCreatePayload {
   readonly contextFiles?: ReadonlyArray<string>
   readonly tags?: ReadonlyArray<string>
   readonly dependsOn?: ReadonlyArray<string>
+  readonly cron_schedule?: string
   readonly github_issue_id?: string
 }
 
@@ -137,6 +138,12 @@ export interface RelayHQBrowseDirectoriesResponse {
   readonly currentPath: string
   readonly parentPath: string | null
   readonly entries: ReadonlyArray<RelayHQBrowseDirectoryEntry>
+}
+
+export interface RelayHQVaultFileEntry {
+  readonly path: string
+  readonly label: string
+  readonly kind: string
 }
 
 export interface RelayHQToolSnippet {
@@ -383,6 +390,7 @@ export const relayhqApi = {
     method: 'DELETE',
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  listVaultFiles: () => request<ReadonlyArray<RelayHQVaultFileEntry>>('/api/settings/vault-files'),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
   getWebhookSettings: () => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks'),
   saveWebhookSettings: (payload: { webhooks: ReadonlyArray<{ id?: string; url: string; events: ReadonlyArray<RelayHQWebhookEvent>; signingSecretRef?: string | null }> }) => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks', {

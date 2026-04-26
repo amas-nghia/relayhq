@@ -40,7 +40,7 @@ export function NewProjectDialog({
 
   return (
     <Dialog open>
-      <DialogOverlay />
+      <DialogOverlay onClick={onClose} />
       <DialogContent>
         <DialogPanel className="max-w-lg">
           <DialogHeader>

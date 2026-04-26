@@ -99,7 +99,7 @@ async function readApprovalDocuments(root: string): Promise<ReadonlyArray<string
 
 describe("task lifecycle service", () => {
   test("patches task status, column, and progress", async () => {
-    const vaultRoot = await createVaultRoot(createTask());
+    const vaultRoot = await createVaultRoot(createTask({ locked_by: "agent-backend-dev", locked_at: "2026-04-15T09:58:00Z", lock_expires_at: "2026-04-15T10:03:00Z" }));
     const now = new Date("2026-04-15T10:00:00Z");
 
     const result = await patchTaskLifecycle({
@@ -114,6 +114,12 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.column).toBe("review");
     expect(result.frontmatter.progress).toBe(100);
     expect(result.frontmatter.completed_at).toBe(now.toISOString());
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.history?.[0]).toMatchObject({
+      actor: "agent-backend-dev",
+      action: "moved-to-review",
+      to_status: "review",
+    });
   });
 
   test("clears completed_at when moving a task to blocked", async () => {
@@ -142,6 +148,11 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.status).toBe("in-progress");
     expect(result.frontmatter.column).toBe("in-progress");
     expect(result.frontmatter.execution_started_at).toBe(now.toISOString());
+    expect(result.frontmatter.history?.[0]).toMatchObject({
+      actor: "agent-backend-dev",
+      action: "claimed",
+      to_status: "in-progress",
+    });
   });
 
   test("publishes realtime updates when the task lifecycle changes", async () => {
@@ -368,6 +379,37 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.locked_by).toBeNull();
     expect(result.frontmatter.locked_at).toBeNull();
     expect(result.frontmatter.lock_expires_at).toBeNull();
+  });
+
+  test("spawns the next recurring instance when a cron task completes", async () => {
+    const vaultRoot = await createVaultRoot(createTask({
+      status: "scheduled",
+      column: "todo",
+      next_run_at: "2026-04-15T09:30:00Z",
+      cron_schedule: "30 9 * * 1-5",
+    }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "agent-backend-dev",
+      vaultRoot,
+      now,
+      patch: { status: "done", column: "done", progress: 100, result: "Completed" },
+    });
+
+    expect(result.frontmatter.status).toBe("done");
+
+    const taskFiles = await readdir(join(vaultRoot, "vault", "shared", "tasks"));
+    expect(taskFiles.length).toBe(2);
+    const spawnedFile = taskFiles.find((file) => file !== "task-001.md");
+    expect(spawnedFile).toBeDefined();
+
+    const spawned = await readTaskDocument(join(vaultRoot, "vault", "shared", "tasks", spawnedFile!));
+    expect(spawned.frontmatter.status).toBe("scheduled");
+    expect(spawned.frontmatter.parent_task_id).toBe("task-001");
+    expect(spawned.frontmatter.cron_schedule).toBe("30 9 * * 1-5");
+    expect(spawned.frontmatter.next_run_at).toBe("2026-04-16T09:30:00.000Z");
   });
 
   test("approves and rejects tasks through the lifecycle service", async () => {

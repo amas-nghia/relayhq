@@ -4,9 +4,11 @@ import { join } from "node:path";
 import { createError, defineEventHandler, getQuery, getRouterParam } from "h3";
 
 import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../../models/read-model";
+import { isExpensiveModel } from "../../../../shared/vault/schema";
 import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 import { countTokens, computeSaving, recordTokenSaving } from "../../../services/metrics/tracker";
+import { loadInstalledSkills, matchInstalledSkills } from "../../../services/agents/skills";
 
 const OBJECTIVE_CHAR_LIMIT = 500;
 const RELATED_TASK_LIMIT = 5;
@@ -61,6 +63,13 @@ export interface BootstrapApprovalPolicy {
   readonly reason: string | null;
 }
 
+export interface BootstrapSkill {
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly content: string;
+}
+
 export interface BootstrapPack {
   readonly etag: string;
   readonly task: BootstrapTaskSummary;
@@ -77,6 +86,10 @@ export interface BootstrapPack {
   readonly pendingApprovals: ReadonlyArray<BootstrapPendingApproval>;
   readonly protocolInstructions: string | null;
   readonly approvalPolicy: BootstrapApprovalPolicy;
+  readonly skills: ReadonlyArray<BootstrapSkill>;
+  /** Model the agent MUST use for this task. Set by agent registry — do not override. */
+  readonly enforced_model: string | null;
+  readonly expensive_model_warning: string | null;
 }
 
 export interface BootstrapUnchanged {
@@ -95,6 +108,8 @@ interface ReadTaskBootstrapDependencies {
   readonly includeProtocol?: boolean;
   readonly inlineContextFiles?: boolean;
   readonly preloadedReadModel?: VaultReadModel;
+  readonly agentId?: string | null;
+  readonly skillDir?: string;
 }
 
 function isSafeContextFilePath(filePath: string): boolean {
@@ -237,6 +252,19 @@ export async function readTaskBootstrapPack(
   const contextFileContents = dependencies.inlineContextFiles === true
     ? await readInlineContextFileContents(vaultRoot, contextFiles)
     : null;
+  const installedSkills = await loadInstalledSkills(dependencies.skillDir);
+  const assignedAgent = task.assignee
+    ? filteredReadModel.agents.find((agent) => agent.id === task.assignee) ?? null
+    : null;
+  const agentSkillFiles = dependencies.agentId === undefined || dependencies.agentId === null
+    ? []
+    : filteredReadModel.agents.find((agent) => agent.id === dependencies.agentId)?.skillFiles ?? [];
+  const matchedSkills = matchInstalledSkills({ skills: installedSkills, task: { type: task.type, tags: task.tags }, agentSkillFiles });
+
+  const enforcedModel = assignedAgent?.model ?? null;
+  const expensiveModelWarning = enforcedModel !== null && isExpensiveModel(enforcedModel)
+    ? `WARNING: This task is assigned to an agent using "${enforcedModel}", which is an expensive model. Consider re-registering the agent with claude-sonnet-4-6 for routine tasks to avoid excessive token costs.`
+    : null;
 
   return {
     etag,
@@ -267,6 +295,14 @@ export async function readTaskBootstrapPack(
       required: task.approvalNeeded,
       reason: task.approvalState.reason,
     },
+    skills: matchedSkills.map((skill) => ({
+      name: skill.name,
+      version: skill.version,
+      description: skill.description,
+      content: skill.content,
+    })),
+    enforced_model: enforcedModel,
+    expensive_model_warning: expensiveModelWarning,
   };
 }
 
@@ -282,7 +318,7 @@ export default defineEventHandler(async (event) => {
   const includeProtocol = query.includeProtocol !== "false" && query.protocol !== "false";
   const inlineContextFiles = query.inline === "true";
 
-  const pack = await readTaskBootstrapPack(taskId, { includeProtocol, inlineContextFiles });
+  const pack = await readTaskBootstrapPack(taskId, { includeProtocol, inlineContextFiles, agentId: agent });
 
   if (since !== undefined && since === pack.etag) {
     return { changed: false, etag: pack.etag } satisfies BootstrapUnchanged;

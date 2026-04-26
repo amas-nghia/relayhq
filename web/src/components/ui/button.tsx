@@ -30,7 +30,7 @@ export function Button({ className, variant = 'default', size = 'default', type 
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'lcd-button inline-flex items-center justify-center gap-2 rounded-sm font-medium uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60',
         variantClasses[variant],
         sizeClasses[size],
         className,

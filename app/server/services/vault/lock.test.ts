@@ -101,8 +101,8 @@ describe("vault lock state", () => {
     // Assert
     expect(staleState.mode).toBe("stale");
     expect(contendedState.mode).toBe("owned");
-    expect(() => assertTaskWriteable(staleTask, "agent-backend-dev", now, 5 * 60 * 1000)).toThrow(VaultStaleWriteError);
-    expect(() => assertTaskWriteable(contendedTask, "agent-backend-dev", now, 5 * 60 * 1000)).toThrow(VaultLockError);
+    expect(() => assertTaskWriteable(staleTask, "agent-backend-dev", now, 5 * 60 * 1000)).toThrow(/Locked by agent-other/);
+    expect(() => assertTaskWriteable(contendedTask, "agent-backend-dev", now, 5 * 60 * 1000)).toThrow(/locked by agent-other/i);
   });
 
   test("refreshes an owned heartbeat without changing the original lock timestamp", () => {
@@ -245,7 +245,7 @@ describe("vault file locks", () => {
           lockTtlMs: 5 * 60 * 1000,
           staleAfterMs: 5 * 60 * 1000,
         }),
-      ).rejects.toBeInstanceOf(VaultLockError);
+      ).rejects.toThrow(/locked by agent-other/i);
 
       await expect(
         acquireTaskFileLock(staleFile, {
@@ -254,7 +254,7 @@ describe("vault file locks", () => {
           lockTtlMs: 5 * 60 * 1000,
           staleAfterMs: 5 * 60 * 1000,
         }),
-      ).rejects.toBeInstanceOf(VaultStaleWriteError);
+      ).rejects.toThrow(/Locked by agent-other/);
 
       expect(await readFile(contendedLockPath, "utf8")).toBe(contendedBefore);
       expect(await readFile(staleLockPath, "utf8")).toBe(staleBefore);

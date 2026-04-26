@@ -82,13 +82,13 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 }
 
 function TaskRow({ task }: { task: Task; key?: string }) {
-  const openTaskDetail = useAppStore(state => state.openTaskDetail)
+  const navigate = useNavigate()
   const cfg = STATUS_CONFIG[task.status]
 
   return (
     <button
       type="button"
-      onClick={() => openTaskDetail(task.id)}
+      onClick={() => navigate(`/tasks/${task.id}`)}
       className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-secondary"
     >
       <span className={clsx('shrink-0', cfg.color)}>{cfg.icon}</span>

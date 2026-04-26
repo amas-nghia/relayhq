@@ -7,14 +7,13 @@ import { Badge } from './badge';
 export function AlertStrip() {
   const tasks = useAppStore(state => state.tasks);
   const pendingApprovals = tasks.filter(t => t.status === 'waiting-approval');
-  const openTaskDetail = useAppStore(state => state.openTaskDetail);
   const navigate = useNavigate();
 
   if (pendingApprovals.length === 0) return null;
 
   const handleReview = () => {
     if (pendingApprovals.length === 1) {
-      openTaskDetail(pendingApprovals[0].id);
+      navigate(`/tasks/${pendingApprovals[0].id}`);
     } else {
       navigate('/approvals');
     }

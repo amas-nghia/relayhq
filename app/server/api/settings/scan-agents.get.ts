@@ -6,9 +6,9 @@ import { generateMcpSnippet, type McpSnippetDescriptor } from "./snippets";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:44210";
 
-export interface ScannedAgentTool extends Awaited<ReturnType<typeof scanAgentTools>>[number] {
+export type ScannedAgentTool = Awaited<ReturnType<typeof scanAgentTools>>[number] & {
   readonly snippet: McpSnippetDescriptor;
-}
+};
 
 export interface ScanAgentsResponse {
   readonly discovered: ReadonlyArray<ScannedAgentTool>;

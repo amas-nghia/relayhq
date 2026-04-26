@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { homedir, tmpdir } from 'node:os'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -15,6 +16,7 @@ const COMMANDS = {
   start:   'Start RelayHQ services (PM2)',
   stop:    'Stop RelayHQ services (PM2)',
   destroy: 'Stop services and remove workspace directory',
+  skill:   'Manage installed skills',
 }
 
 function fail(message) {
@@ -40,8 +42,9 @@ Examples:
 
 function parseArgs(argv) {
   const command = argv[0]
-  const flags = new Set(argv.filter(arg => arg.startsWith('--')))
-  const positional = argv.filter(arg => !arg.startsWith('--')).slice(1)
+  const rest = argv.slice(1)
+  const flags = new Set(rest.filter(arg => arg.startsWith('--')))
+  const positional = rest.filter(arg => !arg.startsWith('--'))
   return { command, flags, positional }
 }
 
@@ -64,6 +67,197 @@ function run(command, args, options = {}) {
   if (result.status !== 0) {
     fail(`${command} ${args.join(' ')} exited with code ${result.status ?? 1}`)
   }
+}
+
+function runCapture(command, args, options = {}) {
+  const result = spawnSync(command, args, { encoding: 'utf8', ...options })
+  if (result.status !== 0) {
+    fail(`${command} ${args.join(' ')} exited with code ${result.status ?? 1}`)
+  }
+  return result.stdout ?? ''
+}
+
+function getSkillDir() {
+  return join(homedir(), '.relayhq', 'skills')
+}
+
+function ensureSkillDir() {
+  mkdirSync(getSkillDir(), { recursive: true })
+}
+
+function parseSkillFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+  if (!match) fail('SKILL.md missing frontmatter')
+
+  const frontmatter = {}
+  const lines = match[1].split(/\r?\n/)
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim()
+    if (!line) continue
+
+    const separator = line.indexOf(':')
+    if (separator === -1) continue
+
+    const key = line.slice(0, separator).trim()
+    const rawValue = line.slice(separator + 1).trim()
+
+    if (rawValue === '') {
+      const values = []
+      let cursor = index + 1
+      while (cursor < lines.length && lines[cursor].trim().startsWith('- ')) {
+        values.push(lines[cursor].trim().slice(2).trim().replace(/^['"]|['"]$/g, ''))
+        cursor += 1
+      }
+      frontmatter[key] = values
+      index = cursor - 1
+      continue
+    }
+
+    if (rawValue === '[]') {
+      frontmatter[key] = []
+      continue
+    }
+
+    frontmatter[key] = rawValue.replace(/^['"]|['"]$/g, '')
+  }
+
+  const required = ['name', 'version', 'description', 'task_types']
+  for (const key of required) {
+    if (frontmatter[key] === undefined) fail(`SKILL.md missing required field: ${key}`)
+  }
+
+  return { frontmatter, body: match[2].trim() }
+}
+
+function readInstalledSkills() {
+  const skillDir = getSkillDir()
+  if (!existsSync(skillDir)) return []
+
+  const entries = readdirSync(skillDir).filter((file) => file.endsWith('.md'))
+  return entries.map((file) => {
+    const sourcePath = join(skillDir, file)
+    const content = readFileSync(sourcePath, 'utf8')
+    const parsed = parseSkillFrontmatter(content)
+    return {
+      name: parsed.frontmatter.name,
+      version: parsed.frontmatter.version,
+      description: parsed.frontmatter.description,
+      content: parsed.body,
+      sourcePath,
+    }
+  })
+}
+
+function cleanupDir(path) {
+  rmSync(path, { recursive: true, force: true })
+}
+
+function parseSemver(version) {
+  return version.split('.').map(part => Number.parseInt(part, 10) || 0)
+}
+
+function compareSemver(left, right) {
+  const leftParts = parseSemver(left)
+  const rightParts = parseSemver(right)
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const delta = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
+    if (delta !== 0) return delta
+  }
+  return 0
+}
+
+function findInstalledSkillFiles(skillName) {
+  const skillDir = getSkillDir()
+  if (!existsSync(skillDir)) return []
+  return readdirSync(skillDir)
+    .filter((file) => file.startsWith(`${skillName}@`) && file.endsWith('.md'))
+    .map((file) => join(skillDir, file))
+}
+
+function cmdSkillInstall(packageName) {
+  if (!packageName) fail('Usage: npx relayhq skill install <package>')
+  ensureSkillDir()
+
+  const packDir = mkdtempSync(join(tmpdir(), 'relayhq-skill-pack-'))
+  const extractDir = mkdtempSync(join(tmpdir(), 'relayhq-skill-extract-'))
+  const packageTarget = existsSync(packageName) ? resolve(process.cwd(), packageName) : packageName
+
+  try {
+    const packOutput = runCapture('npm', ['pack', packageTarget, '--json'], { cwd: packDir })
+    const packed = JSON.parse(packOutput)
+    const tarballName = Array.isArray(packed) ? packed[0]?.filename : null
+    if (!tarballName) fail(`Package not found: ${packageName}`)
+
+    const tarballPath = join(packDir, tarballName)
+    run('tar', ['-xzf', tarballPath, '-C', extractDir])
+
+    const skillPath = join(extractDir, 'package', 'SKILL.md')
+    if (!existsSync(skillPath)) {
+      fail('Package has no SKILL.md at root')
+    }
+
+    const content = readFileSync(skillPath, 'utf8')
+    const parsed = parseSkillFrontmatter(content)
+    const name = parsed.frontmatter.name
+    const version = parsed.frontmatter.version
+    const destination = join(getSkillDir(), `${name}@${version}.md`)
+
+    if (existsSync(destination)) {
+      console.log(`⚠ skill ${name}@${version} already installed`)
+      return
+    }
+
+    writeFileSync(destination, content, 'utf8')
+    console.log(`✓ Installed skill: ${name}@${version}`)
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error))
+  } finally {
+    cleanupDir(packDir)
+    cleanupDir(extractDir)
+  }
+}
+
+function cmdSkillList() {
+  const skills = readInstalledSkills()
+  if (skills.length === 0) {
+    console.log('No skills installed.')
+    return
+  }
+
+  const nameWidth = Math.max(4, ...skills.map((skill) => skill.name.length))
+  const versionWidth = Math.max(7, ...skills.map((skill) => skill.version.length))
+
+  console.log(`Installed skills  (${getSkillDir()})\n`)
+  console.log(`${'NAME'.padEnd(nameWidth)}  ${'VERSION'.padEnd(versionWidth)}  DESCRIPTION`)
+  for (const skill of skills) {
+    console.log(`${skill.name.padEnd(nameWidth)}  ${skill.version.padEnd(versionWidth)}  ${skill.description}`)
+  }
+  console.log(`\n${skills.length} skill${skills.length === 1 ? '' : 's'} installed. Run "npx relayhq skill install <pkg>" to add more.`)
+}
+
+function cmdSkillRemove(skillName) {
+  if (!skillName) fail('Usage: npx relayhq skill remove <name>')
+  const matchingFiles = findInstalledSkillFiles(skillName)
+  if (matchingFiles.length === 0) {
+    fail(`Skill not installed: ${skillName}`)
+  }
+
+  for (const filePath of matchingFiles) {
+    rmSync(filePath, { force: true })
+  }
+  console.log(`✓ Removed skill: ${skillName}`)
+}
+
+function cmdSkill(positional) {
+  const [subcommand = ''] = positional
+  const args = positional.slice(1)
+
+  if (subcommand === 'install') return cmdSkillInstall(args[0])
+  if (subcommand === 'list') return cmdSkillList()
+  if (subcommand === 'remove') return cmdSkillRemove(args[0])
+
+  fail('Usage: npx relayhq skill <install|list|remove> [args]')
 }
 
 function copyTemplate(targetDir) {
@@ -195,6 +389,7 @@ function main() {
   if (command === 'start') return cmdStart(positional)
   if (command === 'stop') return cmdStop(positional)
   if (command === 'destroy') return cmdDestroy(positional)
+  if (command === 'skill') return cmdSkill(positional)
 
   fail(`Unknown command: "${command}"\nRun "npx relayhq --help" for usage.`)
 }

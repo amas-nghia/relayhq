@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, ShieldAlert, SquareCheckBig, User, X } from 'lucide-react'
+import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, Repeat2, ShieldAlert, SquareCheckBig, User, X } from 'lucide-react'
 import clsx from 'clsx'
 
 import { relayhqApi } from '../../api/client'
@@ -65,6 +65,29 @@ function readInitials(author: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('') || 'OP'
+}
+
+function formatHistoryLabel(entry: { action: string; actor: string }): string {
+  switch (entry.action) {
+    case 'created':
+      return `Created by ${entry.actor}`
+    case 'claimed':
+      return `Claimed by ${entry.actor}`
+    case 'moved-to-review':
+      return `Moved to review by ${entry.actor}`
+    case 'moved-to-done':
+      return `Moved to done by ${entry.actor}`
+    case 'scheduled':
+      return `Scheduled by ${entry.actor}`
+    case 'approval-requested':
+      return `Approval requested by ${entry.actor}`
+    case 'approved':
+      return `Approved by ${entry.actor}`
+    case 'rejected':
+      return `Rejected by ${entry.actor}`
+    default:
+      return `${entry.action.replace(/-/g, ' ')} by ${entry.actor}`
+  }
 }
 
 function toDateTimeLocalValue(value: string | null | undefined): string {
@@ -141,7 +164,6 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
   const tasks = useAppStore(state => state.tasks)
   const auditLogs = useAppStore(state => state.auditLogs)
   const isMutating = useAppStore(state => state.isMutating)
-  const mutationError = useAppStore(state => state.mutationError)
   const [rejectReason, setRejectReason] = useState(task?.approvalReason || '')
   const [comments, setComments] = useState<ReadonlyArray<{ author: string; timestamp: string; body: string }>>([])
   const [commentBody, setCommentBody] = useState('')
@@ -149,6 +171,7 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
   const [commentsSaving, setCommentsSaving] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [nextRunAtInput, setNextRunAtInput] = useState('')
+  const [cronScheduleInput, setCronScheduleInput] = useState('')
 
   const sections = useMemo(() => {
     const body = task?.description
@@ -165,9 +188,20 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
     [auditLogs, taskId],
   )
 
+  const taskHistory = useMemo(
+    () => [...(task?.history ?? [])].reverse().slice(0, 8),
+    [task?.history],
+  )
+
   const subtasks = useMemo(
     () => tasks.filter(entry => entry.parentTaskId === taskId),
     [tasks, taskId],
+  )
+
+  const recurringRootId = task?.parentTaskId ?? task?.id ?? taskId
+  const recurringRunCount = useMemo(
+    () => tasks.filter(entry => (entry.parentTaskId ?? entry.id) === recurringRootId && entry.cronSchedule === task?.cronSchedule).length,
+    [recurringRootId, task?.cronSchedule, tasks],
   )
 
   const loadComments = useCallback(async () => {
@@ -192,6 +226,10 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
       void fetchReadModel()
     }
   }, [fetchReadModel, isLoading, task])
+
+  useEffect(() => {
+    setCronScheduleInput(task?.cronSchedule ?? '')
+  }, [task?.cronSchedule])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -239,6 +277,16 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
     await relayhqApi.patchTask(task.id, {
       actorId: 'relayhq-web',
       patch: { status: 'todo', column: 'todo', next_run_at: null, blocked_reason: null },
+    })
+    await fetchReadModel()
+  }
+
+  const saveRecurringSchedule = async () => {
+    await relayhqApi.patchTask(task.id, {
+      actorId: 'relayhq-web',
+      patch: {
+        cron_schedule: cronScheduleInput.trim().length > 0 ? cronScheduleInput.trim() : null,
+      },
     })
     await fetchReadModel()
   }
@@ -469,6 +517,23 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
             </div>
           </Section>
 
+          <Section title="Recurring">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-text-secondary">
+                <Repeat2 className="h-4 w-4 text-brand" />
+                <span>{task.cronSchedule ? 'Recurring task enabled' : 'No recurrence configured'}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Input value={cronScheduleInput} onChange={(event) => setCronScheduleInput(event.target.value)} placeholder="0 9 * * 1-5" />
+                <Button variant="outline" onClick={() => void saveRecurringSchedule()}>Save recurrence</Button>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs text-text-tertiary">
+                <span>Next run: {task.nextRunAt ? formatTimestamp(task.nextRunAt) : '—'}</span>
+                <span>Run history: {recurringRunCount}</span>
+              </div>
+            </div>
+          </Section>
+
           <Section title="Comments">
             <div className="space-y-3">
               {commentsLoading ? (
@@ -573,6 +638,26 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
             ) : <EmptyCopy>No audit activity captured for this task yet.</EmptyCopy>}
           </Section>
 
+          <Section title="History">
+            {taskHistory.length > 0 ? (
+              <div className="space-y-3">
+                {taskHistory.map((entry) => (
+                  <div key={`${entry.at}-${entry.action}-${entry.actor}`} className="rounded-lg border border-border bg-surface-secondary p-3">
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <span className="font-medium text-text-primary">{formatHistoryLabel(entry)}</span>
+                      <span className="text-xs text-text-tertiary" title={formatTimestamp(entry.at)}>{formatRelativeTimestamp(entry.at)}</span>
+                    </div>
+                    {(entry.fromStatus || entry.toStatus) && (
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">
+                        {(entry.fromStatus || 'unknown')} → {(entry.toStatus || 'unknown')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : <EmptyCopy>No task history recorded yet.</EmptyCopy>}
+          </Section>
+
           <Section title="Vault Record">
             <div className="space-y-3 text-sm text-text-secondary">
               <div className="flex items-center justify-between gap-3">
@@ -601,7 +686,6 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
             </div>
           </Section>
 
-          {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
         </div>
       </div>
 

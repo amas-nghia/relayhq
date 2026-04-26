@@ -4,13 +4,13 @@ import { cn } from '../../lib/utils'
 
 export function Sheet({ open, children }: { open: boolean; children: ReactNode }) {
   if (!open) return null
-  return children
+  return <>{children}</>
 }
 
 export function SheetOverlay({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('fixed inset-0 z-30 bg-slate-950/20 backdrop-blur-sm', className)} {...props} />
+  return <div className={cn('fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-[2px]', className)} {...props} />
 }
 
 export function SheetContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('fixed top-14 bottom-0 right-0 z-40 w-full border-l border-border bg-surface shadow-panel md:w-[min(92vw,72rem)]', className)} {...props} />
+  return <div className={cn('fixed right-0 top-0 z-40 h-full w-full max-w-[420px] border-l border-border bg-surface shadow-modal', className)} {...props} />
 }

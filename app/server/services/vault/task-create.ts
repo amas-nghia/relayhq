@@ -6,6 +6,7 @@ import {
   type TaskFrontmatter,
   type TaskPriority,
 } from "../../../shared/vault/schema";
+import { nextCronOccurrence, validateCronSchedule } from "../../../shared/vault/cron";
 import { containsSecretMaterial } from "../security/secrets";
 import { publishRealtimeUpdate } from "../realtime/bus";
 import { queueTaskWebhookNotification } from "../settings/webhooks";
@@ -41,6 +42,7 @@ export interface CreateTaskInput {
   readonly sourceIssueId?: string;
   readonly githubIssueId?: string;
   readonly parentTaskId?: string;
+  readonly cronSchedule?: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
 }
@@ -105,9 +107,12 @@ function buildTaskFrontmatter(input: {
   readonly parentTaskId: string | null;
   readonly sourceIssueId: string | null;
   readonly githubIssueId: string | null;
+  readonly cronSchedule: string | null;
 }): TaskFrontmatter {
   const timestamp = input.now.toISOString();
   const status = statusFromColumnPosition(input.columnPosition);
+  const nextRunAt = input.cronSchedule ? nextCronOccurrence(input.cronSchedule, input.now)?.toISOString() ?? null : null;
+  const effectiveStatus = input.cronSchedule ? "scheduled" : status;
 
   return {
     id: input.id,
@@ -117,7 +122,7 @@ function buildTaskFrontmatter(input: {
     project_id: input.projectId,
     board_id: input.boardId,
     column: input.columnId,
-    status,
+    status: effectiveStatus,
     priority: input.priority,
     title: input.title,
     assignee: input.assignee,
@@ -127,7 +132,8 @@ function buildTaskFrontmatter(input: {
     heartbeat_at: null,
     execution_started_at: null,
     execution_notes: null,
-    progress: isCompletedStatus(status) ? 100 : 0,
+    progress: isCompletedStatus(effectiveStatus) ? 100 : 0,
+    history: [{ at: timestamp, actor: DEFAULT_CREATED_BY, action: "created", to_status: effectiveStatus }],
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -137,10 +143,12 @@ function buildTaskFrontmatter(input: {
     blocked_reason: null,
     blocked_since: null,
     result: null,
-    completed_at: isCompletedStatus(status) ? timestamp : null,
+    completed_at: isCompletedStatus(effectiveStatus) ? timestamp : null,
     parent_task_id: input.parentTaskId,
     source_issue_id: input.sourceIssueId,
     github_issue_id: input.githubIssueId,
+    next_run_at: nextRunAt,
+    cron_schedule: input.cronSchedule,
     depends_on: input.dependsOn,
     tags: input.tags,
     links: [],
@@ -158,8 +166,16 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
   const priorityValue = normalizeString(input.priority, "priority");
   const tags = normalizeStringArray(input.tags, "tags");
   const dependsOn = normalizeStringArray(input.dependsOn, "dependsOn");
+  const cronSchedule = input.cronSchedule?.trim().length ? normalizeString(input.cronSchedule, "cronSchedule") : null;
 
   assertAllowedPriority(priorityValue);
+
+  if (cronSchedule !== null) {
+    const cronIssue = validateCronSchedule(cronSchedule);
+    if (cronIssue !== null) {
+      throw new TaskCreateError(400, `cron_schedule ${cronIssue}.`);
+    }
+  }
 
   const now = input.now ?? new Date();
   const vaultRoot = input.vaultRoot ?? resolveVaultWorkspaceRoot();
@@ -244,6 +260,7 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     parentTaskId: input.parentTaskId ?? null,
     sourceIssueId: input.sourceIssueId ?? null,
     githubIssueId: input.githubIssueId ?? null,
+    cronSchedule,
   });
 
   const result = await createTaskDocument({

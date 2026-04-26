@@ -17,5 +17,5 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
 }
 
 export function Badge({ className, variant = 'secondary', ...props }: BadgeProps) {
-  return <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide', badgeClasses[variant], className)} {...props} />
+  return <span className={cn('inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide', badgeClasses[variant], className)} {...props} />
 }

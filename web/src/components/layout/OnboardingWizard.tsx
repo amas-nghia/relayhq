@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 
 type WizardMode = 'create' | 'existing'
 type WizardStep = 1 | 2 | 3
@@ -31,7 +32,6 @@ export function OnboardingWizard() {
   const showOnboarding = useAppStore(state => state.showOnboarding)
   const loadData = useAppStore(state => state.loadData)
   const isMutating = useAppStore(state => state.isMutating)
-  const mutationError = useAppStore(state => state.mutationError)
 
   const [mode, setMode] = useState<WizardMode>('create')
   const [workspaceName, setWorkspaceName] = useState('My Workspace')
@@ -439,25 +439,19 @@ export function OnboardingWizard() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
-                    <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                      <button
-                        type="button"
-                        onClick={() => setConnectTab('claude-code')}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'claude-code' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        Claude Code
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConnectTab('cli')}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${connectTab === 'cli' ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                      >
-                        <Terminal className="h-3.5 w-3.5" />
-                        CLI / Shell
-                      </button>
-                    </div>
-                    {connectTab === 'claude-code' && (
+                    <Tabs value={connectTab} onValueChange={value => setConnectTab(value as ConnectTab)}>
+                      <TabsList className="w-fit">
+                        <TabsTrigger value="claude-code" className="flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Claude Code
+                        </TabsTrigger>
+                        <TabsTrigger value="cli" className="flex items-center gap-2">
+                          <Terminal className="h-3.5 w-3.5" />
+                          CLI / Shell
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="claude-code">
                       <div className="flex flex-col gap-4">
                         <p className="text-sm text-text-secondary">
                           Add RelayHQ to <code className="rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-mono text-text-primary">~/.claude/settings.json</code>.
@@ -469,9 +463,9 @@ export function OnboardingWizard() {
                           </button>
                         </div>
                       </div>
-                    )}
+                      </TabsContent>
 
-                    {connectTab === 'cli' && (
+                      <TabsContent value="cli">
                       <div className="flex flex-col gap-4">
                         <p className="text-sm text-text-secondary">
                           Export these variables into your shell profile. Any terminal session opened after that will have the RelayHQ CLI ready without additional setup.
@@ -497,20 +491,21 @@ export function OnboardingWizard() {
                           </p>
                         )}
                       </div>
-                    )}
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 )}
               </div>
             )}
 
-            {(wizardError || mutationError) && <p className="text-sm text-status-blocked">{wizardError || mutationError}</p>}
+            {wizardError && <p className="text-sm text-status-blocked">{wizardError}</p>}
           </div>
         </div>
 
         <div className="border-t border-border bg-surface px-6 py-4 md:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-h-[20px] text-sm text-status-blocked">
-              {(wizardError || mutationError || settings.invalidReason) ?? ''}
+              {(wizardError || settings.invalidReason) ?? ''}
             </div>
 
             <div className="flex flex-wrap gap-3 sm:justify-end">
@@ -555,7 +550,7 @@ export function OnboardingWizard() {
 
       {pickerTarget !== null && directoryBrowser && (
         <Dialog open>
-          <DialogOverlay />
+          <DialogOverlay onClick={() => { /* keep wizard modal open until explicit close */ }} />
           <DialogContent>
             <DialogPanel className="flex max-h-[calc(100vh-2rem)] max-w-3xl flex-col">
               <DialogHeader>

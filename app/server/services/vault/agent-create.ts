@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { assertAgentFrontmatter, type AgentFrontmatter } from "../../../shared/vault/schema";
+import { assertAgentFrontmatter, isAllowedModel, isExpensiveModel, type AgentFrontmatter } from "../../../shared/vault/schema";
 import { containsSecretMaterial } from "../security/secrets";
 import { publishRealtimeUpdate } from "../realtime/bus";
 import { VAULT_COLLECTION_DIRECTORIES } from "./repository";
@@ -24,6 +24,7 @@ export interface CreateAgentInput {
   readonly cannotDo?: ReadonlyArray<string>;
   readonly accessibleBy?: ReadonlyArray<string>;
   readonly skillFile?: string;
+  readonly skillFiles?: ReadonlyArray<string>;
   readonly body?: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
@@ -108,6 +109,7 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     `cannot_do: ${serializeValue(frontmatter.cannot_do)}`,
     `accessible_by: ${serializeValue(frontmatter.accessible_by)}`,
     `skill_file: ${serializeValue(frontmatter.skill_file)}`,
+    ...(frontmatter.skill_files === undefined ? [] : [`skill_files: ${serializeValue(frontmatter.skill_files)}`]),
     `status: ${serializeValue(frontmatter.status)}`,
     `workspace_id: ${serializeValue(frontmatter.workspace_id)}`,
     `created_at: ${serializeValue(frontmatter.created_at)}`,
@@ -154,10 +156,11 @@ function buildAgentFrontmatter(input: {
   readonly capabilities: ReadonlyArray<string>;
   readonly taskTypesAccepted: ReadonlyArray<string>;
   readonly approvalRequiredFor: ReadonlyArray<string>;
-  readonly cannotDo: ReadonlyArray<string>;
-  readonly accessibleBy: ReadonlyArray<string>;
-  readonly skillFile: string;
-}): AgentFrontmatter {
+    readonly cannotDo: ReadonlyArray<string>;
+    readonly accessibleBy: ReadonlyArray<string>;
+    readonly skillFile: string;
+    readonly skillFiles: ReadonlyArray<string>;
+  }): AgentFrontmatter {
   const timestamp = input.now.toISOString();
 
   return {
@@ -177,6 +180,7 @@ function buildAgentFrontmatter(input: {
     cannot_do: input.cannotDo,
     accessible_by: input.accessibleBy,
     skill_file: input.skillFile,
+    ...(input.skillFiles.length === 0 ? {} : { skill_files: input.skillFiles }),
     status: "available",
     workspace_id: input.workspaceId,
     created_at: timestamp,
@@ -190,12 +194,19 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   const roles = input.roles === undefined || input.roles.length === 0 ? [role] : [...new Set(input.roles.map((entry) => entry.trim()).filter((entry) => entry.length > 0))];
   const provider = normalizeRequiredString(input.provider, "provider");
   const model = normalizeRequiredString(input.model, "model");
+  if (!isAllowedModel(model)) {
+    throw new AgentCreateError(400, `model "${model}" is not allowed. Use one of: claude-sonnet-4-6, claude-haiku-4-5, claude-opus-4-7, gpt-4o, gpt-4o-mini, gemini-2.0-flash.`);
+  }
+  if (isExpensiveModel(model)) {
+    console.warn(`[agent-create] WARNING: registering agent "${input.name}" with expensive model "${model}". Consider claude-sonnet-4-6 for routine tasks.`);
+  }
   const capabilities = input.capabilities ?? [];
   const taskTypesAccepted = input.taskTypesAccepted ?? [];
   const approvalRequiredFor = input.approvalRequiredFor ?? [];
   const cannotDo = input.cannotDo ?? [];
   const accessibleBy = input.accessibleBy ?? [];
   const skillFile = input.skillFile ?? `skills/${slugifyAgentId(name)}.md`;
+  const skillFiles = [...new Set((input.skillFiles ?? []).map((entry) => entry.trim()).filter((entry) => entry.length > 0))].sort();
   const id = input.id === undefined ? slugifyAgentId(name) : slugifyAgentId(input.id);
   const now = input.now ?? new Date();
   const env = input.env ?? process.env;
@@ -220,6 +231,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     cannotDo,
     accessibleBy,
     skillFile,
+    skillFiles,
   });
   const sourcePath = `${VAULT_COLLECTION_DIRECTORIES.agents}/${id}.md`;
   const filePath = join(vaultRoot, sourcePath);
@@ -241,6 +253,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   publishRealtimeUpdate({
     kind: "vault.changed",
     reason: "agent.created",
+    taskId: null,
     agentId: frontmatter.id,
     source: frontmatter.id,
     timestamp: now.toISOString(),

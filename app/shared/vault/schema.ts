@@ -1,3 +1,5 @@
+import { validateCronSchedule } from "./cron";
+
 export const VAULT_SCHEMA_VERSION = 1 as const;
 
 export const TASK_STATUSES = [
@@ -16,6 +18,34 @@ export const TASK_COLUMNS = ["todo", "in-progress", "review", "done"] as const;
 export const TASK_PRIORITIES = ["critical", "high", "medium", "low"] as const;
 
 export const APPROVAL_OUTCOMES = ["approved", "rejected", "pending"] as const;
+
+export const ALLOWED_MODELS = [
+  "claude-haiku-4-5",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5",
+  "claude-sonnet-4-5-20251001",
+  "claude-sonnet-4-6",
+  "claude-opus-4-5",
+  "claude-opus-4-7",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-4-turbo",
+  "gemini-1.5-pro",
+  "gemini-1.5-flash",
+  "gemini-2.0-flash",
+] as const;
+
+export type AllowedModel = (typeof ALLOWED_MODELS)[number];
+
+export const EXPENSIVE_MODELS: readonly string[] = ["claude-opus-4-5", "claude-opus-4-7", "gpt-4-turbo"];
+
+export function isAllowedModel(value: string): value is AllowedModel {
+  return (ALLOWED_MODELS as readonly string[]).includes(value);
+}
+
+export function isExpensiveModel(value: string): boolean {
+  return EXPENSIVE_MODELS.includes(value);
+}
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskColumn = (typeof TASK_COLUMNS)[number];
@@ -47,6 +77,14 @@ export interface TaskLink {
   readonly thread: string;
 }
 
+export interface TaskHistoryEntry {
+  readonly at: string;
+  readonly actor: string;
+  readonly action: string;
+  readonly from_status?: TaskStatus;
+  readonly to_status?: TaskStatus;
+}
+
 export interface TaskFrontmatter {
   readonly id: string;
   readonly type: "task";
@@ -66,7 +104,9 @@ export interface TaskFrontmatter {
   readonly execution_started_at: string | null;
   readonly execution_notes: string | null;
   readonly progress: number;
+  readonly history?: ReadonlyArray<TaskHistoryEntry>;
   readonly next_run_at?: string | null;
+  readonly cron_schedule?: string | null;
   readonly approval_needed: boolean;
   readonly approval_requested_by: string | null;
   readonly approval_reason: string | null;
@@ -109,6 +149,7 @@ export interface AgentFrontmatter {
   readonly cannot_do: ReadonlyArray<string>;
   readonly accessible_by: ReadonlyArray<string>;
   readonly skill_file: string;
+  readonly skill_files?: ReadonlyArray<string>;
   readonly status: string;
   readonly workspace_id: string;
   readonly created_at: string;
@@ -233,6 +274,26 @@ function hasKey(record: Record<string, unknown>, key: string): boolean {
 
 function isStringArray(value: unknown): value is ReadonlyArray<string> {
   return Array.isArray(value) && value.every(isNonEmptyString);
+}
+
+function isTaskHistoryEntry(value: unknown): value is TaskHistoryEntry {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (!isTimestamp(value.at) || !isNonEmptyString(value.actor) || !isNonEmptyString(value.action)) {
+    return false;
+  }
+
+  if (value.from_status !== undefined && !(TASK_STATUSES as readonly string[]).includes(value.from_status as string)) {
+    return false;
+  }
+
+  if (value.to_status !== undefined && !(TASK_STATUSES as readonly string[]).includes(value.to_status as string)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isNullableString(value: unknown): value is string | null {
@@ -394,6 +455,30 @@ function requireStringArrayField(
   return value;
 }
 
+function requireTaskHistoryField(
+  record: Record<string, unknown>,
+  field: string,
+  issues: ValidationIssue[],
+): ReadonlyArray<TaskHistoryEntry> | undefined {
+  const value = requireField(record, field, issues);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    pushIssue(issues, field, "must be an array of history entries");
+    return undefined;
+  }
+
+  value.forEach((entry, index) => {
+    if (!isTaskHistoryEntry(entry)) {
+      pushIssue(issues, `${field}[${index}]`, "must include at, actor, and action fields");
+    }
+  });
+
+  return value as ReadonlyArray<TaskHistoryEntry>;
+}
+
 function validateTaskLink(value: unknown, index: number, issues: ValidationIssue[]): value is TaskLink {
   if (!isRecord(value)) {
     pushIssue(issues, `links[${index}]`, "must be an object with project and thread fields");
@@ -458,6 +543,9 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   requireNullableTimestampField(input, "heartbeat_at", issues);
   requireNullableTimestampField(input, "execution_started_at", issues);
   requireNullableStringField(input, "execution_notes", issues);
+  if (hasKey(input, "history")) {
+    requireTaskHistoryField(input, "history", issues);
+  }
 
   const progress = requireIntegerField(input, "progress", issues);
   if (progress !== undefined && (progress < 0 || progress > 100)) {
@@ -465,6 +553,16 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   }
   if (hasKey(input, "next_run_at")) {
     requireNullableTimestampField(input, "next_run_at", issues);
+  }
+
+  if (hasKey(input, "cron_schedule")) {
+    const value = requireNullableStringField(input, "cron_schedule", issues);
+    if (typeof value === "string") {
+      const cronIssue = validateCronSchedule(value);
+      if (cronIssue !== null) {
+        pushIssue(issues, "cron_schedule", cronIssue);
+      }
+    }
   }
 
   requireBooleanField(input, "approval_needed", issues);
@@ -555,8 +653,19 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
       pushIssue(issues, "api_key_ref", "must reference a secret by env:, secret:, or vault:");
     }
   }
-  requireStringField(input, "model", issues);
-  if (hasKey(input, "fallback_models")) requireStringArrayField(input, "fallback_models", issues);
+  const model = requireStringField(input, "model", issues);
+  if (model !== undefined && !isAllowedModel(model)) {
+    pushIssue(issues, "model", `"${model}" is not an allowed model. Allowed: ${ALLOWED_MODELS.join(", ")}`);
+  }
+  if (hasKey(input, "fallback_models")) {
+    requireStringArrayField(input, "fallback_models", issues);
+    if (Array.isArray(input.fallback_models)) {
+      const badFallbacks = (input.fallback_models as string[]).filter((m) => !isAllowedModel(m));
+      if (badFallbacks.length > 0) {
+        pushIssue(issues, "fallback_models", `unknown models: ${badFallbacks.join(", ")}. Allowed: ${ALLOWED_MODELS.join(", ")}`);
+      }
+    }
+  }
   if (hasKey(input, "monthly_budget_usd") && input.monthly_budget_usd !== null && !isFiniteNumber(input.monthly_budget_usd)) {
     pushIssue(issues, "monthly_budget_usd", "must be a number or null");
   }
@@ -566,6 +675,9 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   requireStringArrayField(input, "cannot_do", issues);
   requireStringArrayField(input, "accessible_by", issues);
   requireStringField(input, "skill_file", issues);
+  if (hasKey(input, "skill_files")) {
+    requireStringArrayField(input, "skill_files", issues);
+  }
   requireStringField(input, "status", issues);
   requireStringField(input, "workspace_id", issues);
   requireRequiredTimestampField(input, "created_at", issues);

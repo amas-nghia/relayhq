@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './components/layout/Shell';
+import { Toaster } from './components/ui/toaster';
 
 const WorkspaceView = lazy(async () => ({ default: (await import('./pages/WorkspaceView')).default }));
 const ApprovalsView = lazy(async () => ({ default: (await import('./pages/ApprovalsView')).ApprovalsView }));
@@ -20,6 +21,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route element={<Shell />}>
           <Route path="/boards/:id" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />

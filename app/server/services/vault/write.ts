@@ -5,6 +5,7 @@ import { basename, dirname, join } from "node:path";
 import {
   assertTaskFrontmatter,
   VaultSchemaError,
+  type TaskHistoryEntry,
   type TaskLink,
 } from "../../../shared/vault/schema";
 import type { TaskFrontmatter, VaultTaskDocument } from "./repository";
@@ -37,7 +38,9 @@ const TASK_FRONTMATTER_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
   "execution_started_at",
   "execution_notes",
   "progress",
+  "history",
   "next_run_at",
+  "cron_schedule",
   "approval_needed",
   "approval_requested_by",
   "approval_reason",
@@ -71,6 +74,7 @@ export interface SyncTaskRequest {
   readonly staleAfterMs?: number;
   readonly recoverStaleLock?: boolean;
   readonly releaseLock?: boolean;
+  readonly historyEntry?: TaskHistoryEntry;
 }
 
 export interface SyncTaskResult extends VaultTaskDocument {
@@ -238,12 +242,17 @@ function applyTaskPatch(
   actorId: string,
   lockTtlMs: number,
   releaseLock: boolean,
+  historyEntry: TaskHistoryEntry | undefined,
 ): TaskFrontmatter {
   const lockedAt = base.locked_by === actorId && base.locked_at !== null ? base.locked_at : toIso(now);
+  const history = historyEntry === undefined
+    ? base.history
+    : [...(base.history ?? []), historyEntry];
 
   return {
     ...base,
     ...patch,
+    ...(history === undefined ? {} : { history }),
     id: base.id,
     type: base.type,
     version: base.version,
@@ -298,7 +307,15 @@ export async function syncTaskDocument(request: SyncTaskRequest): Promise<SyncTa
       throw new VaultSchemaError(validation.issues);
     }
 
-    const next = applyTaskPatch(leased, patch as Readonly<Partial<TaskFrontmatter>>, now, request.actorId, lockTtlMs, request.releaseLock ?? false);
+    const next = applyTaskPatch(
+      leased,
+      patch as Readonly<Partial<TaskFrontmatter>>,
+      now,
+      request.actorId,
+      lockTtlMs,
+      request.releaseLock ?? false,
+      request.historyEntry,
+    );
 
     assertTaskFrontmatter(next);
     await writeTaskDocumentAtomic(request.filePath, { frontmatter: next, body: current.body });

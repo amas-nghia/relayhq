@@ -61,10 +61,12 @@ interface AppState {
     acceptanceCriteria?: string[]
     constraints?: string[]
     contextFiles?: string[]
+    cronSchedule?: string
   }) => Promise<void>
   approveTask: (taskId: string) => Promise<void>
   rejectTask: (taskId: string, reason: string) => Promise<void>
   startAutoRun: (taskId: string) => Promise<void>
+  moveTaskToStatus: (taskId: string, status: Task['status'], actorId?: string) => Promise<void>
 }
 
 function isTheme(value: string | null): value is Theme {
@@ -175,6 +177,13 @@ function mapTasks(model: VaultReadModel): Task[] {
     progress: task.progress,
     executionStartedAt: task.executionStartedAt ?? undefined,
     executionNotes: task.executionNotes ?? undefined,
+    history: task.history.map((entry) => ({
+      at: entry.at,
+      actor: entry.actor,
+      action: entry.action,
+      ...(entry.fromStatus === undefined ? {} : { fromStatus: entry.fromStatus }),
+      ...(entry.toStatus === undefined ? {} : { toStatus: entry.toStatus }),
+    })),
     approvalNeeded: task.approvalNeeded,
     approvalOutcome: task.approvalOutcome,
     approvalRequestedBy: task.approvalRequestedBy ?? undefined,
@@ -200,6 +209,7 @@ function mapTasks(model: VaultReadModel): Task[] {
     blockedReason: task.blockedReason ?? undefined,
     blockedTime: task.blockedSince ? relativeTime(task.blockedSince) : undefined,
     nextRunAt: task.nextRunAt ?? null,
+    cronSchedule: task.cronSchedule ?? null,
     tags: [...task.tags],
   }))
 }
@@ -475,6 +485,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         priority: payload.priority,
         ...(payload.assigneeId ? { assignee: payload.assigneeId } : {}),
         ...(payload.requiredCapability ? { requiredCapability: payload.requiredCapability } : {}),
+        ...(payload.cronSchedule ? { cron_schedule: payload.cronSchedule } : {}),
         objective: payload.objective ?? (payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`),
         acceptanceCriteria: payload.acceptanceCriteria ?? ['Task is created in the canonical vault', 'Task is visible to the React web app'],
         constraints: payload.constraints,
@@ -520,6 +531,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isMutating: false })
     } catch (error) {
       set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to start auto-run.' })
+      throw error
+    }
+  },
+
+  moveTaskToStatus: async (taskId, status, actorId = 'human-user') => {
+    set({ isMutating: true, mutationError: null })
+    try {
+      const patch: Record<string, unknown> = { status }
+      if (status === 'review') {
+        patch.column = 'review'
+      } else if (status === 'done') {
+        patch.column = 'done'
+        patch.progress = 100
+      } else if (status === 'in-progress') {
+        patch.column = 'in-progress'
+      } else if (status === 'blocked') {
+        patch.column = 'review'
+      } else {
+        patch.column = 'todo'
+      }
+
+      await relayhqApi.patchTask(taskId, { actorId, patch } as never)
+      await get().loadData()
+      set({ isMutating: false })
+    } catch (error) {
+      set({ isMutating: false, mutationError: error instanceof Error ? error.message : 'Unable to move task.' })
       throw error
     }
   },

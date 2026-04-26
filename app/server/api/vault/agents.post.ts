@@ -67,13 +67,14 @@ export async function registerVaultAgent(
     cannot_do: [],
     accessible_by: [],
     skill_file: `skills/${String(body.role).trim()}.md`,
+    ...(Array.isArray(body.skillFiles) && body.skillFiles.length > 0 ? { skill_files: body.skillFiles.map((value: unknown) => String(value).trim()).filter((value: string) => value.length > 0) } : {}),
     status: "available",
     workspace_id: workspaceId,
     created_at: timestamp,
     updated_at: timestamp,
   };
   assertAgentFrontmatter(frontmatter);
-  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\n${frontmatter.account_id === undefined ? '' : `account_id: ${JSON.stringify(frontmatter.account_id)}\n`}role: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\n${frontmatter.api_key_ref === undefined ? '' : `api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}\n`}model: ${JSON.stringify(frontmatter.model)}\n${frontmatter.monthly_budget_usd === undefined ? '' : `monthly_budget_usd: ${frontmatter.monthly_budget_usd}\n`}capabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\nstatus: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
+  const markdown = `---\nid: ${JSON.stringify(id)}\ntype: agent\nname: ${JSON.stringify(frontmatter.name)}\n${frontmatter.account_id === undefined ? '' : `account_id: ${JSON.stringify(frontmatter.account_id)}\n`}role: ${JSON.stringify(frontmatter.role)}\nroles: ${JSON.stringify(frontmatter.roles)}\nprovider: ${JSON.stringify(frontmatter.provider)}\n${frontmatter.api_key_ref === undefined ? '' : `api_key_ref: ${JSON.stringify(frontmatter.api_key_ref)}\n`}model: ${JSON.stringify(frontmatter.model)}\n${frontmatter.monthly_budget_usd === undefined ? '' : `monthly_budget_usd: ${frontmatter.monthly_budget_usd}\n`}capabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: ${JSON.stringify(frontmatter.skill_file)}\n${frontmatter.skill_files === undefined ? '' : `skill_files: ${JSON.stringify(frontmatter.skill_files)}\n`}status: "available"\nworkspace_id: ${JSON.stringify(workspaceId)}\ncreated_at: ${timestamp}\nupdated_at: ${timestamp}\n---\n\n# ${frontmatter.name}\n`;
   await writeFile(filePath, markdown, { flag: "wx" });
   return {
     agent: frontmatter,

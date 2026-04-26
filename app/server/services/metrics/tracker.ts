@@ -6,7 +6,7 @@ import { resolveVaultWorkspaceRoot } from "../vault/runtime";
 export interface TokenSavingsEntry {
   readonly timestamp: string;
   readonly agent: string;
-  readonly endpoint: "context" | "planner-context" | "tasks" | "bootstrap" | "search" | "search-code" | "session";
+  readonly endpoint: "context" | "planner-context" | "tasks" | "bootstrap" | "search" | "search-code" | "search-docs" | "session";
   readonly taskId?: string;
   readonly responseTokens: number;
   readonly baselineTokens: number;
@@ -29,6 +29,7 @@ const BASELINE_TOKENS: Record<TokenSavingsEntry["endpoint"], number> = {
   bootstrap: 6000,
   search: 5000,
   "search-code": 15000,
+  "search-docs": 3000,
   session: 5774,
 };
 

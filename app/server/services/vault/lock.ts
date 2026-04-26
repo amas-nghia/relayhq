@@ -57,7 +57,7 @@ export class VaultLockError extends Error {
 
 export class VaultStaleWriteError extends VaultLockError {
   constructor(actorId: string, owner: string | null) {
-    super("Task lock is stale and must be recovered before writing.", { actorId, owner, code: "stale" });
+    super(`Task lock is stale and must be recovered before writing. Locked by ${formatLockOwner(owner)}.`, { actorId, owner, code: "stale" });
     this.name = "VaultStaleWriteError";
   }
 }
@@ -68,6 +68,10 @@ function toIso(date: Date): string {
 
 function addMilliseconds(date: Date, milliseconds: number): Date {
   return new Date(date.getTime() + milliseconds);
+}
+
+function formatLockOwner(owner: string | null): string {
+  return owner === null ? "unknown" : owner;
 }
 
 function parseTimestamp(value: string | null): number | null {
@@ -176,7 +180,7 @@ export function assertTaskWriteable(task: Pick<TaskFrontmatter, "heartbeat_at" |
   }
 
   if (lockState.owner !== null && lockState.owner !== actorId) {
-    throw new VaultLockError("Task is locked by another actor.", {
+    throw new VaultLockError(`Task is locked by ${formatLockOwner(lockState.owner)}.`, {
       actorId,
       owner: lockState.owner,
       code: "locked",
@@ -239,7 +243,7 @@ export async function acquireTaskFileLock(filePath: string, options: TaskFileLoc
         throw new VaultStaleWriteError(options.actorId, state.owner);
       }
 
-      throw new VaultLockError("Task is locked by another actor.", {
+      throw new VaultLockError(`Task is locked by ${formatLockOwner(state.owner)}.`, {
         actorId: options.actorId,
         owner: state.owner,
         code: "locked",

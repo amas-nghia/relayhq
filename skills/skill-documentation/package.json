@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-documentation",
+  "version": "1.0.0",
+  "description": "Documentation skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "documentation"],
+  "license": "MIT"
+}

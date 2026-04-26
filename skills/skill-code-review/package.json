@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-code-review",
+  "version": "1.0.0",
+  "description": "Code review skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "code-review"],
+  "license": "MIT"
+}

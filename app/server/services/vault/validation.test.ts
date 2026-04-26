@@ -73,6 +73,7 @@ describe("vault task write validation", () => {
         progress: 25,
         next_run_at: "2026-04-14T12:00:00Z",
         execution_notes: "working through the implementation",
+        cron_schedule: "0 9 * * 1-5",
       },
       body: "## Notes\nNo secrets here.",
     });
@@ -80,6 +81,21 @@ describe("vault task write validation", () => {
     // Assert
     expect(result.valid).toBe(true);
     expect(result.issues).toHaveLength(0);
+  });
+
+  test("rejects invalid cron schedules", () => {
+    const current = createTask();
+
+    const result = validateTaskWrite({
+      current,
+      patch: {
+        cron_schedule: "not a cron",
+      },
+      body: "clean body",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((issue) => issue.field === "cron_schedule")).toBe(true);
   });
 
   test("rejects malformed or immutable task writes", () => {

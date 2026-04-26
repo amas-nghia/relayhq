@@ -4,12 +4,16 @@ import { publishRealtimeUpdate } from "../realtime/bus";
 import { upsertLatestApprovalForTask } from "./approval-write";
 import { syncTaskDocument, type SyncTaskResult } from "./write";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
+import { spawnRecurringTaskInstance } from "./task-scheduler";
+import { nextCronOccurrence } from "../../../shared/vault/cron";
+import type { TaskHistoryEntry } from "../../../shared/vault/schema";
 
 export interface TaskLifecycleRequest {
   readonly taskId: string;
   readonly actorId: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
+  readonly historyEntry?: TaskHistoryEntry;
 }
 
 export interface PatchTaskLifecycleRequest extends TaskLifecycleRequest {
@@ -28,6 +32,44 @@ export interface RejectTaskLifecycleRequest extends RequestApprovalLifecycleRequ
 
 export interface ScheduleTaskLifecycleRequest extends TaskLifecycleRequest {
   readonly nextRunAt: string;
+}
+
+function applyCronScheduleDefaults(patch: Readonly<Partial<TaskFrontmatter>>, now: Date): Readonly<Partial<TaskFrontmatter>> {
+  if (typeof patch.cron_schedule !== "string" || patch.cron_schedule.trim().length === 0) {
+    return patch;
+  }
+
+  const nextRunAt = patch.next_run_at ?? nextCronOccurrence(patch.cron_schedule, now)?.toISOString() ?? null;
+  return {
+    ...patch,
+    status: patch.status ?? "scheduled",
+    column: patch.column ?? "todo",
+    next_run_at: nextRunAt,
+    blocked_reason: patch.blocked_reason ?? null,
+    blocked_since: patch.blocked_since ?? null,
+  };
+}
+
+function buildHistoryEntry(
+  actorId: string,
+  now: Date,
+  action: string,
+  fromStatus?: TaskFrontmatter["status"],
+  toStatus?: TaskFrontmatter["status"],
+): TaskHistoryEntry {
+  return {
+    at: now.toISOString(),
+    actor: actorId,
+    action,
+    ...(fromStatus === undefined ? {} : { from_status: fromStatus }),
+    ...(toStatus === undefined ? {} : { to_status: toStatus }),
+  };
+}
+
+function statusAction(status: TaskFrontmatter["status"]): string {
+  if (status === "review") return "moved-to-review";
+  if (status === "done") return "moved-to-done";
+  return `moved-to-${status}`;
 }
 
 function isCompletedStatus(status: TaskFrontmatter["status"]): boolean {
@@ -82,6 +124,7 @@ async function runTaskLifecycleMutation(
     now,
     recoverStaleLock: options.recoverStaleLock,
     releaseLock: options.releaseLock,
+    historyEntry: request.historyEntry,
     mutate: (task) => withLifecycleDefaults(mutate(task, now), task, now),
   });
 }
@@ -112,6 +155,7 @@ function toWebhookEvent(previous: TaskFrontmatter, next: TaskFrontmatter): Webho
       || previous.result !== next.result
       || previous.completed_at !== next.completed_at
       || previous.parent_task_id !== next.parent_task_id
+      || JSON.stringify(previous.history ?? []) !== JSON.stringify(next.history ?? [])
       || previous.next_run_at !== next.next_run_at
       || JSON.stringify(previous.depends_on) !== JSON.stringify(next.depends_on)
       || JSON.stringify(previous.tags) !== JSON.stringify(next.tags)
@@ -165,24 +209,51 @@ function publishTaskRealtimeUpdate(next: TaskFrontmatter, timestamp: string, rea
 export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, () => request.patch);
+  const patch = applyCronScheduleDefaults(request.patch, request.now ?? new Date());
+  const historyEntry = typeof patch.status === "string"
+    ? buildHistoryEntry(request.actorId, request.now ?? new Date(), statusAction(patch.status), undefined, patch.status)
+    : undefined;
+  const result = await runTaskLifecycleMutation(
+    { ...request, vaultRoot, historyEntry },
+    () => patch,
+    { releaseLock: request.patch.status !== undefined && (request.patch.status === "review" || request.patch.status === "done") },
+  );
   const reason = notifyTaskLifecycle(result.previous, result.frontmatter, timestamp, vaultRoot) ?? "task.updated";
   publishTaskRealtimeUpdate(result.frontmatter, timestamp, reason);
+
+  if (result.previous.status !== "done" && result.frontmatter.status === "done") {
+    await spawnRecurringTaskInstance({
+      completedTask: result.frontmatter,
+      completedBody: result.body,
+      actorId: request.actorId,
+      now: request.now,
+      vaultRoot,
+    });
+  }
+
   return result;
 }
 
 export async function claimTaskLifecycle(request: ClaimTaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
-    assignee: request.assignee ?? request.actorId,
-    status: "in-progress",
-    column: "in-progress",
-    execution_started_at: now.toISOString(),
-    next_run_at: null,
-    blocked_reason: null,
-    blocked_since: null,
-  }), { recoverStaleLock: true });
+  const result = await runTaskLifecycleMutation(
+    {
+      ...request,
+      vaultRoot,
+      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "claimed", undefined, "in-progress"),
+    },
+    (_task, now) => ({
+      assignee: request.assignee ?? request.actorId,
+      status: "in-progress",
+      column: "in-progress",
+      execution_started_at: now.toISOString(),
+      next_run_at: null,
+      blocked_reason: null,
+      blocked_since: null,
+    }),
+    { recoverStaleLock: true },
+  );
   const reason = notifyTaskLifecycle(result.previous, result.frontmatter, timestamp, vaultRoot) ?? "task.claimed";
   publishTaskRealtimeUpdate(result.frontmatter, timestamp, reason);
   return result;
@@ -199,13 +270,20 @@ export async function heartbeatTaskLifecycle(request: TaskLifecycleRequest): Pro
 
 export async function scheduleTaskLifecycle(request: ScheduleTaskLifecycleRequest): Promise<SyncTaskResult> {
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation(request, () => ({
-    status: "scheduled",
-    column: "todo",
-    next_run_at: request.nextRunAt,
-    blocked_reason: null,
-    blocked_since: null,
-  }), { recoverStaleLock: true, releaseLock: true });
+  const result = await runTaskLifecycleMutation(
+    {
+      ...request,
+      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "scheduled", undefined, "scheduled"),
+    },
+    () => ({
+      status: "scheduled",
+      column: "todo",
+      next_run_at: request.nextRunAt,
+      blocked_reason: null,
+      blocked_since: null,
+    }),
+    { recoverStaleLock: true, releaseLock: true },
+  );
   queueTaskWebhookNotification({
     event: "task.scheduled",
     taskId: result.frontmatter.id,
@@ -222,16 +300,23 @@ export async function scheduleTaskLifecycle(request: ScheduleTaskLifecycleReques
 export async function requestTaskApprovalLifecycle(request: RequestApprovalLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, () => ({
-    status: "waiting-approval",
-    column: "review",
-    approval_needed: true,
-    approval_requested_by: request.actorId,
-    approval_reason: request.reason,
-    approval_outcome: "pending",
-    approved_by: null,
-    approved_at: null,
-  }));
+  const result = await runTaskLifecycleMutation(
+    {
+      ...request,
+      vaultRoot,
+      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "approval-requested", undefined, "waiting-approval"),
+    },
+    () => ({
+      status: "waiting-approval",
+      column: "review",
+      approval_needed: true,
+      approval_requested_by: request.actorId,
+      approval_reason: request.reason,
+      approval_outcome: "pending",
+      approved_by: null,
+      approved_at: null,
+    }),
+  );
 
   await upsertLatestApprovalForTask({
     vaultRoot,
@@ -255,16 +340,23 @@ export async function requestTaskApprovalLifecycle(request: RequestApprovalLifec
 export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
-    status: "in-progress",
-    column: "in-progress",
-    approval_needed: true,
-    approval_outcome: "approved",
-    approved_by: request.actorId,
-    approved_at: now.toISOString(),
-    blocked_reason: null,
-    blocked_since: null,
-  }));
+  const result = await runTaskLifecycleMutation(
+    {
+      ...request,
+      vaultRoot,
+      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "approved", undefined, "in-progress"),
+    },
+    (_task, now) => ({
+      status: "in-progress",
+      column: "in-progress",
+      approval_needed: true,
+      approval_outcome: "approved",
+      approved_by: request.actorId,
+      approved_at: now.toISOString(),
+      blocked_reason: null,
+      blocked_since: null,
+    }),
+  );
 
   await upsertLatestApprovalForTask({
     vaultRoot,
@@ -288,16 +380,23 @@ export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promi
 export async function rejectTaskLifecycle(request: RejectTaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation({ ...request, vaultRoot }, (_task, now) => ({
-    status: "blocked",
-    column: "review",
-    approval_needed: true,
-    approval_outcome: "rejected",
-    approved_by: request.actorId,
-    approved_at: now.toISOString(),
-    blocked_reason: request.reason,
-    blocked_since: now.toISOString(),
-  }));
+  const result = await runTaskLifecycleMutation(
+    {
+      ...request,
+      vaultRoot,
+      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "rejected", undefined, "blocked"),
+    },
+    (_task, now) => ({
+      status: "blocked",
+      column: "review",
+      approval_needed: true,
+      approval_outcome: "rejected",
+      approved_by: request.actorId,
+      approved_at: now.toISOString(),
+      blocked_reason: request.reason,
+      blocked_since: now.toISOString(),
+    }),
+  );
 
   await upsertLatestApprovalForTask({
     vaultRoot,

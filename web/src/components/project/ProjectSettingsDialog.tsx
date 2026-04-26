@@ -134,7 +134,7 @@ export function ProjectSettingsDialog({
   return (
     <>
       <Dialog open>
-        <DialogOverlay />
+        <DialogOverlay onClick={onClose} />
         <DialogContent>
           <DialogPanel className="max-w-lg">
             <DialogHeader>
@@ -242,7 +242,7 @@ export function ProjectSettingsDialog({
 
       {directoryBrowser && (
         <Dialog open>
-          <DialogOverlay />
+          <DialogOverlay onClick={() => setDirectoryBrowser(null)} />
           <DialogContent>
             <DialogPanel className="max-w-2xl">
               <DialogHeader>

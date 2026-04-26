@@ -174,6 +174,40 @@ function requireTaskLinks(record: Record<string, unknown>, filePath: string): Ta
   });
 }
 
+function requireTaskHistory(record: Record<string, unknown>, filePath: string): NonNullable<TaskFrontmatter["history"]> {
+  const value = record.history;
+  if (!Array.isArray(value)) {
+    throw new VaultReadError("Missing or invalid history.", filePath);
+  }
+
+  return value.map((item, index) => {
+    if (typeof item !== "object" || item === null) {
+      throw new VaultReadError(`Missing or invalid history[${index}].`, filePath);
+    }
+
+    const entry = item as Record<string, unknown>;
+    const at = requireTimestamp(entry, "at", filePath);
+    const actor = requireString(entry, "actor", filePath);
+    const action = requireString(entry, "action", filePath);
+
+    if (entry.from_status !== undefined && typeof entry.from_status !== "string") {
+      throw new VaultReadError(`Missing or invalid history[${index}].from_status.`, filePath);
+    }
+
+    if (entry.to_status !== undefined && typeof entry.to_status !== "string") {
+      throw new VaultReadError(`Missing or invalid history[${index}].to_status.`, filePath);
+    }
+
+    return {
+      at,
+      actor,
+      action,
+      ...(entry.from_status === undefined ? {} : { from_status: entry.from_status as TaskFrontmatter["status"] }),
+      ...(entry.to_status === undefined ? {} : { to_status: entry.to_status as TaskFrontmatter["status"] }),
+    };
+  });
+}
+
 function requireNullableTimestamp(record: Record<string, unknown>, field: string, filePath: string): string | null {
   const value = record[field];
   if (value === null) {
@@ -260,7 +294,9 @@ function parseTaskFrontmatter(record: Record<string, unknown>, filePath: string)
     execution_started_at: requireNullableTimestamp(record, "execution_started_at", filePath),
     execution_notes: requireNullableString(record, "execution_notes", filePath),
     progress: requireNumber(record, "progress", filePath),
+    ...(record.history === undefined ? {} : { history: requireTaskHistory(record, filePath) }),
     ...(record.next_run_at === undefined ? {} : { next_run_at: requireNullableTimestamp(record, "next_run_at", filePath) }),
+    ...(record.cron_schedule === undefined ? {} : { cron_schedule: requireNullableString(record, "cron_schedule", filePath) }),
     approval_needed: requireBoolean(record, "approval_needed", filePath),
     approval_requested_by: requireNullableString(record, "approval_requested_by", filePath),
     approval_reason: requireNullableString(record, "approval_reason", filePath),
@@ -314,9 +350,9 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
       ? [{ name: "main", path: record.codebase_root.trim(), primary: true }]
       : [];
 
-  return {
+  const result = {
     id: requireString(record, "id", filePath),
-    type: "project",
+    type: "project" as const,
     workspace_id: requireString(record, "workspace_id", filePath),
     name: requireString(record, "name", filePath),
     ...(record.description === undefined ? {} : { description: requireString(record, "description", filePath) }),
@@ -347,10 +383,10 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
     codebases,
     created_at: requireTimestamp(record, "created_at", filePath),
     updated_at: requireTimestamp(record, "updated_at", filePath),
-  } satisfies ProjectFrontmatter;
+  };
 
-  assertProjectFrontmatter(frontmatter);
-  return frontmatter;
+  assertProjectFrontmatter(result);
+  return result;
 }
 
 function parseBoardFrontmatter(record: Record<string, unknown>, filePath: string): BoardFrontmatter {
@@ -426,6 +462,7 @@ function parseAgentFrontmatter(record: Record<string, unknown>, filePath: string
     cannot_do: [...requireStringArray(record, "cannot_do", filePath)].sort(compareText),
     accessible_by: [...requireStringArray(record, "accessible_by", filePath)].sort(compareText),
     skill_file: requireString(record, "skill_file", filePath),
+    ...(record.skill_files === undefined ? {} : { skill_files: [...requireStringArray(record, "skill_files", filePath)].sort(compareText) }),
     status: requireString(record, "status", filePath),
     workspace_id: requireString(record, "workspace_id", filePath),
     created_at: requireTimestamp(record, "created_at", filePath),

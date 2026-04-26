@@ -7,6 +7,14 @@ export interface ReadModelLink {
   readonly threadId: string
 }
 
+export interface ReadModelTaskHistoryEntry {
+  readonly at: string
+  readonly actor: string
+  readonly action: string
+  readonly fromStatus?: TaskStatus
+  readonly toStatus?: TaskStatus
+}
+
 export interface ReadModelApprovalState {
   readonly status: 'not-needed' | 'pending' | 'approved' | 'rejected'
   readonly needed: boolean
@@ -112,6 +120,7 @@ export interface ReadModelTask {
   readonly executionStartedAt: string | null
   readonly executionNotes: string | null
   readonly progress: number
+  readonly history: ReadonlyArray<ReadModelTaskHistoryEntry>
   readonly approvalNeeded: boolean
   readonly approvalRequestedBy: string | null
   readonly approvalReason: string | null
@@ -121,6 +130,7 @@ export interface ReadModelTask {
   readonly blockedReason: string | null
   readonly blockedSince: string | null
   readonly nextRunAt?: string | null
+  readonly cronSchedule?: string | null
   readonly result: string | null
   readonly completedAt: string | null
   readonly tokensUsed?: number | null
@@ -226,6 +236,7 @@ export interface ReadModelAgent {
   readonly cannotDo: ReadonlyArray<string>
   readonly accessibleBy: ReadonlyArray<string>
   readonly skillFile: string
+  readonly skillFiles?: ReadonlyArray<string>
   readonly status: string
   readonly createdAt: string
   readonly updatedAt: string
@@ -266,6 +277,13 @@ export interface AgentContextBoardSummary {
   readonly columnSummary: ReadonlyArray<{ id: string; name: string; taskCount: number }>
 }
 
+export interface AgentContextSkill {
+  readonly name: string
+  readonly version: string
+  readonly description: string
+  readonly content: string
+}
+
 export interface AgentContextResponse {
   readonly vaultRoot?: string
   readonly workspaceId: string | null
@@ -275,6 +293,7 @@ export interface AgentContextResponse {
   readonly pendingApprovalCount: number
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>
   readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>
+  readonly skills: ReadonlyArray<AgentContextSkill>
   readonly activeSessions: ReadonlyArray<ActiveAgentSession>
 }
 

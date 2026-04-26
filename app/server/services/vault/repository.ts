@@ -13,6 +13,12 @@ export interface ProjectFrontmatter {
   readonly type: "project";
   readonly workspace_id: string;
   readonly name: string;
+  readonly description?: string;
+  readonly budget?: string;
+  readonly deadline?: string;
+  readonly status?: string;
+  readonly links?: ReadonlyArray<{ readonly label: string; readonly url: string }>;
+  readonly attachments?: ReadonlyArray<{ readonly label: string; readonly url: string; readonly type: string; readonly addedAt: string }>;
   readonly codebase_root?: string | null;
   readonly codebases?: ReadonlyArray<{ readonly name: string; readonly path: string; readonly tech?: string; readonly primary?: boolean }>;
   readonly created_at: string;

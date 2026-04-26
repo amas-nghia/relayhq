@@ -49,6 +49,7 @@ export interface ReadModelAgent {
   readonly cannotDo: ReadonlyArray<string>;
   readonly accessibleBy: ReadonlyArray<string>;
   readonly skillFile: string;
+  readonly skillFiles?: ReadonlyArray<string>;
   readonly status: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -59,6 +60,14 @@ export interface ReadModelAgent {
 export interface ReadModelLink {
   readonly projectId: string;
   readonly threadId: string;
+}
+
+export interface ReadModelTaskHistoryEntry {
+  readonly at: string;
+  readonly actor: string;
+  readonly action: string;
+  readonly fromStatus?: TaskFrontmatter["status"];
+  readonly toStatus?: TaskFrontmatter["status"];
 }
 
 export interface ReadModelApprovalState {
@@ -159,7 +168,9 @@ export interface ReadModelTask {
   readonly executionStartedAt: string | null;
   readonly executionNotes: string | null;
   readonly progress: number;
+  readonly history: ReadonlyArray<ReadModelTaskHistoryEntry>;
   readonly nextRunAt?: string | null;
+  readonly cronSchedule?: string | null;
   readonly approvalNeeded: boolean;
   readonly approvalRequestedBy: string | null;
   readonly approvalReason: string | null;
@@ -571,6 +582,7 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     cannotDo: sortStrings(document.frontmatter.cannot_do),
     accessibleBy: sortStrings(document.frontmatter.accessible_by),
     skillFile: document.frontmatter.skill_file,
+    skillFiles: sortStrings(document.frontmatter.skill_files ?? []),
     status: document.frontmatter.status,
     createdAt: document.frontmatter.created_at,
     updatedAt: document.frontmatter.updated_at,
@@ -601,7 +613,15 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     executionStartedAt: document.frontmatter.execution_started_at,
     executionNotes: document.frontmatter.execution_notes,
     progress: document.frontmatter.progress,
+    history: (document.frontmatter.history ?? []).map((entry) => ({
+      at: entry.at,
+      actor: entry.actor,
+      action: entry.action,
+      ...(entry.from_status === undefined ? {} : { fromStatus: entry.from_status }),
+      ...(entry.to_status === undefined ? {} : { toStatus: entry.to_status }),
+    })),
     nextRunAt: document.frontmatter.next_run_at ?? null,
+    cronSchedule: document.frontmatter.cron_schedule ?? null,
     approvalNeeded: document.frontmatter.approval_needed,
     approvalRequestedBy: document.frontmatter.approval_requested_by,
     approvalReason: document.frontmatter.approval_reason,

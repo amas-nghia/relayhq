@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bot, Check, Clock3 } from 'lucide-react';
+import { Bot, Check, Clock3, Repeat2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'
 import { Task } from '../../types';
 import { relayhqApi } from '../../api/client';
 import { useAppStore } from '../../store/appStore';
@@ -24,11 +25,9 @@ function resolveDeferredTime(input: string): string | null {
 }
 
 export function TaskCard({ task }: { task: Task; key?: string | number }) {
-  const openDetail = useAppStore(state => state.openTaskDetail);
-  const selectedTaskId = useAppStore(state => state.selectedTaskId);
+  const navigate = useNavigate()
   const agent = useAppStore(state => state.agents.find(a => a.id === task.assigneeId));
   const fetchReadModel = useAppStore(state => state.fetchReadModel);
-  const isSelected = selectedTaskId === task.id;
   const [, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -71,28 +70,35 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
     await fetchReadModel()
   }
 
-  let leftBorderClass = 'border-l-4 border-l-transparent';
-  if (task.status === 'blocked') leftBorderClass = 'border-l-4 border-l-status-blocked';
-  else if (task.status === 'scheduled') leftBorderClass = 'border-l-4 border-l-text-tertiary';
-  else if (task.status === 'review') leftBorderClass = 'border-l-4 border-l-status-active';
-  else if (task.status === 'waiting-approval') leftBorderClass = 'border-l-4 border-l-status-waiting';
-  else if (task.priority === 'critical') leftBorderClass = 'border-l-4 border-l-status-blocked';
-  else if (task.priority === 'high') leftBorderClass = 'border-l-4 border-l-status-waiting';
+  let leftBorderClass = 'border-l-4 border-l-border';
+  if (task.priority === 'low') leftBorderClass = 'border-l-4 border-l-emerald-500';
+  else if (task.priority === 'medium') leftBorderClass = 'border-l-4 border-l-sky-500';
+  else if (task.priority === 'high') leftBorderClass = 'border-l-4 border-l-amber-500';
+  else if (task.priority === 'critical') leftBorderClass = 'border-l-4 border-l-red-500';
 
   let priorityDot = null;
-  if (task.priority === 'critical') priorityDot = 'bg-status-blocked';
-  if (task.priority === 'high') priorityDot = 'bg-status-waiting';
-  if (task.priority === 'low') priorityDot = 'bg-border';
+  if (task.priority === 'low') priorityDot = 'bg-emerald-500';
+  if (task.priority === 'medium') priorityDot = 'bg-sky-500';
+  if (task.priority === 'high') priorityDot = 'bg-amber-500';
+  if (task.priority === 'critical') priorityDot = 'bg-red-500';
 
   return (
     <Card
+      draggable={task.status !== 'done' && task.status !== 'cancelled'}
       role="button"
       tabIndex={0}
-      onClick={() => openDetail(task.id)}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', task.id)
+        event.dataTransfer.setData('application/x-relayhq-task-id', task.id)
+      }}
+      onDragEnd={(event) => {
+        event.dataTransfer.clearData()
+      }}
+      onClick={() => navigate(`/tasks/${task.id}`)}
       className={clsx(
-        'group relative flex min-h-[72px] flex-col justify-between p-3 cursor-pointer transition-all duration-150 ease-out hover:-translate-y-[2px] hover:shadow-hover hover:border-brand/30',
+        'group relative flex min-h-[72px] flex-col justify-between p-3 cursor-pointer transition-all duration-150 ease-out hover:-translate-y-[2px] hover:shadow-hover hover:border-brand/30 active:cursor-grabbing gallery-item board-card',
         leftBorderClass,
-        isSelected && 'ring-2 ring-brand border-brand',
         task.status === 'done' && 'opacity-60 hover:translate-y-0 hover:opacity-100',
         task.status === 'scheduled' && 'opacity-80'
       )}
@@ -117,11 +123,6 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
 
       <div className="flex items-center justify-between mt-auto">
         <div className="flex items-center gap-1.5">
-          {task.status !== 'done' && task.status !== 'cancelled' && task.status !== 'scheduled' && (
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={(event) => { event.stopPropagation(); void scheduleForLater(); }}>
-              <Clock3 className="h-3 w-3" /> Later
-            </Button>
-          )}
           {task.status === 'waiting-approval' && (
             <Badge variant="secondary" className="shrink-0 border-status-waiting/20 bg-status-waiting/10 text-status-waiting">
               APPROVAL
@@ -133,15 +134,16 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
               {scheduleLabel ?? 'SCHEDULED'}
             </Badge>
           )}
+          {task.cronSchedule && (
+            <Badge variant="secondary" className="shrink-0 border-brand/15 bg-brand-muted text-brand">
+              <Repeat2 className="mr-1 h-3 w-3" />
+              RECURRING
+            </Badge>
+          )}
           {task.status === 'scheduled' && (
             <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={(event) => { event.stopPropagation(); void unschedule(); }}>
               Cancel
             </Button>
-          )}
-          {task.status === 'review' && (
-            <Badge variant="secondary" className="shrink-0 border-status-active/20 bg-brand-muted text-status-active">
-              REVIEW
-            </Badge>
           )}
           {task.status === 'blocked' && (
             <Badge variant="secondary" className="shrink-0 border-status-blocked/20 bg-status-blocked/10 text-status-blocked">

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { AlertTriangle, Bot, CheckCircle2, Clock3, Plus, User2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { useAppStore } from '../store/appStore'
 type TaskActivityKind = 'created' | 'claimed' | 'done' | 'blocked' | 'waiting-approval'
@@ -54,7 +55,7 @@ function formatTime(value: string): string {
 
 export function AuditView() {
   const tasks = useAppStore(state => state.tasks)
-  const openDetail = useAppStore(state => state.openTaskDetail)
+  const navigate = useNavigate()
 
   const groups = useMemo(() => {
     const events: TaskActivityEvent[] = tasks.flatMap((task) => {
@@ -144,7 +145,7 @@ export function AuditView() {
                   <button
                     key={event.id}
                     type="button"
-                    onClick={() => event.taskId && openDetail(event.taskId)}
+                    onClick={() => event.taskId && navigate(`/tasks/${event.taskId}`)}
                     className="relative text-left"
                     disabled={!event.taskId}
                   >

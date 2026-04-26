@@ -7,6 +7,7 @@ import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, readExposedVaultRoot, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 import { countTokens, computeSaving, recordTokenSaving } from "../../services/metrics/tracker";
 import { sessionStore as defaultSessionStore, type ActiveSession, type SessionStore } from "../../services/session/store";
+import { loadInstalledSkills, matchInstalledSkills, type InstalledSkill } from "../../services/agents/skills";
 
 export interface AgentContextProjectCodebase {
   readonly name: string;
@@ -35,6 +36,13 @@ export interface AgentContextBoardSummary {
   readonly columnSummary: ReadonlyArray<AgentContextColumnSummary>;
 }
 
+export interface AgentContextSkill {
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly content: string;
+}
+
 export interface AgentContextResponse {
   readonly vaultRoot?: string;
   readonly workspaceId: string | null;
@@ -45,6 +53,7 @@ export interface AgentContextResponse {
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>;
   readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>;
   readonly relevant_docs: ReadonlyArray<{ taskId: string; docs: ReadonlyArray<{ id: string; title: string; doc_type: string; path: string; summary: string }> }>;
+  readonly skills: ReadonlyArray<AgentContextSkill>;
   readonly activeSessions: ReadonlyArray<ActiveSession>;
 }
 
@@ -55,9 +64,15 @@ interface ReadAgentContextDependencies {
   readonly preloadedReadModel?: VaultReadModel;
   readonly sessionStore?: SessionStore;
   readonly now?: () => Date;
+  readonly skillDir?: string;
 }
 
-function toAgentContextResponse(readModel: VaultReadModel, activeSessions: ReadonlyArray<ActiveSession>, agentId: string | null): AgentContextResponse {
+function toAgentContextResponse(
+  readModel: VaultReadModel,
+  activeSessions: ReadonlyArray<ActiveSession>,
+  agentId: string | null,
+  skills: ReadonlyArray<InstalledSkill>,
+): AgentContextResponse {
   const workspace = readModel.workspaces[0] ?? null;
   const tasksByColumnId = new Map<string, number>();
   const exposedVaultRoot = readExposedVaultRoot();
@@ -94,6 +109,12 @@ function toAgentContextResponse(readModel: VaultReadModel, activeSessions: Reado
         taskId: task.id,
         docs: getRelevantDocsForTask(readModel, task, { agentId: task.assignee }),
       })),
+    skills: skills.map((skill) => ({
+      name: skill.name,
+      version: skill.version,
+      description: skill.description,
+      content: skill.content,
+    })),
     activeSessions,
     boardSummary: readModel.boards.map((board) => ({
       id: board.id,
@@ -111,7 +132,7 @@ function toAgentContextResponse(readModel: VaultReadModel, activeSessions: Reado
 
 export async function readAgentContext(
   dependencies: ReadAgentContextDependencies = {},
-  options: { agentId?: string | null; requestedRoles?: ReadonlyArray<string> } = {},
+  options: { agentId?: string | null; requestedRoles?: ReadonlyArray<string>; taskId?: string | null } = {},
 ): Promise<AgentContextResponse> {
   const sessionStore = dependencies.sessionStore ?? defaultSessionStore;
   const now = dependencies.now?.() ?? new Date();
@@ -144,14 +165,23 @@ export async function readAgentContext(
     });
   }
 
-  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now), options.agentId ?? null);
+  const installedSkills = await loadInstalledSkills(dependencies.skillDir);
+  const selectedTask = options.taskId === undefined || options.taskId === null
+    ? null
+    : filteredReadModel.tasks.find((task) => task.id === options.taskId) ?? null;
+  const agentSkillFiles = options.agentId === null || options.agentId === undefined
+    ? []
+    : filteredReadModel.agents.find((agent) => agent.id === options.agentId)?.skillFiles ?? [];
+  const matchedSkills = matchInstalledSkills({ skills: installedSkills, task: selectedTask, agentSkillFiles });
+
+  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now), options.agentId ?? null, matchedSkills);
 }
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event);
   const agent = String(query.agent ?? query.agent_id ?? "anonymous");
   const requestedRoles = typeof query.roles === "string" ? query.roles.split(",") : [];
-  const response = await readAgentContext({}, { agentId: typeof query.agent_id === "string" ? query.agent_id : null, requestedRoles });
+  const response = await readAgentContext({}, { agentId: typeof query.agent_id === "string" ? query.agent_id : null, requestedRoles, taskId: typeof query.taskId === "string" ? query.taskId : null });
   const responseTokens = countTokens(response);
   const { baselineTokens, savedTokens } = computeSaving("context", responseTokens);
   recordTokenSaving({ timestamp: new Date().toISOString(), agent, endpoint: "context", responseTokens, baselineTokens, savedTokens });

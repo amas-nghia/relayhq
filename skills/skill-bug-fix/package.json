@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-bug-fix",
+  "version": "1.0.0",
+  "description": "Bug fix skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "bug-fix"],
+  "license": "MIT"
+}

@@ -2,6 +2,7 @@ import { useAppStore } from '../store/appStore';
 import { Check, X, ArrowRight, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'
 
 export function ApprovalsView() {
   const tasks = useAppStore(state => state.tasks);
@@ -11,8 +12,7 @@ export function ApprovalsView() {
   const approveTask = useAppStore(state => state.approveTask);
   const rejectTask = useAppStore(state => state.rejectTask);
   const isMutating = useAppStore(state => state.isMutating);
-  const mutationError = useAppStore(state => state.mutationError);
-  const openDetail = useAppStore(state => state.openTaskDetail);
+  const navigate = useNavigate()
   const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -65,6 +65,16 @@ export function ApprovalsView() {
                         <span>•</span>
                         <span>{project?.name || 'Unknown project'}</span>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {task.approvalNeeded && (
+                          <span className="inline-flex items-center rounded-sm border border-status-waiting/20 bg-status-waiting/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-status-waiting">
+                            approval needed
+                          </span>
+                        )}
+                        <span className="inline-flex items-center rounded-sm border border-border bg-surface-secondary px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                          waiting approval
+                        </span>
+                      </div>
                     </div>
                   </div>
                   
@@ -89,7 +99,7 @@ export function ApprovalsView() {
                     </button>
                     <div className="flex md:flex-1 md:justify-end">
                       <button 
-                        onClick={() => openDetail(task.id)}
+                        onClick={() => navigate(`/tasks/${task.id}`)}
                         className="text-accent hover:bg-accent-light px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"
                       >
                         View task <ArrowRight className="w-4 h-4" />
@@ -115,8 +125,6 @@ export function ApprovalsView() {
               );
             })}
           </div>
-
-          {mutationError && <p className="text-sm text-status-blocked">{mutationError}</p>}
 
           <div className="flex items-start">
             <button className="text-sm text-text-secondary font-medium hover:text-text-primary flex items-center gap-1">

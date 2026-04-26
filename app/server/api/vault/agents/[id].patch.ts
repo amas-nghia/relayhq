@@ -75,6 +75,7 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   publishRealtimeUpdate({
     kind: "vault.changed",
     reason: "agent.updated",
+    taskId: null,
     agentId,
     source: agentId,
     timestamp: new Date().toISOString(),

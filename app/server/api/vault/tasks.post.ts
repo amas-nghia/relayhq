@@ -55,6 +55,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     "constraints",
     "contextFiles",
     "templateId",
+    "cron_schedule",
     "sourceIssueId",
     "github_issue_id",
   ] as const;
@@ -72,7 +73,8 @@ export async function createVaultTaskFromBody(body: unknown) {
     typeof body.columnId !== "string" ||
     typeof body.priority !== "string" ||
     (body.assignee !== undefined && typeof body.assignee !== "string") ||
-    (body.requiredCapability !== undefined && typeof body.requiredCapability !== "string")
+    (body.requiredCapability !== undefined && typeof body.requiredCapability !== "string") ||
+    (body.cron_schedule !== undefined && typeof body.cron_schedule !== "string")
   ) {
     throw createError({
       statusCode: 400,
@@ -119,6 +121,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     priority: body.priority as TaskPriority,
     assignee: typeof body.assignee === "string" ? body.assignee : undefined,
     requiredCapability: typeof body.requiredCapability === "string" ? body.requiredCapability : undefined,
+    cronSchedule: typeof body.cron_schedule === "string" ? body.cron_schedule : undefined,
     tags: body.tags,
     dependsOn: body.dependsOn,
     body: buildBody(objective, acceptanceCriteria, constraints, contextFiles),

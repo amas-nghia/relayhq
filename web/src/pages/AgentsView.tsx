@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
 import { Textarea } from '../components/ui/textarea'
+import { useNavigate } from 'react-router-dom'
 
 function AgentFeedPanel() {
   const agents = useAppStore(state => state.agents)
@@ -359,7 +360,7 @@ export function AgentsView() {
   const agents = useAppStore(state => state.agents)
   const tasks = useAppStore(state => state.tasks)
   const projects = useAppStore(state => state.projects)
-  const openDetail = useAppStore(state => state.openTaskDetail)
+  const navigate = useNavigate()
   const loadData = useAppStore(state => state.loadData)
   const activeAgents = agents.filter(a => a.state !== 'idle')
   const idleAgents = agents.filter(a => a.state === 'idle')
@@ -557,7 +558,7 @@ export function AgentsView() {
                             {agent.state === 'waiting' && (
                               <div className="flex items-center gap-3 text-xs text-text-secondary">
                                 <span>Waiting for approval since {agent.lastHeartbeat}</span>
-                                <button onClick={(event) => { event.stopPropagation(); openDetail(task.id) }} className="flex items-center gap-1 font-medium text-accent transition-colors hover:text-accent-light">
+                                <button onClick={(event) => { event.stopPropagation(); navigate(`/tasks/${task.id}`) }} className="flex items-center gap-1 font-medium text-accent transition-colors hover:text-accent-light">
                                   Review approval <ArrowRight className="h-3 w-3" />
                                 </button>
                               </div>
@@ -638,7 +639,7 @@ export function AgentsView() {
 
       {editingAgent && (
         <Dialog open>
-          <DialogOverlay />
+          <DialogOverlay onClick={() => setEditingAgentId(null)} />
           <DialogContent>
             <DialogPanel className="max-w-lg">
               <DialogHeader>

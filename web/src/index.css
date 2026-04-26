@@ -1,50 +1,54 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
 
 :root,
 [data-theme='light'],
 .theme-light {
-  color-scheme: light;
-  --brand: #2563eb;
-  --brand-light: #dbeafe;
-  --brand-dark: #1d4ed8;
-  --brand-muted: #eff6ff;
-  --surface: #ffffff;
-  --surface-secondary: #f8fafc;
-  --surface-sidebar: #eef2f7;
-  --border: #dbe4f0;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
-  --status-active: #2563eb;
-  --status-waiting: #d97706;
-  --status-blocked: #dc2626;
-  --status-done: #16a34a;
-  --status-todo: #64748b;
+  color-scheme: dark;
+  --brand: #f59e0b;
+  --brand-light: rgba(245, 158, 11, 0.16);
+  --brand-dark: #d97706;
+  --brand-muted: rgba(245, 158, 11, 0.1);
+  --surface: #11151c;
+  --surface-secondary: #0b0f14;
+  --surface-sidebar: #0a0d12;
+  --border: #2b313b;
+  --text-primary: #f8e7b0;
+  --text-secondary: #c9b98a;
+  --text-tertiary: #8f8466;
+  --status-active: #f59e0b;
+  --status-waiting: #fbbf24;
+  --status-blocked: #fb7185;
+  --status-done: #22c55e;
+  --status-todo: #a39b7f;
 }
 
 [data-theme='dark'],
 .theme-dark,
 .dark {
   color-scheme: dark;
-  --brand: #8b5cf6;
-  --brand-light: rgba(139, 92, 246, 0.16);
-  --brand-dark: #7c3aed;
-  --brand-muted: rgba(139, 92, 246, 0.1);
-  --surface: #0f172a;
-  --surface-secondary: #1e293b;
-  --surface-sidebar: #0f172a;
-  --border: #334155;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-tertiary: #64748b;
-  --status-active: #60a5fa;
-  --status-waiting: #f59e0b;
-  --status-blocked: #f87171;
-  --status-done: #4ade80;
-  --status-todo: #94a3b8;
+  --brand: #f59e0b;
+  --brand-light: rgba(245, 158, 11, 0.16);
+  --brand-dark: #d97706;
+  --brand-muted: rgba(245, 158, 11, 0.1);
+  --surface: #11151c;
+  --surface-secondary: #0b0f14;
+  --surface-sidebar: #0a0d12;
+  --border: #2b313b;
+  --text-primary: #f8e7b0;
+  --text-secondary: #c9b98a;
+  --text-tertiary: #8f8466;
+  --status-active: #f59e0b;
+  --status-waiting: #fbbf24;
+  --status-blocked: #fb7185;
+  --status-done: #22c55e;
+  --status-todo: #a39b7f;
 }
 
 @theme {
+  --font-display: 'Press Start 2P', monospace;
+  --font-body: 'VT323', monospace;
+
   --color-accent: var(--brand);
   --color-accent-light: var(--brand-light);
   --color-brand: var(--brand);
@@ -82,13 +86,15 @@
   --radius-xl: 0px;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.04);
-  --shadow-hover: 0 4px 12px rgba(15,23,42,0.12), 0 2px 4px rgba(15,23,42,0.06);
-  --shadow-panel: 0 20px 48px rgba(15,23,42,0.12), 0 8px 24px rgba(15,23,42,0.06);
-  --shadow-modal: 0 24px 64px rgba(15,23,42,0.16);
+  --shadow-card: 0 1px 0 rgba(245, 158, 11, 0.08), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  --shadow-hover: 0 0 0 1px rgba(245, 158, 11, 0.24), 0 10px 24px rgba(0, 0, 0, 0.45);
+  --shadow-panel: 0 0 0 1px rgba(245, 158, 11, 0.18), 0 24px 48px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 0 0 1px rgba(245, 158, 11, 0.18), 0 28px 72px rgba(0, 0, 0, 0.65);
 
   --animate-pulse-agent: pulse-agent 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-blink: blink 2s infinite;
+  --animate-lcd-flicker: lcd-flicker 7s steps(1, end) infinite;
+  --animate-lcd-noise: lcd-noise 11s linear infinite;
 
   @keyframes pulse-agent {
     0%, 100% {
@@ -109,12 +115,65 @@
       opacity: 0.5;
     }
   }
+
+  @keyframes lcd-flicker {
+    0%, 100% {
+      opacity: 0.12;
+    }
+    7% {
+      opacity: 0.18;
+    }
+    9% {
+      opacity: 0.08;
+    }
+    24% {
+      opacity: 0.16;
+    }
+    26% {
+      opacity: 0.1;
+    }
+    48% {
+      opacity: 0.15;
+    }
+    50% {
+      opacity: 0.09;
+    }
+    78% {
+      opacity: 0.14;
+    }
+  }
+
+  @keyframes lcd-noise {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    25% {
+      transform: translate3d(-1%, 0.5%, 0);
+    }
+    50% {
+      transform: translate3d(0.75%, -0.75%, 0);
+    }
+    75% {
+      transform: translate3d(-0.5%, 1%, 0);
+    }
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+  }
 }
 
 @layer base {
   body {
     background-color: var(--surface-secondary);
     color: var(--text-primary);
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    letter-spacing: 0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Press Start 2P', monospace;
+    line-height: 1.6;
   }
 }
 
@@ -142,6 +201,209 @@
   .lane-scroll::-webkit-scrollbar-thumb:hover {
     background: rgba(100, 116, 139, 0.9);
     background-clip: padding-box;
+  }
+
+  .lcd-overlay {
+    mix-blend-mode: screen;
+    filter: saturate(1.08) contrast(1.08);
+  }
+
+  .lcd-overlay__noise,
+  .lcd-overlay__scanlines,
+  .lcd-overlay__glow,
+  .lcd-overlay__flicker,
+  .lcd-overlay__vignette {
+    position: absolute;
+    inset: 0;
+  }
+
+  .lcd-overlay__noise {
+    opacity: 0.18;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px),
+      radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px),
+      radial-gradient(circle at 50% 70%, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px),
+      radial-gradient(circle at 15% 85%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px);
+    background-size: 7px 7px, 9px 9px, 11px 11px, 13px 13px;
+    animation: lcd-noise 18s linear infinite;
+    will-change: transform;
+  }
+
+  .lcd-overlay__scanlines {
+    opacity: 0.16;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(15, 23, 42, 0.02) 0,
+      rgba(15, 23, 42, 0.02) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  }
+
+  .lcd-overlay__glow {
+    opacity: 0.22;
+    filter: blur(24px);
+    transform: scale(1.03);
+  }
+
+  .lcd-overlay__glow--left {
+    background: radial-gradient(circle at 18% 40%, rgba(245, 158, 11, 0.18), transparent 38%);
+  }
+
+  .lcd-overlay__glow--right {
+    background: radial-gradient(circle at 82% 60%, rgba(251, 191, 36, 0.14), transparent 40%);
+  }
+
+  .lcd-overlay__flicker {
+    background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.035) 50%, transparent 100%);
+    mix-blend-mode: overlay;
+    animation: lcd-flicker 7s steps(1, end) infinite;
+    will-change: opacity;
+  }
+
+  .lcd-overlay__vignette {
+    background: radial-gradient(circle at center, transparent 35%, rgba(2, 6, 23, 0.18) 100%);
+  }
+
+  .lcd-button {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      4px 4px 0 rgba(0, 0, 0, 0.45),
+      0 0 10px rgba(245, 158, 11, 0.12),
+      0 0 18px rgba(251, 191, 36, 0.08);
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.08);
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.08));
+  }
+
+  .lcd-button:hover,
+  .lcd-button:focus-visible {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+      5px 5px 0 rgba(0, 0, 0, 0.52),
+      0 0 14px rgba(245, 158, 11, 0.18),
+      0 0 28px rgba(251, 191, 36, 0.14);
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.14));
+  }
+
+  .lcd-card {
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      6px 6px 0 rgba(0, 0, 0, 0.46),
+      0 0 0 1px rgba(245, 158, 11, 0.16) inset,
+      0 0 14px rgba(245, 158, 11, 0.08);
+  }
+
+  .gallery-item {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gallery-item::before,
+  .gallery-item::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .gallery-item::before {
+    opacity: 0.2;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(245, 158, 11, 0.08) 0,
+        rgba(245, 158, 11, 0.08) 1px,
+        transparent 1px,
+        transparent 4px
+      ),
+      linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%, transparent 82%, rgba(0,0,0,0.12));
+    mix-blend-mode: screen;
+  }
+
+  .gallery-item::after {
+    opacity: 0.08;
+    background: linear-gradient(90deg, transparent 0%, rgba(245, 158, 11, 0.18) 50%, transparent 100%);
+    background-size: 100% 100%;
+    mix-blend-mode: screen;
+  }
+
+  .gallery-item:hover::before {
+    opacity: 0.28;
+  }
+
+  .gallery-item:hover {
+    box-shadow:
+      8px 8px 0 rgba(0, 0, 0, 0.54),
+      0 0 0 1px rgba(245, 158, 11, 0.24) inset,
+      0 0 20px rgba(245, 158, 11, 0.12);
+  }
+
+  .board-card {
+    background-image:
+      linear-gradient(180deg, rgba(245, 158, 11, 0.06), transparent 22%, transparent 68%, rgba(0, 0, 0, 0.2)),
+      repeating-linear-gradient(
+        to bottom,
+        rgba(245, 158, 11, 0.14) 0,
+        rgba(245, 158, 11, 0.14) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+  }
+
+  .board-card::before {
+    opacity: 0.38;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(245, 158, 11, 0.2) 0,
+        rgba(245, 158, 11, 0.2) 1px,
+        transparent 1px,
+        transparent 2px
+      ),
+      linear-gradient(180deg, rgba(255,255,255,0.06), transparent 14%, transparent 82%, rgba(0,0,0,0.24));
+  }
+
+  .board-card::after {
+    opacity: 0.22;
+    background: linear-gradient(90deg, transparent 0%, rgba(245, 158, 11, 0.34) 50%, transparent 100%);
+    background-size: 100% 100%;
+  }
+
+  .board-card:hover {
+    box-shadow:
+      12px 12px 0 rgba(0, 0, 0, 0.76),
+      0 0 0 1px rgba(245, 158, 11, 0.38) inset,
+      0 0 30px rgba(245, 158, 11, 0.22);
+  }
+
+  .lcd-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.18;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(245, 158, 11, 0.06) 0,
+        rgba(245, 158, 11, 0.06) 1px,
+        transparent 1px,
+        transparent 3px
+      ),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 22%, transparent 78%, rgba(0, 0, 0, 0.18));
+    mix-blend-mode: overlay;
+  }
+
+  .lcd-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.1;
+    background: linear-gradient(90deg, transparent 0%, rgba(245, 158, 11, 0.06) 50%, transparent 100%);
+    background-size: 100% 100%;
+    mix-blend-mode: screen;
   }
 
   .dark .lane-scroll,
