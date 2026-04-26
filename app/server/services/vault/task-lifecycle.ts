@@ -18,6 +18,7 @@ export interface TaskLifecycleRequest {
 
 export interface PatchTaskLifecycleRequest extends TaskLifecycleRequest {
   readonly patch: Readonly<Partial<TaskFrontmatter>>;
+  readonly recoverStaleLock?: boolean;
 }
 
 export interface ClaimTaskLifecycleRequest extends TaskLifecycleRequest {
@@ -216,7 +217,14 @@ export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Pr
   const result = await runTaskLifecycleMutation(
     { ...request, vaultRoot, historyEntry },
     () => patch,
-    { releaseLock: request.patch.status !== undefined && (request.patch.status === "review" || request.patch.status === "done") },
+    {
+      recoverStaleLock: request.recoverStaleLock ?? (request.patch.status !== undefined && (request.patch.status === "review" || request.patch.status === "done")),
+      releaseLock: request.patch.status !== undefined && (
+        request.patch.status === "review"
+        || request.patch.status === "done"
+        || (request.recoverStaleLock === true && request.patch.status === "todo")
+      ),
+    },
   );
   const reason = notifyTaskLifecycle(result.previous, result.frontmatter, timestamp, vaultRoot) ?? "task.updated";
   publishTaskRealtimeUpdate(result.frontmatter, timestamp, reason);

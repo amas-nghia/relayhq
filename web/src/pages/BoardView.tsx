@@ -29,6 +29,7 @@ export function BoardView() {
   const [activeLane, setActiveLane] = useState<BoardLaneId>('in-progress');
   const [dragOverLane, setDragOverLane] = useState<BoardLaneId | null>(null);
   const [dropHint, setDropHint] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
   const laneRefs = useRef<Record<BoardLaneId, HTMLDivElement | null>>({ todo: null, 'in-progress': null, review: null, scheduled: null, done: null });
 
   const getTasksByStatus = (status: BoardLaneId) => {
@@ -64,6 +65,7 @@ export function BoardView() {
     event.preventDefault();
     setDragOverLane(null);
     setDropHint(null);
+    setDropError(null);
     const taskId = event.dataTransfer.getData('application/x-relayhq-task-id') || event.dataTransfer.getData('text/plain');
     if (!taskId) return;
 
@@ -82,7 +84,12 @@ export function BoardView() {
 
     if (next.status === task.status && next.column === task.columnId) return;
 
-    await moveTaskToStatus(taskId, next.status, task.lockedBy ?? task.assigneeId ?? 'human-user');
+    try {
+      await moveTaskToStatus(taskId, next.status, 'human-user');
+    } catch (error) {
+      setDropError(error instanceof Error ? error.message : 'Failed to move task.');
+      window.setTimeout(() => setDropError(null), 5000);
+    }
   };
 
   return (
@@ -118,6 +125,12 @@ export function BoardView() {
       {dropHint && (
         <div className="rounded-lg border border-status-waiting/30 bg-status-waiting/10 px-4 py-3 text-sm text-status-waiting">
           {dropHint}
+        </div>
+      )}
+
+      {dropError && (
+        <div className="rounded-lg border border-status-blocked/30 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">
+          {dropError}
         </div>
       )}
 

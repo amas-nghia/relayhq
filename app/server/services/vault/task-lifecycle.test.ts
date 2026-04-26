@@ -122,6 +122,53 @@ describe("task lifecycle service", () => {
     });
   });
 
+  test("recovers stale locks when moving a task to review", async () => {
+    const vaultRoot = await createVaultRoot(createTask({
+      locked_by: "agent-backend-dev",
+      locked_at: "2026-04-15T09:40:00Z",
+      lock_expires_at: "2026-04-15T09:45:00Z",
+    }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "human-user",
+      vaultRoot,
+      now,
+      patch: { status: "review", column: "review", progress: 100, result: "Ready for handoff" },
+    });
+
+    expect(result.frontmatter.status).toBe("review");
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.locked_at).toBeNull();
+    expect(result.frontmatter.lock_expires_at).toBeNull();
+  });
+
+  test("recovers stale locks when a human reopens a review task to todo", async () => {
+    const vaultRoot = await createVaultRoot(createTask({
+      status: "review",
+      column: "review",
+      locked_by: "agent-backend-dev",
+      locked_at: "2026-04-15T09:40:00Z",
+      lock_expires_at: "2026-04-15T09:45:00Z",
+    }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "human-user",
+      vaultRoot,
+      now,
+      recoverStaleLock: true,
+      patch: { status: "todo", column: "todo" },
+    });
+
+    expect(result.frontmatter.status).toBe("todo");
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.locked_at).toBeNull();
+    expect(result.frontmatter.lock_expires_at).toBeNull();
+  });
+
   test("clears completed_at when moving a task to blocked", async () => {
     const vaultRoot = await createVaultRoot(createTask({ status: "done", column: "done", completed_at: "2026-04-15T09:30:00Z" }));
     const now = new Date("2026-04-15T10:00:00Z");

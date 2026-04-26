@@ -17,17 +17,32 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export default defineEventHandler(async (event) => {
-  assertMethod(event, "PATCH");
+export interface TaskPatchBody {
+  readonly actorId: string;
+  readonly patch: Record<string, unknown>;
+  readonly autoRun?: boolean;
+}
 
-  const taskId = getRouterParam(event, "id");
-  const body = await readBody(event);
+export interface PatchVaultTaskDependencies {
+  readonly patchTaskLifecycle?: typeof patchTaskLifecycle;
+  readonly scheduleTaskLifecycle?: typeof scheduleTaskLifecycle;
+  readonly startTaskAutorun?: typeof startTaskAutorun;
+}
+
+export async function patchVaultTask(
+  taskId: string,
+  body: TaskPatchBody,
+  dependencies: PatchVaultTaskDependencies = {},
+) {
+  const runPatchTaskLifecycle = dependencies.patchTaskLifecycle ?? patchTaskLifecycle;
+  const runScheduleTaskLifecycle = dependencies.scheduleTaskLifecycle ?? scheduleTaskLifecycle;
+  const runStartTaskAutorun = dependencies.startTaskAutorun ?? startTaskAutorun;
 
   if (!taskId) {
     throw createError({ statusCode: 400, statusMessage: "Task id is required." });
   }
 
-  if (!isPlainRecord(body) || typeof body.actorId !== "string" || body.actorId.trim().length === 0 || !isPlainRecord(body.patch)) {
+  if (typeof body.actorId !== "string" || body.actorId.trim().length === 0 || !isPlainRecord(body.patch)) {
     throw createError({ statusCode: 400, statusMessage: "actorId and patch are required." });
   }
 
@@ -36,7 +51,7 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: "rateLimitedUntil must be an ISO-8601 timestamp." });
     }
 
-    return scheduleTaskLifecycle({
+    return runScheduleTaskLifecycle({
       taskId,
       actorId: body.actorId,
       nextRunAt: body.patch.rateLimitedUntil,
@@ -63,18 +78,52 @@ export default defineEventHandler(async (event) => {
         });
       }
     }
+
+    const isHumanFinalDisposition = !agentIds.has(body.actorId)
+      && (body.patch.status === "done" || body.patch.status === "todo");
+
+    const result = await runPatchTaskLifecycle({
+      taskId,
+      actorId: body.actorId,
+      patch: body.patch,
+      ...(isHumanFinalDisposition ? { recoverStaleLock: true } : {}),
+    });
+
+    if (body.autoRun === true) {
+      const runner = await runStartTaskAutorun(taskId);
+      return { ...result, autoRun: { started: true, ...runner } };
+    }
+
+    return result;
   }
 
-  const result = await patchTaskLifecycle({
+  const result = await runPatchTaskLifecycle({
     taskId,
     actorId: body.actorId,
     patch: body.patch,
   });
 
   if (body.autoRun === true) {
-    const runner = await startTaskAutorun(taskId);
+    const runner = await runStartTaskAutorun(taskId);
     return { ...result, autoRun: { started: true, ...runner } };
   }
 
   return result;
+}
+
+export default defineEventHandler(async (event) => {
+  assertMethod(event, "PATCH");
+
+  const taskId = getRouterParam(event, "id");
+  const body = await readBody(event);
+
+  if (!isPlainRecord(body) || typeof body.actorId !== "string" || body.actorId.trim().length === 0 || !isPlainRecord(body.patch)) {
+    throw createError({ statusCode: 400, statusMessage: "actorId and patch are required." });
+  }
+
+  return await patchVaultTask(taskId ?? "", {
+    actorId: body.actorId,
+    patch: body.patch,
+    ...(body.autoRun === true ? { autoRun: true } : {}),
+  });
 });
