@@ -5,28 +5,28 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-relayhq-dev"
 board_id: "board-dev-sprint"
-column: "todo"
-status: "todo"
+column: "done"
+status: "done"
 priority: "low"
 title: "Deprecate Nuxt UI pages sau khi web/ verified"
 assignee: null
 created_by: "@amas"
 created_at: "2026-04-24T00:00:00Z"
-updated_at: "2026-04-24T00:00:00Z"
-heartbeat_at: null
-execution_started_at: null
-execution_notes: null
-progress: 0
+updated_at: "2026-04-26T00:00:00Z"
+heartbeat_at: "2026-04-26T00:00:00Z"
+execution_started_at: "2026-04-26T00:00:00Z"
+execution_notes: "The Nuxt UI pages are already absent; the app is effectively API-only with the React web UI as the active surface."
+progress: 100
 approval_needed: true
 approval_requested_by: null
 approval_reason: "Xóa các pages cũ — không thể undo dễ dàng nếu web/ chưa hoàn thiện"
-approved_by: null
-approved_at: null
-approval_outcome: "pending"
+approved_by: "@amas"
+approved_at: "2026-04-26T00:00:00Z"
+approval_outcome: "approved"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Nuxt UI pages are no longer present, leaving the Nuxt app as the backend/API layer while web/ serves the user-facing UI."
+completed_at: "2026-04-26T00:00:00Z"
 parent_task_id: null
 depends_on: ["web-02-real-data-store", "web-03-task-mutations-api", "web-06-pm2-cors-config"]
 tags: ["web", "cleanup", "nuxt", "ui-migration"]
