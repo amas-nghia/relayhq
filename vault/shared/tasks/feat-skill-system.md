@@ -5,18 +5,18 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-relayhq-dev"
 board_id: "board-dev-sprint"
-column: "todo"
-status: "todo"
+column: "done"
+status: "done"
 priority: "high"
 title: "Build skill/plugin system for agents"
 assignee: null
 created_by: "@amas"
 created_at: "2026-04-26T00:00:00Z"
 updated_at: "2026-04-26T00:00:00Z"
-heartbeat_at: null
-execution_started_at: null
-execution_notes: null
-progress: 0
+heartbeat_at: "2026-04-26T00:00:00Z"
+execution_started_at: "2026-04-26T00:00:00Z"
+execution_notes: "Skill install/list/remove is available in the CLI, and installed skills are injected into agent context and task bootstraps."
+progress: 100
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
@@ -25,8 +25,8 @@ approved_at: null
 approval_outcome: "pending"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Agents can now load local skills from the RelayHQ skill directory and receive matching skills in context and bootstrap payloads."
+completed_at: "2026-04-26T00:00:00Z"
 parent_task_id: null
 depends_on: []
 tags: ["skill", "agent", "cli", "mcp"]
