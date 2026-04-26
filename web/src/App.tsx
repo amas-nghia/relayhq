@@ -9,6 +9,7 @@ const AgentsView = lazy(async () => ({ default: (await import('./pages/AgentsVie
 const DocsView = lazy(async () => ({ default: (await import('./pages/DocsView')).DocsView }));
 const ProjectView = lazy(async () => ({ default: (await import('./pages/ProjectView')).ProjectView }));
 const TaskDetailPage = lazy(async () => ({ default: (await import('./pages/TaskDetailPage')).TaskDetailPage }));
+const AuditView = lazy(async () => ({ default: (await import('./pages/AuditView')).AuditView }));
 
 function RouteFallback() {
   return (
@@ -31,7 +32,7 @@ export default function App() {
           <Route path="/approvals" element={<Suspense fallback={<RouteFallback />}><ApprovalsView /></Suspense>} />
           <Route path="/agents" element={<Suspense fallback={<RouteFallback />}><AgentsView /></Suspense>} />
           <Route path="/docs" element={<Suspense fallback={<RouteFallback />}><DocsView /></Suspense>} />
-          <Route path="/audit" element={<Navigate to="/" replace />} />
+          <Route path="/audit" element={<Suspense fallback={<RouteFallback />}><AuditView /></Suspense>} />
           
           <Route path="/" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />

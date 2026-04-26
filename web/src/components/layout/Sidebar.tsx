@@ -1,148 +1,216 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Bot, ChevronLeft, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, User2 } from 'lucide-react';
-import { useAppStore } from '../../store/appStore';
-import { NewProjectDialog } from '../project/NewProjectDialog';
-import clsx from 'clsx';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Card } from '../ui/card';
-import { Separator } from '../ui/separator';
-import { Sidebar as SidebarRoot, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../ui/sidebar';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, Monitor, Moon, Sun, User2 } from 'lucide-react'
+import clsx from 'clsx'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-const SIDEBAR_COLLAPSED_KEY = 'relayhq-sidebar-collapsed';
+import { useAppStore } from '../../store/appStore'
+import type { Theme } from '../../types'
+import { NewProjectDialog } from '../project/NewProjectDialog'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Card } from '../ui/card'
+import { Separator } from '../ui/separator'
+import { Sidebar as SidebarRoot, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuItem, useSidebar } from '../ui/sidebar'
+
+const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string; icon: typeof Sun }> = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+]
 
 export function Sidebar() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length);
-  const projects = useAppStore(state => state.projects);
-  const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
-  const agents = useAppStore(state => state.agents);
-  const loadData = useAppStore(state => state.loadData);
-  const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null);
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { open, toggleSidebar, mobileOpen, setMobileOpen } = useSidebar()
+  const themePreference = useAppStore(state => state.themePreference)
+  const setTheme = useAppStore(state => state.setTheme)
+  const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length)
+  const projects = useAppStore(state => state.projects)
+  const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length)
+  const agents = useAppStore(state => state.agents)
+  const loadData = useAppStore(state => state.loadData)
+
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null)
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const themeMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenu(null);
+        setOpenMenu(null)
+      }
+
+      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setIsThemeMenuOpen(false)
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(isCollapsed));
-  }, [isCollapsed]);
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const waitingTasks = useMemo(
     () => useAppStore.getState().tasks.filter(task => task.status === 'waiting-approval').slice(0, 5),
     [pendingCount],
-  );
+  )
 
   const navItems = [
     { name: 'Board', path: '/', icon: KanbanSquare },
     { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-surface' },
     { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-surface' },
     { name: 'Audit', path: '/audit', icon: LayoutDashboard },
-  ];
+  ]
 
   return (
-    <SidebarRoot className={clsx('fixed left-0 top-14 bottom-0 z-20 hidden border-r border-border bg-surface-sidebar md:flex', isCollapsed ? 'w-16' : 'w-64')}>
-      <SidebarHeader className={clsx('gap-3', isCollapsed ? 'items-center px-2' : 'px-3')}>
-        <div className={clsx('flex items-center gap-2', isCollapsed ? 'justify-center' : '')}>
+    <SidebarRoot className={clsx('relative md:static', mobileOpen && 'translate-x-0')}>
+      <SidebarHeader className={clsx(open ? 'px-3' : 'items-center px-2')}>
+        <div className={clsx('flex items-center gap-2', open ? 'justify-start' : 'justify-center')}>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-light text-brand">
             <KanbanSquare className="h-4 w-4" />
           </div>
-          {!isCollapsed && (
+          {open && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-text-primary">RelayHQ</div>
               <div className="truncate text-xs text-text-tertiary">Vault-first control plane</div>
             </div>
           )}
         </div>
+
+        <div className={clsx('grid gap-2', open ? 'grid-cols-2' : 'grid-cols-1')}>
+          <Button
+            type="button"
+            title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+            variant="outline"
+            size="icon"
+            onClick={toggleSidebar}
+          >
+            <ChevronRight className={clsx('h-4 w-4 transition-transform', open ? 'rotate-180' : 'rotate-0')} />
+          </Button>
+
+          <div ref={themeMenuRef} className="relative">
+            <Button
+              type="button"
+              title="Theme"
+              variant="outline"
+              size={open ? 'default' : 'icon'}
+              className={clsx('w-full', open ? 'justify-start' : '')}
+              onClick={() => setIsThemeMenuOpen(current => !current)}
+            >
+              <Sun className="h-4 w-4" />
+              {open && <span>Theme</span>}
+            </Button>
+
+            {isThemeMenuOpen && (
+              <div className={clsx('absolute top-11 z-40 min-w-40 rounded-xl border border-border bg-surface p-2 shadow-panel', open ? 'left-0' : 'left-12')}>
+                <div className="space-y-1">
+                  {THEME_OPTIONS.map(option => {
+                    const OptionIcon = option.icon
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setTheme(option.value)
+                          setIsThemeMenuOpen(false)
+                        }}
+                        className={clsx(
+                          'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+                          option.value === themePreference
+                            ? 'bg-accent-light text-accent'
+                            : 'text-text-secondary hover:bg-surface-secondary hover:text-text-primary',
+                        )}
+                      >
+                        <OptionIcon className="h-4 w-4" />
+                        <span>{option.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </SidebarHeader>
 
-      <SidebarContent className={clsx('gap-5', isCollapsed ? 'px-2' : 'px-3')}>
+      <SidebarContent className={open ? 'px-3' : 'px-2'}>
         <SidebarGroup>
-          {!isCollapsed && <SidebarGroupLabel>Workspace</SidebarGroupLabel>}
+          {open && <SidebarGroupLabel>Workspace</SidebarGroupLabel>}
           <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.name}>
+            {navItems.map(item => (
+              <li key={item.name}>
                 <NavLink
                   to={item.path}
                   title={item.name}
+                  onClick={() => setMobileOpen(false)}
                   className={({ isActive }) => clsx(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-                    isCollapsed ? 'justify-center' : 'justify-start',
+                    'flex items-center rounded-md px-3 py-2 text-sm transition-colors',
+                    open ? 'gap-2 justify-start' : 'justify-center',
                     isActive ? 'bg-brand-light text-brand' : 'text-text-secondary hover:bg-surface hover:text-text-primary',
                   )}
                 >
                   <item.icon className="h-4.5 w-4.5 shrink-0 opacity-90" />
-                  {!isCollapsed && <span className="flex-1 truncate">{item.name}</span>}
+                  {open && <span className="flex-1 truncate">{item.name}</span>}
                   {!!item.badge && (
                     <span className={clsx('ml-auto h-2.5 w-2.5 rounded-full border border-surface', item.badgeColor)} />
                   )}
                 </NavLink>
-              </SidebarMenuItem>
+              </li>
             ))}
           </SidebarMenu>
         </SidebarGroup>
 
         <SidebarGroup>
-          {!isCollapsed && <SidebarGroupLabel>Projects</SidebarGroupLabel>}
+          {open && <SidebarGroupLabel>Projects</SidebarGroupLabel>}
           <SidebarMenu>
-            {projects.map(proj => {
-              const initials = proj.name.slice(0, 2).toUpperCase();
-              const isSelected = location.pathname === `/projects/${proj.id}`;
+            {projects.map(project => {
+              const initials = project.name.slice(0, 2).toUpperCase()
+              const selected = location.pathname === `/projects/${project.id}`
               return (
-                <SidebarMenuItem key={proj.id}>
+                <li key={project.id}>
                   <button
                     type="button"
-                    title={proj.name}
-                    onClick={() => navigate(`/projects/${proj.id}`)}
+                    title={project.name}
+                    onClick={() => {
+                      navigate(`/projects/${project.id}`)
+                      setMobileOpen(false)
+                    }}
                     className={clsx(
                       'flex w-full items-center rounded-md border text-sm transition-colors',
-                      isCollapsed ? 'justify-center gap-0 px-2 py-2' : 'justify-start gap-2 px-3 py-2',
-                      isSelected
+                      open ? 'gap-2 px-3 py-2 justify-start' : 'justify-center px-2 py-2',
+                      selected
                         ? 'border-brand bg-brand text-surface'
                         : 'border-border bg-surface-secondary text-text-secondary hover:border-text-tertiary hover:bg-surface hover:text-text-primary',
                     )}
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-transparent text-xs font-bold">
-                      {initials}
-                    </span>
-                    {!isCollapsed && <span className="truncate text-left">{proj.name}</span>}
-                    <span className={clsx('ml-auto h-2.5 w-2.5 shrink-0 rounded-full border border-surface-sidebar', proj.lastActive ? 'bg-status-done' : 'bg-text-tertiary')} />
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold">{initials}</span>
+                    {open && <span className="truncate text-left">{project.name}</span>}
+                    <span className={clsx('ml-auto h-2.5 w-2.5 shrink-0 rounded-full border border-surface-sidebar', project.lastActive ? 'bg-status-done' : 'bg-text-tertiary')} />
                   </button>
-                </SidebarMenuItem>
+                </li>
               )
             })}
           </SidebarMenu>
+
           <Button
             title="New Project"
             variant="outline"
-            size={isCollapsed ? 'icon' : 'default'}
-            className={clsx('mt-1 border-dashed', isCollapsed ? 'mx-auto' : 'w-full justify-start')}
+            size={open ? 'default' : 'icon'}
+            className={clsx('mt-1 border-dashed', open ? 'w-full justify-start' : 'mx-auto')}
             onClick={() => setIsNewProjectOpen(true)}
           >
             <FolderKanban className="h-4 w-4" />
-            {!isCollapsed && <span>New Project</span>}
+            {open && <span>New Project</span>}
           </Button>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className={clsx('space-y-3', isCollapsed ? 'px-2' : 'px-3')}>
+      <SidebarFooter className={clsx('space-y-3', open ? 'px-3' : 'px-2')}>
         <Separator />
 
         <div ref={menuRef} className="space-y-2">
-          <div className={clsx('flex gap-2', isCollapsed ? 'flex-col items-center' : 'items-center')}>
+          <div className={clsx('flex gap-2', open ? 'items-center' : 'flex-col items-center')}>
             <Button
               type="button"
               title="Notifications"
@@ -166,19 +234,8 @@ export function Sidebar() {
             </Button>
           </div>
 
-          <Button
-            type="button"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            variant="outline"
-            size="icon"
-            className="w-full"
-            onClick={() => setIsCollapsed(current => !current)}
-          >
-            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
-
           {openMenu === 'notifications' && (
-            <Card className={clsx('absolute bottom-20 z-50 w-80 p-3 shadow-panel', isCollapsed ? 'left-16' : 'left-64')}>
+            <Card className={clsx('absolute bottom-20 z-50 w-80 p-3 shadow-panel', open ? 'left-64' : 'left-16')}>
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-text-primary">Notifications</div>
@@ -215,7 +272,7 @@ export function Sidebar() {
           )}
 
           {openMenu === 'user' && (
-            <Card className={clsx('absolute bottom-20 z-50 w-80 p-3 shadow-panel', isCollapsed ? 'left-16' : 'left-64')}>
+            <Card className={clsx('absolute bottom-20 z-50 w-80 p-3 shadow-panel', open ? 'left-64' : 'left-16')}>
               <div className="mb-3 flex items-center gap-3 rounded-lg bg-surface-secondary px-3 py-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-light text-sm font-bold text-brand">A</div>
                 <div>
@@ -251,10 +308,10 @@ export function Sidebar() {
         open={isNewProjectOpen}
         onClose={() => setIsNewProjectOpen(false)}
         onCreated={async (projectId) => {
-          await loadData()
+          await useAppStore.getState().loadData()
           navigate(`/projects/${projectId}`)
         }}
       />
     </SidebarRoot>
-  );
+  )
 }

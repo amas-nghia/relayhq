@@ -1,5 +1,4 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { AlertStrip } from '../ui/AlertStrip';
 import { NewTaskModal } from '../task/NewTaskModal';
@@ -9,6 +8,7 @@ import clsx from 'clsx';
 import { useEffect } from 'react';
 import { LcdOverlay } from './LcdOverlay';
 import { toast } from 'sonner'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 
 export function Shell() {
   const startRealtime = useAppStore(state => state.startRealtime);
@@ -29,12 +29,12 @@ export function Shell() {
   }, [mutationError])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface-secondary">
-      <LcdOverlay />
-      <TopBar />
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <SidebarProvider>
+      <div className="flex h-screen overflow-hidden bg-surface-secondary">
+        <LcdOverlay />
         <Sidebar />
-        <main className="flex min-h-0 flex-1 flex-col overflow-hidden md:ml-14">
+        <SidebarInset>
+          <SidebarTrigger />
           <AlertStrip />
           <div className={clsx(
             'flex min-h-0 flex-1',
@@ -43,11 +43,11 @@ export function Shell() {
           )}>
             <Outlet />
           </div>
-        </main>
+        </SidebarInset>
+
+        <OnboardingWizard />
+        <NewTaskModal />
       </div>
-      
-      <OnboardingWizard />
-      <NewTaskModal />
-    </div>
+    </SidebarProvider>
   );
 }
