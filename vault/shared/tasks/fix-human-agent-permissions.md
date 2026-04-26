@@ -5,18 +5,18 @@ version: 1
 workspace_id: "ws-demo"
 project_id: "project-relayhq-dev"
 board_id: "board-dev-sprint"
-column: "todo"
-status: "todo"
+column: "done"
+status: "done"
 priority: "high"
 title: "Fix human/agent permission model and drag-to-done bug"
 assignee: null
 created_by: "@amas"
 created_at: "2026-04-26T00:00:00Z"
 updated_at: "2026-04-26T00:00:00Z"
-heartbeat_at: null
-execution_started_at: null
-execution_notes: null
-progress: 0
+heartbeat_at: "2026-04-26T00:00:00Z"
+execution_started_at: "2026-04-26T00:00:00Z"
+execution_notes: "Human drag actions now use human-user, surface drop errors, and recover stale locks for final human dispositions."
+progress: 100
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
@@ -25,8 +25,8 @@ approved_at: null
 approval_outcome: "pending"
 blocked_reason: null
 blocked_since: null
-result: null
-completed_at: null
+result: "Human review finalization is separated from agent transitions, and stale-lock recoveries are handled safely for approve/reopen flows."
+completed_at: "2026-04-26T00:00:00Z"
 parent_task_id: null
 depends_on: []
 tags: ["permission", "drag-drop", "human", "agent", "boardview"]
