@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Separator } from '../ui/separator';
+import { ActivityFeed } from './ActivityFeed';
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -100,6 +101,8 @@ export function Sidebar() {
         </Button>
 
       </div>
+
+      <ActivityFeed />
 
       <div ref={menuRef} className="relative w-full border-t border-border px-2 pt-3">
         <div className="flex flex-col items-center gap-2">
