@@ -138,7 +138,7 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
   const isLoading = useAppStore(state => state.isLoading)
   const agent = useAppStore(state => state.agents.find(a => a.id === task?.assigneeId))
   const project = useAppStore(state => state.projects.find(p => p.id === task?.projectId))
-  const subtasks = useAppStore(state => state.tasks.filter(entry => entry.parentTaskId === taskId))
+  const tasks = useAppStore(state => state.tasks)
   const auditLogs = useAppStore(state => state.auditLogs)
   const isMutating = useAppStore(state => state.isMutating)
   const mutationError = useAppStore(state => state.mutationError)
@@ -163,6 +163,11 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
   const taskAuditLogs = useMemo(
     () => auditLogs.filter(entry => entry.taskId === taskId).slice(0, 8),
     [auditLogs, taskId],
+  )
+
+  const subtasks = useMemo(
+    () => tasks.filter(entry => entry.parentTaskId === taskId),
+    [tasks, taskId],
   )
 
   const loadComments = useCallback(async () => {
