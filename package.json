@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Vault-first coordination workspace for AI agents — init, start, stop, destroy",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "bin": {
     "relayhq": "scripts/relayhq.mjs"
   },

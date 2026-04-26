@@ -1,0 +1,19 @@
+{
+  "name": "relayhq-mcp",
+  "version": "0.1.0",
+  "description": "RelayHQ MCP server for agent session and task workflow tools",
+  "type": "module",
+  "bin": {
+    "relayhq-mcp": "./bin/relayhq-mcp.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "keywords": [
+    "relayhq",
+    "mcp",
+    "agents",
+    "task-management"
+  ],
+  "license": "MIT"
+}

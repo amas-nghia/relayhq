@@ -5,65 +5,105 @@
 <h1 align="center">RelayHQ</h1>
 
 <p align="center">
-  <strong>Context that survives the handoff — across tools, models, and people.</strong>
+  <strong>Open-source task board for human + AI agent teams.</strong>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
   <a href="https://github.com/amas-nghia/RelayHQ/stargazers"><img src="https://img.shields.io/github/stars/amas-nghia/RelayHQ?style=social" alt="Stars" /></a>
   <img src="https://img.shields.io/badge/built%20with-Bun%20%2B%20React%20%2B%20Go-blueviolet" alt="Stack" />
-  <img src="https://img.shields.io/badge/works%20with-Claude%20Code-orange" alt="Claude Code" />
-  <img src="https://img.shields.io/badge/vault-Markdown%20%2B%20Git-green" alt="Vault" />
+  <img src="https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode-orange" alt="Runtimes" />
 </p>
 
 <p align="center">
   <a href="https://amas.gitbook.io/relayhq">Docs</a> ·
   <a href="#quick-start">Quick Start</a> ·
-  <a href="#claude-code-integration">Claude Code</a> ·
-  <a href="#agent-protocol">Agent Protocol</a> ·
-  <a href="#roadmap">Roadmap</a>
+  <a href="#connecting-your-agent">Connect Agent</a> ·
+  <a href="#agent-workflow">Agent Workflow</a>
 </p>
 
 ---
 
-<!-- Replace with actual demo GIF -->
-<!-- ![RelayHQ demo](docs/assets/demo.gif) -->
+**RelayHQ is a local Kanban board where humans and AI agents share the same task queue.**
 
-## The problem
+Humans create tasks. Agents claim them, work, and report back. Humans review and approve. Everything is Markdown files in a Git repo — no database, no cloud account, no lock-in.
 
-Claude is already good at managing tasks inside a single session. The problem is what happens at the edges.
+```
+Human creates task → Agent claims it → Agent works → Human reviews → Done
+```
 
-You switch to a cheaper model to save cost — and have to re-explain everything from scratch. You hand a task to a teammate — and paste the context into Slack. You pick up yesterday's work in a new session — and the thread is gone. You want a second agent to review what the first one did — but there's no shared record.
+---
 
-Every AI tool manages context well *within itself*. None of them share it *across* each other.
+## Is RelayHQ right for you?
 
-Token costs are rising. The smartest move isn't to use one expensive model for everything — it's to use the right tool at the right stage, and keep the context alive between them.
+- You have Claude Code (or Cursor, OpenCode, Codex) doing real work and want to track what it's doing
+- You run multiple AI agents on the same project and need them not to step on each other
+- You want agents to ask for human approval before touching risky things (prod configs, migrations)
+- You want a full audit log of everything agents did — in plain Markdown, committed to Git
+- You think Jira is too heavy and Notion is too freeform for agent workflows
 
-**That's what RelayHQ does.**
+**Not the right fit if:** you want fully autonomous agents running without human oversight — look at [Paperclip](https://github.com/paperclipai/paperclip) instead.
+
+---
 
 ## How it works
 
-Every task is a Markdown file — with its objective, acceptance criteria, constraints, notes, and history all in one place. When you finish thinking in Claude and hand off execution to a lighter model, a different CLI, a teammate, or your future self, the context comes with it. No copy-pasting. No re-explaining. One `git pull` and anyone — human or agent — is on the same page.
+Every task is a Markdown file with YAML frontmatter:
 
-```
-vault/shared/tasks/task-001.md      ← full context lives here, always
-vault/shared/approvals/apr-001.md   ← human gates risky actions
-vault/shared/audit/note-001.md      ← every move is recorded
+```markdown
+---
+id: task-001
+title: Implement login endpoint
+status: in-progress
+assignee: claude-code
+priority: high
+progress: 40
+approval_needed: false
+---
+
+Implement JWT-based `/api/auth/login`.
+Acceptance: returns 200 with token on valid credentials.
 ```
 
-Use Claude Opus to analyse and spec. Use a cheaper model to implement. Use a human to approve. Use Obsidian to browse and link everything. They all read and write the same files.
+The API server reads and writes these files. The web UI shows the board. Agents interact via MCP tools or HTTP — same API, same files.
 
 **RelayHQ coordinates work. It does not execute work.**
 
 ---
 
-## Claude Code integration
+## Quick start
 
-RelayHQ is designed to work with Claude Code out of the box.
+**Requires Node.js 18+**
 
-### 1-minute setup
+```bash
+npx relayhq init my-workspace
+npx relayhq start my-workspace
+```
 
-Add to `~/.claude/settings.json`:
+Open [http://localhost:44211](http://localhost:44211) — a 3-step wizard walks you through connecting your first agent.
+
+<details>
+<summary>Contributing / running from source</summary>
+
+```bash
+git clone https://github.com/amas-nghia/RelayHQ.git
+cd RelayHQ
+
+# Terminal 1 — API server
+cd app && bun install && bun run dev   # → http://localhost:44210
+
+# Terminal 2 — Web UI
+cd web && bun install && bun run dev   # → http://localhost:44211
+```
+</details>
+
+---
+
+## Connecting your agent
+
+### Claude Code / Cursor / Antigravity
+
+Add to `~/.claude/settings.json` (or equivalent):
 
 ```json
 {
@@ -80,100 +120,66 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-> The onboarding wizard (step 3) generates this snippet with your vault path pre-filled and a copy button.
+> The onboarding wizard generates this snippet with your vault path pre-filled.
 
-Restart Claude Code. You now have `relayhq_*` tools in every session:
+Restart your agent. You now have 5 tools available:
 
+| Tool | When to call |
+|------|-------------|
+| `relayhq_inbox` | Start of every session — see what's assigned to you |
+| `relayhq_start` | Claim a task and get full context |
+| `relayhq_progress` | Every 5–10 min while working — update progress + heartbeat |
+| `relayhq_done` | Work complete — moves task to review for human approval |
+| `relayhq_blocked` | Can't continue — tells the human what needs resolving |
+
+### OpenCode / Codex / any CLI agent
+
+```bash
+npx relayhq setup opencode   # creates .opencode/agents/relayhq.md
+npx relayhq setup codex      # creates .codex/instructions/relayhq.md
 ```
-relayhq_session_start    → task list + workspace context
-relayhq_update_task      → report progress and mark done
-relayhq_heartbeat        → stay visible while working
-relayhq_request_approval → ask a human before risky actions
-```
 
-Add this to your project's `CLAUDE.md` and Claude Code will pick up tasks automatically:
+The setup command writes a protocol instruction file that tells the agent how to call the HTTP API directly — no MCP required.
 
-```markdown
-## RelayHQ
-At session start: `relayhq_session_start(agentId="claude-code")`
-Heartbeat every ~10 min: `relayhq_heartbeat(taskId, agentId)`
-When done: `relayhq_update_task(taskId, agentId, status="done", result="...", tokens_used=18420, model="claude-sonnet-4-6", cost_usd=0.11)`
-```
-
-**Using OpenCode, Codex, or another tool?** See [docs/connect.md](docs/connect.md) for setup instructions for all supported agents.
+See [docs/connect.md](docs/connect.md) for all supported runtimes.
 
 ---
 
-## Quick Start
+## Agent workflow
 
-**Prerequisites:** [Bun](https://bun.sh) · [Node.js 18+](https://nodejs.org)
+```
+Session start:
+  → relayhq_inbox(agentId)          check what's assigned to me
 
-```bash
-git clone https://github.com/amas-nghia/RelayHQ.git
-cd RelayHQ
+Claim and start:
+  → relayhq_start(agentId, taskId)  claim task + get full context
 
-# Start API server (port 44210) and web UI (port 44211)
-npm install -g pm2
-pm2 start ecosystem.config.cjs && pm2 save
+While working (every 5–10 min):
+  → relayhq_progress(agentId, taskId, percent, notes)
+
+If stuck:
+  → relayhq_blocked(agentId, taskId, reason)   stop and wait
+
+When done:
+  → relayhq_done(agentId, taskId, result)      → status: review
+                                               human reviews next
 ```
 
-Open [http://localhost:44211](http://localhost:44211) and follow the 3-step onboarding:
-
-1. **Workspace** — create a new vault or connect an existing one
-2. **Project** — name your first project and (optionally) point to the codebase
-3. **Connect** — copy the MCP snippet into `~/.claude/settings.json` for Claude Code, or write the env vars to your shell profile for any CLI agent
-
-### Option 3: Docker
-
-```bash
-docker compose up --build
-```
-
-This starts both services on the usual ports:
-- API: `http://127.0.0.1:44210`
-- Web: `http://127.0.0.1:44211`
-
-Stop and clean up with:
-
-```bash
-docker compose down
-```
-
-<details>
-<summary>Run without PM2</summary>
-
-```bash
-# Terminal 1 — API server
-cd app && bun install && bun run dev   # → http://localhost:44210
-
-# Terminal 2 — Web UI
-cd web && bun install && bun run dev   # → http://localhost:44211
-```
-</details>
+Agents cannot move tasks to `done` themselves. Only humans can approve work as complete.
 
 ---
 
 ## Use cases
 
-**Solo developer + Claude Code**
-Maintain a task board in your project repo. Claude Code picks up tasks automatically at session start, sends heartbeats, and asks before anything destructive. You see everything from the web UI.
+**Solo dev + Claude Code** — Maintain a task board in your project repo. Claude picks up tasks at session start, sends heartbeats, and asks before anything destructive.
 
-**Multiple agents on the same repo**
-Three Claude Code windows, one codebase. RelayHQ prevents two agents from claiming the same task via locks with expiry. The board shows which agent is active and what it's doing.
+**Multiple agents, one codebase** — Three Claude Code windows on the same repo. RelayHQ locks tasks so two agents can't claim the same one. The board shows who's doing what.
 
-**Human–agent approval workflow**
-An agent refactors an auth system, then calls `request-approval` before touching production configs. The task moves to the "waiting-approval" column. A human reviews and approves in the UI. The agent proceeds.
+**Human-in-the-loop approval** — Agent finishes a database migration plan, calls `relayhq_done`. Human reviews in the UI, approves or sends back. Agent proceeds only after sign-off.
 
-**Team with async contributors**
-Humans create tasks in the UI. Agents pick them up, work, and write audit notes. At standup, the board reflects what happened — written by humans and agents alike, all in Git.
+**Split thinking from doing** — Use Claude Opus to analyse and spec a problem. Hand off the tasks to a cheaper model to execute. The full context (objective, criteria, constraints) travels with the task — no re-explaining.
 
-**Mixed workflows — humans and agents in the same board**
-Not every task should go to an agent. UI design, real-device testing, client calls, legal review — some things need a human. Assign those tasks to a person instead, drag them across columns, update status by hand. RelayHQ doesn't distinguish between human and agent at the data level: assignee is just a name, status is just a field. The board reflects the full picture of who is doing what, regardless of whether "who" is a person or a model.
-
-**Split thinking from doing — keep costs low**
-Token prices aren't dropping fast enough. Use an expensive model (Claude Opus, GPT-4o) to analyse the problem, write the spec, and break it into tasks. Then hand off to a cheaper model on a different CLI — or a human — to execute. Because every task is a Markdown file, the full context travels with it: objective, acceptance criteria, constraints, prior notes, all of it. No copy-pasting. No re-explaining. The expensive thinking happens once and stays in the vault.
-
-This works across CLI tools, across machines, and across people. A solo dev can brainstorm with Claude in the morning and execute with a lighter model in the afternoon. A team can sync the entire vault through a shared Git repo — one `git pull` and everyone, human or agent, is on the same page. Prefer a visual knowledge base? Open the vault folder in [Obsidian](https://obsidian.md/) — tasks, docs, meeting notes, and audit logs are all plain Markdown, fully navigable and linkable.
+**Teams with async contributors** — Humans and agents work the same board. At standup the board shows what happened — written by humans and agents alike, all in Git.
 
 ---
 
@@ -181,102 +187,39 @@ This works across CLI tools, across machines, and across people. A solo dev can 
 
 | | RelayHQ | Jira / Linear | Notion |
 |---|---|---|---|
-| AI agents can read & write natively | ✅ files + HTTP API | ❌ custom integration required | ❌ custom integration required |
-| Full audit trail in Git | ✅ every change is a commit | ❌ proprietary | ❌ proprietary |
-| Works offline / no internet | ✅ | ❌ | ❌ |
-| Zero infrastructure to operate | ✅ clone + run | ❌ hosted or self-host DB | ❌ hosted |
+| AI agents read & write natively | ✅ files + HTTP + MCP | ❌ custom integration | ❌ custom integration |
+| Full audit trail in Git | ✅ | ❌ proprietary | ❌ proprietary |
+| Works offline | ✅ | ❌ | ❌ |
+| No cloud account needed | ✅ | ❌ | ❌ |
 | Human approval gates for agents | ✅ built-in | ❌ | ❌ |
-| Tasks are plain Markdown | ✅ edit in any editor | ❌ | ✅ but not Git-native |
-
-RelayHQ is not trying to replace your project management tool. It fills the gap between your AI agent runtime and your team's coordination layer.
+| Tasks are plain Markdown | ✅ edit anywhere | ❌ | ✅ but not Git-native |
 
 ---
 
 ## Features
 
-### Core (available now)
+**Available now**
+- Kanban board — Todo → In Progress → Review → Done
+- Task lifecycle API — claim, heartbeat, request-approval, complete
+- Human approval gates — block agent progress until a human signs off
+- Audit trail — every action writes a note, committed to Git
+- Multi-agent locking — prevents two agents claiming the same task
+- Agent registry — register agents with capabilities and task types
+- MCP tools — 5 clean tools for Claude Code, Cursor, Antigravity
+- Protocol pack installer — `npx relayhq setup <runtime>` for any agent
+- Onboarding wizard — 3-step setup
 
-- **Kanban board** — visual task flow across columns (Todo → In Progress → Review → Done)
-- **Task lifecycle API** — claim, heartbeat, request-approval, complete
-- **Human approval workflow** — gate risky agent actions before they run
-- **Audit trail** — every action writes a note, persisted in Git forever
-- **Multi-agent coordination** — lock/expiry prevents two agents claiming the same task
-- **Agent registry** — define capabilities, approval requirements, and task types per agent
-- **MCP integration** — `relayhq_*` tools available in Claude Code, OpenCode, and any MCP-compatible runtime
-- **CLI for any runtime** — no custom SDK needed; plain HTTP + Markdown
-- **Onboarding wizard** — 3-step setup: vault path, first project, connect your agent
-- **Project view** — per-project task overview with status breakdown
+**Coming next**
+- Scheduled tasks — defer work; agents self-reschedule on rate limits
+- Task templates — reusable shapes with pre-filled context
+- Comments & threads — per-task discussion for humans and agents
+- Real-time board — WebSocket push instead of polling
 
-### Coming next
-
-- **Scheduled tasks** — defer work until later; agents self-schedule when they hit a rate limit, with model fallback chain
-- **Recurring tasks** — cron expressions on any task; re-queue automatically on schedule
-- **Task templates** — reusable task shapes with pre-filled objective, criteria, and context
-- **Comments & threads** — per-task discussion attached to vault files; humans and agents leave notes in the same place
-- **Real-time board** — WebSocket push instead of polling; status changes appear instantly
-- **Agent subtasks** — parent tasks spawn child tasks; progress rolls up automatically
-
-### Planned
-
-- **Project docs** — attach briefs, meeting notes, specs, and links directly to a project; indexed for semantic search
-- **Semantic search** — Kioku-powered full-text + vector search across all tasks and project documents
-- **Notifications** — Slack messages and generic webhooks when tasks move, approvals are needed, or agents go stale
-- **Analytics** — token usage, cost tracking, cycle time, and throughput per project and per agent
-- **Mobile board** — horizontal scroll on small screens; touch-friendly drag and status updates
-- **Agent SDK** — `@relayhq/agent-sdk` TypeScript package with typed helpers for all lifecycle operations
-- **Skill system** — installable SKILL.md files that inject structured context into agent sessions (`npx relayhq skill install @relayhq/skill-code-review`)
-
----
-
-## Agent Protocol
-
-```bash
-# 1. Find tasks assigned to you
-bun run ./cli/relayhq.ts tasks --assignee=my-agent
-
-# 2. Claim a task
-bun run ./cli/relayhq.ts claim task-001 --assignee=my-agent
-
-# 3. Heartbeat while working
-bun run ./cli/relayhq.ts heartbeat task-001 --assignee=my-agent
-
-# 4. Request human approval before risky actions
-bun run ./cli/relayhq.ts request-approval task-001 \
-  --assignee=my-agent \
-  --reason="About to run database migration"
-
-# 5. Mark done
-bun run ./cli/relayhq.ts update task-001 \
-  --assignee=my-agent --status=done --result="PR #42 opened."
-```
-
-Each command writes a Markdown file to `vault/shared/`. No magic, no black box.
-
-Override the server URL: `RELAYHQ_BASE_URL=http://your-server:44210`
-
----
-
-## Vault file shape
-
-```markdown
----
-id: task-001
-type: task
-version: 1
-title: Implement login endpoint
-status: in-progress
-column: in-progress
-priority: high
-assignee: agent-backend-dev
-approval_needed: false
-progress: 40
-heartbeat_at: 2026-04-24T10:30:00Z
-execution_started_at: 2026-04-24T09:00:00Z
----
-
-Implement JWT-based login for `/api/auth/login`.
-Acceptance: returns 200 with token on valid credentials.
-```
+**Planned**
+- Semantic search — vector search across tasks and project docs
+- Notifications — Slack / webhook when tasks move or agents go stale
+- Analytics — token cost, cycle time, throughput per agent
+- Agent SDK — `@relayhq/agent-sdk` TypeScript package
 
 ---
 
@@ -299,11 +242,11 @@ Acceptance: returns 200 with token on valid credentials.
   │ :44210  │          │  Kanban Board   │
   └────┬────┘          └─────────────────┘
        │
-  ┌────▼──────────────────┐
-  │  Any agent runtime    │
-  │  Claude Code · GPT    │
-  │  Custom loops · CLI   │
-  └───────────────────────┘
+  ┌────▼──────────────────────────────┐
+  │  Agent runtimes                   │
+  │  Claude Code · Cursor · OpenCode  │
+  │  Codex · Antigravity · any HTTP   │
+  └───────────────────────────────────┘
 ```
 
 ---
@@ -312,27 +255,14 @@ Acceptance: returns 200 with token on valid credentials.
 
 ```
 RelayHQ/
-├── app/          # Nuxt 3 API server — task lifecycle routes (port 44210)
-├── web/          # React + Vite UI — Kanban board, approvals, audit (port 44211)
-├── backend/      # Go validation library (canonical schema types)
-├── cli/          # Agent CLI (relayhq.ts)
-├── vault/        # Demo vault — seeded tasks, approvals, agents
-└── docs/         # Documentation
+├── app/      # Nuxt 3 API server (port 44210)
+├── web/      # React + Vite board UI (port 44211)
+├── backend/  # Go validation library (canonical schema types)
+├── cli/      # Agent CLI (relayhq.ts)
+├── scripts/  # relayhq.mjs (init/start), mcp-server.mjs (MCP tools)
+├── vault/    # Demo vault — seeded tasks, approvals, agents
+└── docs/     # Documentation
 ```
-
----
-
-## Roadmap
-
-- [x] Phase 1 — Core Kanban: tasks, boards, columns, assignment, approvals, audit
-- [ ] Phase 2 — Scheduled & recurring tasks, rate-limit auto-retry, model fallback
-- [ ] Phase 3 — Task templates, comments/threads, real-time WebSocket board
-- [ ] Phase 4 — Project docs + semantic search (Kioku), attachments as links
-- [ ] Phase 5 — Notifications (Slack, webhooks), analytics dashboard, mobile board
-- [ ] Phase 6 — Agent SDK, skill system, subtask spawning, shared context pool
-- [ ] Phase 7 — Agent improvement loops (outcome feedback, quality signals)
-
-See [docs/roadmap.md](docs/roadmap.md) for full feature breakdown and user flows.
 
 ---
 
@@ -352,15 +282,16 @@ See [docs/roadmap.md](docs/roadmap.md) for full feature breakdown and user flows
 
 ---
 
-## Self-hosting
+## Roadmap
 
-Point `RELAYHQ_VAULT_ROOT` at any directory to use a custom vault:
+- [x] Phase 1 — Core Kanban: tasks, boards, columns, assignment, approvals, audit
+- [ ] Phase 2 — Scheduled & recurring tasks, rate-limit auto-retry
+- [ ] Phase 3 — Task templates, comments/threads, real-time board
+- [ ] Phase 4 — Project docs + semantic search (Kioku)
+- [ ] Phase 5 — Notifications, analytics, mobile board
+- [ ] Phase 6 — Agent SDK, skill system, subtask spawning
 
-```bash
-RELAYHQ_VAULT_ROOT=/data/my-vault pm2 start ecosystem.config.cjs
-```
-
-Works anywhere you can run Node.js + Bun.
+See [docs/roadmap.md](docs/roadmap.md) for full details.
 
 ---
 
@@ -370,19 +301,10 @@ Open an issue first to discuss what you'd like to change.
 
 ```bash
 git checkout -b feature/my-feature
-# make changes
 git commit -m "feat: my feature"
 git push origin feature/my-feature
 # open a pull request
 ```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## Documentation
-
-Full docs at **[https://amas.gitbook.io/relayhq](https://amas.gitbook.io/relayhq)** — product overview, vault schema, agent protocol, architecture.
 
 ---
 
