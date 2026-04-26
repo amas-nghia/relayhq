@@ -5,7 +5,7 @@ import { resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 
 export async function readCostSummary() {
   const model = await readCanonicalVaultReadModel(resolveVaultWorkspaceRoot())
-  const completedTasks = model.tasks.filter(task => task.status === 'done' && (task.tokensUsed ?? 0) > 0)
+  const completedTasks = model.tasks.filter(task => (task.status === 'review' || task.status === 'done') && (task.tokensUsed ?? 0) > 0)
   const total_tokens = completedTasks.reduce((sum, task) => sum + (task.tokensUsed ?? 0), 0)
   const total_cost_usd = completedTasks.reduce((sum, task) => sum + (task.costUsd ?? 0), 0)
 

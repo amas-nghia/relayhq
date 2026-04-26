@@ -11,6 +11,7 @@ import {
   createApprovalIntent,
   createClaimIntent,
   createHeartbeatIntent,
+  createScheduleIntent,
   createUpdateIntent,
   listReadyTasksForCaller,
   RELAYHQ_COMMAND_SURFACE,
@@ -105,6 +106,10 @@ function deriveColumnFromStatus(status: TaskStatus): TaskFrontmatter["column"] |
   }
 
   if (status === "waiting-approval") {
+    return "review";
+  }
+
+  if (status === "review") {
     return "review";
   }
 
@@ -289,6 +294,11 @@ export function createRelayHQHttpProtocolClient(options: RelayHQHttpProtocolClie
         method: "POST",
         body: JSON.stringify({ actorId: request.assignee, reason: request.reason }),
       }),
+    scheduleTask: async (request) =>
+      await requestRelayHQ(fetchFn, `${baseUrl}/api/vault/tasks/${encodeURIComponent(request.taskId)}/schedule`, {
+        method: "POST",
+        body: JSON.stringify({ actorId: request.assignee, nextRunAt: request.nextRunAt, ...(request.reason === undefined ? {} : { reason: request.reason }) }),
+      }),
   };
 }
 
@@ -432,6 +442,51 @@ export async function executeRelayHQInvocation(
       command: "request-approval",
       payload,
     };
+  }
+
+  if (invocation.command === "schedule") {
+    const [taskId = ""] = invocation.positional;
+    const assignee = requireNonEmpty(invocation.flags.get("assignee") ?? "", "assignee is required");
+    const validatedTaskId = requireNonEmpty(taskId, "task id is required");
+    const nextRunAt = invocation.flags.get("next-run-at");
+    const retryAfterSeconds = invocation.flags.get("retry-after-seconds");
+
+    let resolvedNextRunAt = nextRunAt;
+    if (resolvedNextRunAt === undefined && retryAfterSeconds !== undefined) {
+      const seconds = Number(retryAfterSeconds);
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new Error("retry-after-seconds must be a positive number.");
+      }
+      resolvedNextRunAt = new Date(now.getTime() + seconds * 1000).toISOString();
+    }
+
+    const payload = createScheduleIntent(
+      validatedTaskId,
+      assignee,
+      requireNonEmpty(resolvedNextRunAt ?? "", "next-run-at or retry-after-seconds is required"),
+      invocation.flags.get("reason") ?? undefined,
+    );
+    await client.scheduleTask(payload);
+    return { command: "schedule", payload };
+  }
+
+  if (invocation.command === "spawn-subtask") {
+    const [taskId = ""] = invocation.positional;
+    const validatedTaskId = requireNonEmpty(taskId, "task id is required");
+    const title = requireNonEmpty(invocation.flags.get("title") ?? "", "title is required");
+    const priority = invocation.flags.get("priority") ?? "medium";
+    const objective = invocation.flags.get("objective") ?? undefined;
+    const requiredCapability = invocation.flags.get("required-capability") ?? undefined;
+    const response = await requestRelayHQ(fetchFnForClient(client), `${await resolveRelayHQBaseUrl(argv)}/api/vault/tasks/${encodeURIComponent(validatedTaskId)}/spawn-subtask`, {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        priority,
+        ...(objective === undefined ? {} : { objective }),
+        ...(requiredCapability === undefined ? {} : { requiredCapability }),
+      }),
+    });
+    return { command: "spawn-subtask", payload: response as Record<string, unknown> };
   }
 
   if (invocation.command === "index") {

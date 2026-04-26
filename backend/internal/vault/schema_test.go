@@ -14,9 +14,9 @@ func TestCanonicalPaths(t *testing.T) {
 		"shared/projects/",
 		"shared/boards/",
 		"shared/columns/",
-		"shared/issues/",
+		"shared/tasks/",
+		"shared/approvals/",
 		"shared/agents/",
-		"shared/runs/",
 		"shared/audit/",
 		"shared/threads/",
 		"users/<user>/provider.md",
@@ -57,11 +57,24 @@ func TestValidateTaskFrontmatter(t *testing.T) {
 		CreatedAt:       now,
 		UpdatedAt:       now,
 		Progress:        0,
+		NextRunAt:       nil,
 		ApprovalOutcome: ApprovalOutcomePending,
 	}
 
 	if err := ValidateTaskFrontmatter(task); err != nil {
 		t.Fatalf("expected valid task, got error: %v", err)
+	}
+
+	task.Status = TaskStatusReview
+	if err := ValidateTaskFrontmatter(task); err != nil {
+		t.Fatalf("expected review status to validate, got error: %v", err)
+	}
+
+	task.Status = TaskStatusScheduled
+	nextRunAt := now.Add(time.Hour)
+	task.NextRunAt = &nextRunAt
+	if err := ValidateTaskFrontmatter(task); err != nil {
+		t.Fatalf("expected scheduled status to validate, got error: %v", err)
 	}
 
 	task.Status = "broken"
@@ -83,6 +96,7 @@ func TestValidateAgentFrontmatter(t *testing.T) {
 		Provider:    "claude",
 		APIKeyRef:   ptrString("env:ANTHROPIC_API_KEY_ACCOUNT_1"),
 		Model:       "claude-sonnet-4-6",
+		FallbackModels: []string{"claude-haiku-4-5", "gpt-4o-mini"},
 		MonthlyBudgetUSD: ptrFloat64(25),
 		SkillFile:   "skills/relayhq-backend-dev.md",
 		Status:      "available",

@@ -22,6 +22,9 @@ name: Backend Developer
 role: implementation
 provider: claude
 model: claude-sonnet-4-6
+fallback_models:
+  - claude-haiku-4-5
+  - gpt-4o-mini
 capabilities:
   - write-go-code
   - write-api-endpoints
@@ -86,6 +89,11 @@ updated_at: 2026-04-14T10:00:00Z
 - backend agents should not take frontend-only work
 - frontend agents should not take backend-only work
 - tester agents should not claim implementation-only tasks
+
+## Fallback models
+- `fallback_models` is optional
+- use it to declare ordered backup models when the primary model is rate-limited
+- RelayHQ should try these in order before deferring the task for later
 
 ## Operational rule
 RelayHQ can assign and track agents, but the runtime is responsible for actually running them.

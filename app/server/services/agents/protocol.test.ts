@@ -23,6 +23,7 @@ function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
     execution_started_at: null,
     execution_notes: null,
     progress: 0,
+    next_run_at: null,
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -52,6 +53,7 @@ describe("agent protocol task selection", () => {
       createTask({ id: "task-003", depends_on: ["task-missing"] }),
       createTask({ id: "task-004", assignee: "agent-beta" }),
       createTask({ id: "task-005", status: "in-progress" }),
+      createTask({ id: "task-005b", status: "scheduled", next_run_at: "2026-04-14T11:00:00Z" }),
       createTask({ id: "task-006", locked_by: "agent-beta", locked_at: "2026-04-14T09:00:00Z", lock_expires_at: "2026-04-14T13:00:00Z" }),
       createTask({ id: "task-007", status: "cancelled" }),
     ];

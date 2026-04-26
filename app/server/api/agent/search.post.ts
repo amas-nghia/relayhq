@@ -41,6 +41,15 @@ export async function searchAgentContextWith(
     })),
     projects: result.projects.map((project) => ({ id: project.id, name: project.name })),
     boards: result.boards.map((board) => ({ id: board.id, name: board.name, projectId: board.projectId })),
+    docs: result.docs.map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      doc_type: doc.docType,
+      status: doc.status,
+      visibility: doc.visibility,
+      updatedAt: doc.updatedAt,
+      projectId: doc.projectId,
+    })),
   };
 }
 

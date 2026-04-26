@@ -27,6 +27,7 @@ const TASK_MUTABLE_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
   "execution_started_at",
   "execution_notes",
   "progress",
+  "next_run_at",
   "approval_needed",
   "approval_requested_by",
   "approval_reason",

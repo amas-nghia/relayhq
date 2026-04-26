@@ -36,12 +36,18 @@ If an action is risky:
 
 Approval-required actions must be visible in the agent registry and reflected in the task workflow.
 
+Use `waiting-approval` only when the agent cannot continue without explicit human sign-off.
+
 ## Completion flow
 When done, write:
-- `status: done`
+- `status: review`
 - `result`
 - `completed_at`
 - audit note or summary
+
+Use `review` when implementation work is complete and the task is ready for human verification.
+
+Only move a task to `done` after the human review step has finished.
 
 Token reporting is optional but recommended when the runtime can provide it. Include any of:
 - `tokens_used`
@@ -67,7 +73,7 @@ bun run ./cli/relayhq.ts tasks --assignee=me
 bun run ./cli/relayhq.ts claim task-001 --assignee=me
 bun run ./cli/relayhq.ts heartbeat task-001 --assignee=me
 bun run ./cli/relayhq.ts request-approval task-001 --assignee=me --reason="Need prod access"
-bun run ./cli/relayhq.ts update task-001 --assignee=me --status=done --result="PR #42 created" --tokens-used=18420 --model="claude-sonnet-4-6" --cost-usd=0.11
+bun run ./cli/relayhq.ts update task-001 --assignee=me --status=review --result="PR #42 created" --tokens-used=18420 --model="claude-sonnet-4-6" --cost-usd=0.11
 ```
 
 ## Design rule

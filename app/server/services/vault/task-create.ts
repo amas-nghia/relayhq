@@ -7,6 +7,8 @@ import {
   type TaskPriority,
 } from "../../../shared/vault/schema";
 import { containsSecretMaterial } from "../security/secrets";
+import { publishRealtimeUpdate } from "../realtime/bus";
+import { queueTaskWebhookNotification } from "../settings/webhooks";
 import { readCanonicalVaultReadModel } from "./read";
 import { readSharedVaultCollections } from "./read";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
@@ -17,8 +19,12 @@ const DEFAULT_CREATED_BY = "@relayhq-web" as const;
 function statusFromColumnPosition(position: number): TaskFrontmatter["status"] {
   if (position === 0) return "todo";
   if (position === 1) return "in-progress";
-  if (position === 2) return "waiting-approval";
+  if (position === 2) return "review";
   return "done";
+}
+
+function isCompletedStatus(status: TaskFrontmatter["status"]): boolean {
+  return status === "review" || status === "done";
 }
 
 export interface CreateTaskInput {
@@ -34,6 +40,7 @@ export interface CreateTaskInput {
   readonly body?: string;
   readonly sourceIssueId?: string;
   readonly githubIssueId?: string;
+  readonly parentTaskId?: string;
   readonly now?: Date;
   readonly vaultRoot?: string;
 }
@@ -95,6 +102,7 @@ function buildTaskFrontmatter(input: {
   readonly assignee: string;
   readonly tags: ReadonlyArray<string>;
   readonly dependsOn: ReadonlyArray<string>;
+  readonly parentTaskId: string | null;
   readonly sourceIssueId: string | null;
   readonly githubIssueId: string | null;
 }): TaskFrontmatter {
@@ -119,7 +127,7 @@ function buildTaskFrontmatter(input: {
     heartbeat_at: null,
     execution_started_at: null,
     execution_notes: null,
-    progress: status === "done" ? 100 : 0,
+    progress: isCompletedStatus(status) ? 100 : 0,
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -129,8 +137,8 @@ function buildTaskFrontmatter(input: {
     blocked_reason: null,
     blocked_since: null,
     result: null,
-    completed_at: status === "done" ? timestamp : null,
-    parent_task_id: null,
+    completed_at: isCompletedStatus(status) ? timestamp : null,
+    parent_task_id: input.parentTaskId,
     source_issue_id: input.sourceIssueId,
     github_issue_id: input.githubIssueId,
     depends_on: input.dependsOn,
@@ -233,13 +241,35 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     assignee,
     tags,
     dependsOn,
+    parentTaskId: input.parentTaskId ?? null,
     sourceIssueId: input.sourceIssueId ?? null,
     githubIssueId: input.githubIssueId ?? null,
   });
 
-  return await createTaskDocument({
+  const result = await createTaskDocument({
     filePath: resolveTaskFilePath(taskId, vaultRoot),
     frontmatter,
     body: input.body ?? "",
   });
+
+  publishRealtimeUpdate({
+    kind: "vault.changed",
+    reason: "task.created",
+    taskId: result.frontmatter.id,
+    agentId: result.frontmatter.assignee,
+    source: DEFAULT_CREATED_BY,
+    timestamp: now.toISOString(),
+  });
+
+  queueTaskWebhookNotification({
+    event: "task.created",
+    taskId: result.frontmatter.id,
+    title: result.frontmatter.title,
+    status: result.frontmatter.status,
+    assignee: result.frontmatter.assignee,
+    timestamp: now.toISOString(),
+    boardUrl: `${process.env.RELAYHQ_PUBLIC_BASE_URL || "http://127.0.0.1:44211"}/boards/${result.frontmatter.board_id}`,
+  }, { vaultRoot });
+
+  return result;
 }

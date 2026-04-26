@@ -36,7 +36,7 @@ Restart Claude Code. You now have `relayhq_*` tools in every session:
 
 ```
 relayhq_session_start    → task list + workspace context
-relayhq_update_task      → report progress and mark done
+relayhq_update_task      → report progress and move work to review
 relayhq_heartbeat        → stay visible while working
 relayhq_request_approval → ask a human before risky actions
 ```
@@ -48,7 +48,7 @@ relayhq_request_approval → ask a human before risky actions
 
 At session start: `relayhq_session_start(agentId="claude-code")`
 Heartbeat every ~10 min: `relayhq_heartbeat(taskId, agentId)`
-When done: `relayhq_update_task(taskId, agentId, status="done", result="...")`
+When implementation is complete: `relayhq_update_task(taskId, agentId, status="review", result="...")`
 ```
 
 ---
@@ -109,7 +109,7 @@ Then use the CLI from any terminal:
 bun run ./cli/relayhq.ts tasks --assignee=my-agent
 bun run ./cli/relayhq.ts claim task-001 --assignee=my-agent
 bun run ./cli/relayhq.ts heartbeat task-001 --assignee=my-agent
-bun run ./cli/relayhq.ts update task-001 --assignee=my-agent --status=done --result="PR #42 opened."
+bun run ./cli/relayhq.ts update task-001 --assignee=my-agent --status=review --result="PR #42 opened."
 ```
 
 Or call the HTTP API directly — no CLI required:

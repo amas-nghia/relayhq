@@ -12,8 +12,11 @@ import {
   heartbeatTaskLifecycle,
   patchTaskLifecycle,
   rejectTaskLifecycle,
+  scheduleTaskLifecycle,
   requestTaskApprovalLifecycle,
 } from "./task-lifecycle";
+import { subscribeRealtimeUpdates, type RealtimeUpdate } from "../realtime/bus";
+import { readWebhookSettings } from "../settings/webhooks";
 
 function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
   return {
@@ -35,6 +38,7 @@ function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
     execution_started_at: null,
     execution_notes: null,
     progress: 0,
+    next_run_at: null,
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -65,6 +69,28 @@ async function createVaultRoot(task: TaskFrontmatter): Promise<string> {
   return root;
 }
 
+async function writeWebhookSettingsFile(root: string, event: string): Promise<void> {
+  await mkdir(join(root, "vault", "shared", "settings"), { recursive: true });
+  await writeFile(
+    join(root, "vault", "shared", "settings", "webhooks.json"),
+    JSON.stringify({
+      webhooks: [{ id: "webhook-1", url: "https://93.184.216.34/hook", events: [event] }],
+      deliveries: [],
+    }, null, 2),
+    "utf8",
+  );
+}
+
+async function waitForWebhookDelivery(root: string): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    const loaded = await readWebhookSettings(root);
+    if (loaded.deliveries.length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for webhook delivery.");
+}
+
 async function readApprovalDocuments(root: string): Promise<ReadonlyArray<string>> {
   const approvalsDir = join(root, "vault", "shared", "approvals");
   const files = await readdir(approvalsDir);
@@ -81,13 +107,30 @@ describe("task lifecycle service", () => {
       actorId: "agent-backend-dev",
       vaultRoot,
       now,
-      patch: { status: "done", column: "done", progress: 100, result: "Shipped" },
+      patch: { status: "review", column: "review", progress: 100, result: "Shipped" },
     });
 
-    expect(result.frontmatter.status).toBe("done");
-    expect(result.frontmatter.column).toBe("done");
+    expect(result.frontmatter.status).toBe("review");
+    expect(result.frontmatter.column).toBe("review");
     expect(result.frontmatter.progress).toBe(100);
     expect(result.frontmatter.completed_at).toBe(now.toISOString());
+  });
+
+  test("clears completed_at when moving a task to blocked", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "done", column: "done", completed_at: "2026-04-15T09:30:00Z" }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "agent-backend-dev",
+      vaultRoot,
+      now,
+      patch: { status: "blocked", column: "review", blocked_reason: "Waiting on dependency" },
+    });
+
+    expect(result.frontmatter.status).toBe("blocked");
+    expect(result.frontmatter.completed_at).toBeNull();
+    expect(result.frontmatter.blocked_since).toBe(now.toISOString());
   });
 
   test("claims a task into in-progress state", async () => {
@@ -99,6 +142,143 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.status).toBe("in-progress");
     expect(result.frontmatter.column).toBe("in-progress");
     expect(result.frontmatter.execution_started_at).toBe(now.toISOString());
+  });
+
+  test("publishes realtime updates when the task lifecycle changes", async () => {
+    const vaultRoot = await createVaultRoot(createTask());
+    const now = new Date("2026-04-15T10:00:00Z");
+    const updates: RealtimeUpdate[] = [];
+    const unsubscribe = subscribeRealtimeUpdates((update) => {
+      updates.push(update);
+    });
+
+    try {
+      await claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now });
+
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        kind: "vault.changed",
+        reason: "task.claimed",
+        taskId: "task-001",
+        source: "agent-backend-dev",
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  test("publishes realtime updates for scheduled tasks", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "in-progress", column: "in-progress" }));
+    const now = new Date("2026-04-15T10:00:00Z");
+    const updates: RealtimeUpdate[] = [];
+    const unsubscribe = subscribeRealtimeUpdates((update) => {
+      updates.push(update);
+    });
+
+    try {
+      await scheduleTaskLifecycle({
+        taskId: "task-001",
+        actorId: "agent-backend-dev",
+        vaultRoot,
+        now,
+        nextRunAt: "2026-04-15T11:00:00Z",
+      });
+
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        kind: "vault.changed",
+        reason: "task.scheduled",
+        taskId: "task-001",
+        source: "agent-backend-dev",
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  test("emits a task.scheduled webhook for subscribed integrations", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "in-progress", column: "in-progress" }));
+    await writeWebhookSettingsFile(vaultRoot, "task.scheduled");
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+      fetchCalls += 1;
+      expect(init?.headers).toMatchObject({
+        "x-relayhq-event": "task.scheduled",
+      });
+      return new Response(null, { status: 200 });
+    };
+
+    try {
+      const now = new Date("2026-04-15T10:00:00Z");
+      await scheduleTaskLifecycle({
+        taskId: "task-001",
+        actorId: "agent-backend-dev",
+        vaultRoot,
+        now,
+        nextRunAt: "2026-04-15T11:00:00Z",
+      });
+
+      await waitForWebhookDelivery(vaultRoot);
+
+      expect(fetchCalls).toBe(1);
+      const loaded = await readWebhookSettings(vaultRoot);
+      expect(loaded.deliveries[0]?.event).toBe("task.scheduled");
+      expect(loaded.deliveries[0]?.status).toBe("success");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("publishes realtime updates for heartbeats", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "in-progress", column: "in-progress" }));
+    const now = new Date("2026-04-15T10:00:00Z");
+    const updates: RealtimeUpdate[] = [];
+    const unsubscribe = subscribeRealtimeUpdates((update) => {
+      updates.push(update);
+    });
+
+    try {
+      await heartbeatTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now });
+
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        kind: "vault.changed",
+        reason: "task.updated",
+        taskId: "task-001",
+        source: "agent-backend-dev",
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  test("emits a task.updated webhook when heartbeat changes", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "in-progress", column: "in-progress" }));
+    await writeWebhookSettingsFile(vaultRoot, "task.updated");
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+      fetchCalls += 1;
+      expect(init?.headers).toMatchObject({
+        "x-relayhq-event": "task.updated",
+      });
+      return new Response(null, { status: 200 });
+    };
+
+    try {
+      const now = new Date("2026-04-15T10:00:00Z");
+      await heartbeatTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now });
+
+      await waitForWebhookDelivery(vaultRoot);
+
+      expect(fetchCalls).toBe(1);
+      const loaded = await readWebhookSettings(vaultRoot);
+      expect(loaded.deliveries[0]?.event).toBe("task.updated");
+      expect(loaded.deliveries[0]?.status).toBe("success");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test("reclaims a stale task lock during claim", async () => {
@@ -162,6 +342,32 @@ describe("task lifecycle service", () => {
     expect(approvals).toHaveLength(1);
     expect(approvals[0]).toContain('status: "requested"');
     expect(approvals[0]).toContain('outcome: "pending"');
+  });
+
+  test("schedules a task and releases its lock", async () => {
+    const vaultRoot = await createVaultRoot(createTask({
+      status: "in-progress",
+      column: "in-progress",
+      locked_by: "agent-backend-dev",
+      locked_at: "2026-04-15T09:55:00Z",
+      lock_expires_at: "2026-04-15T10:05:00Z",
+    }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await scheduleTaskLifecycle({
+      taskId: "task-001",
+      actorId: "agent-backend-dev",
+      vaultRoot,
+      now,
+      nextRunAt: "2026-04-15T11:00:00Z",
+    });
+
+    expect(result.frontmatter.status).toBe("scheduled");
+    expect(result.frontmatter.column).toBe("todo");
+    expect(result.frontmatter.next_run_at).toBe("2026-04-15T11:00:00Z");
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.locked_at).toBeNull();
+    expect(result.frontmatter.lock_expires_at).toBeNull();
   });
 
   test("approves and rejects tasks through the lifecycle service", async () => {

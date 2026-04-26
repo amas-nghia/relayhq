@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { readCanonicalVaultReadModel } from "./read";
 import { createVaultTask, TaskCreateError } from "./task-create";
 import { readTaskDocument } from "./write";
+import { readWebhookSettings } from "../settings/webhooks";
 
 async function writeVaultDocument(root: string, relativePath: string, frontmatter: string, body = ""): Promise<void> {
   const filePath = join(root, relativePath);
@@ -94,6 +95,25 @@ async function createVaultRoot(): Promise<string> {
   return root;
 }
 
+async function writeWebhookSettingsFile(root: string): Promise<void> {
+  const filePath = join(root, "vault", "shared", "settings", "webhooks.json");
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify({
+    webhooks: [{ id: "webhook-1", url: "https://hooks.slack.com/services/T000/B000/secret", events: ["task.created"] }],
+    deliveries: [],
+  }, null, 2)}\n`, "utf8");
+}
+
+async function waitForWebhookDelivery(root: string): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    const loaded = await readWebhookSettings(root);
+    if (loaded.deliveries.length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for webhook delivery.");
+}
+
 describe("createVaultTask", () => {
   test("creates a canonical task file that appears in the read model", async () => {
     const root = await createVaultRoot();
@@ -135,6 +155,46 @@ describe("createVaultTask", () => {
         expect.arrayContaining([result.frontmatter.id]),
       );
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("emits a task.created webhook for subscribed integrations", async () => {
+    const root = await createVaultRoot();
+    await writeWebhookSettingsFile(root);
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+      fetchCalls += 1;
+      expect(init?.headers).toMatchObject({
+        "x-relayhq-event": "task.created",
+      });
+      expect(String(init?.body)).toContain("[RelayHQ] task.created • Ship project create flow");
+      return new Response(null, { status: 200 });
+    };
+
+    try {
+      const now = new Date("2026-04-16T10:00:00Z");
+      const result = await createVaultTask({
+        title: "Ship project create flow",
+        projectId: "project-alpha",
+        boardId: "board-alpha",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-backend-dev",
+        now,
+        vaultRoot: root,
+      });
+
+      await waitForWebhookDelivery(root);
+
+      expect(fetchCalls).toBe(1);
+      const loaded = await readWebhookSettings(root);
+      expect(loaded.deliveries[0]?.event).toBe("task.created");
+      expect(loaded.deliveries[0]?.status).toBe("success");
+      expect(result.frontmatter.title).toBe("Ship project create flow");
+    } finally {
+      globalThis.fetch = originalFetch;
       await rm(root, { recursive: true, force: true });
     }
   });

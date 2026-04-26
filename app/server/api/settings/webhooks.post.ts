@@ -12,16 +12,32 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "webhooks must be provided as an array." });
   }
 
-  return await saveWebhookSettings({
-    webhooks: body.webhooks.flatMap((entry) => {
-      if (!isPlainRecord(entry) || typeof entry.url !== "string" || !Array.isArray(entry.events)) {
-        return [];
-      }
-      return [{
-        id: typeof entry.id === "string" ? entry.id : undefined,
-        url: entry.url,
-        events: entry.events.filter((event): event is string => typeof event === "string"),
-      }];
-    }),
-  });
+  try {
+    return await saveWebhookSettings({
+      webhooks: body.webhooks.map((entry, index) => {
+        if (!isPlainRecord(entry) || typeof entry.url !== "string" || !Array.isArray(entry.events)) {
+          throw createError({ statusCode: 400, statusMessage: `webhook ${index + 1} must include url and events.` });
+        }
+
+        const events = entry.events.map((value) => {
+          if (typeof value !== "string") {
+            throw createError({ statusCode: 400, statusMessage: `webhook ${index + 1} contains an invalid event value.` });
+          }
+          return value;
+        });
+
+        return {
+          id: typeof entry.id === "string" ? entry.id : undefined,
+          url: entry.url,
+          events,
+          signingSecretRef: typeof entry.signingSecretRef === "string" ? entry.signingSecretRef : null,
+        };
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && "statusCode" in error) {
+      throw error;
+    }
+    throw createError({ statusCode: 400, statusMessage: error instanceof Error ? error.message : "Invalid webhook settings." });
+  }
 });

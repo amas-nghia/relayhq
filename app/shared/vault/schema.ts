@@ -2,8 +2,10 @@ export const VAULT_SCHEMA_VERSION = 1 as const;
 
 export const TASK_STATUSES = [
   "todo",
+  "scheduled",
   "in-progress",
   "blocked",
+  "review",
   "waiting-approval",
   "done",
   "cancelled",
@@ -64,6 +66,7 @@ export interface TaskFrontmatter {
   readonly execution_started_at: string | null;
   readonly execution_notes: string | null;
   readonly progress: number;
+  readonly next_run_at?: string | null;
   readonly approval_needed: boolean;
   readonly approval_requested_by: string | null;
   readonly approval_reason: string | null;
@@ -98,6 +101,7 @@ export interface AgentFrontmatter {
   readonly provider: string;
   readonly api_key_ref?: string | null;
   readonly model: string;
+  readonly fallback_models?: ReadonlyArray<string>;
   readonly monthly_budget_usd?: number | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
@@ -459,6 +463,9 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
   if (progress !== undefined && (progress < 0 || progress > 100)) {
     pushIssue(issues, "progress", "must be between 0 and 100");
   }
+  if (hasKey(input, "next_run_at")) {
+    requireNullableTimestampField(input, "next_run_at", issues);
+  }
 
   requireBooleanField(input, "approval_needed", issues);
   requireNullableStringField(input, "approval_requested_by", issues);
@@ -549,6 +556,7 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
     }
   }
   requireStringField(input, "model", issues);
+  if (hasKey(input, "fallback_models")) requireStringArrayField(input, "fallback_models", issues);
   if (hasKey(input, "monthly_budget_usd") && input.monthly_budget_usd !== null && !isFiniteNumber(input.monthly_budget_usd)) {
     pushIssue(issues, "monthly_budget_usd", "must be a number or null");
   }

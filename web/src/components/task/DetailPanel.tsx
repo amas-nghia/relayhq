@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom'
-import { useMemo, useState, type ReactNode } from 'react'
-import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, ShieldAlert, SquareCheckBig, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, ShieldAlert, SquareCheckBig, User, X } from 'lucide-react'
 import clsx from 'clsx'
 
+import { relayhqApi } from '../../api/client'
 import { useAppStore } from '../../store/appStore'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader } from '../ui/card'
+import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 
 function readSection(body: string | undefined, heading: string): string | null {
@@ -35,6 +37,48 @@ function formatTimestamp(value: string | undefined): string {
   return date.toLocaleString()
 }
 
+function formatRelativeTimestamp(value: string | undefined): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const diffMs = Date.now() - date.getTime()
+  const minutes = Math.round(diffMs / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.round(hours / 24)
+  return `${days}d ago`
+}
+
+function isAgentComment(author: string): boolean {
+  const normalized = author.trim().toLowerCase()
+  return normalized.includes('agent') || normalized.includes('claude') || normalized.includes('bot')
+}
+
+function readInitials(author: string): string {
+  return author
+    .replace(/^@/, '')
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'OP'
+}
+
+function toDateTimeLocalValue(value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  const hours = `${date.getHours()}`.padStart(2, '0')
+  const minutes = `${date.getMinutes()}`.padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Card>
@@ -52,6 +96,7 @@ function EmptyCopy({ children }: { children: ReactNode }) {
 
 const statusClasses: Record<string, string> = {
   'in-progress': 'border-status-active/20 bg-brand-muted text-status-active',
+  review: 'border-status-active/20 bg-brand-muted text-status-active',
   'waiting-approval': 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
   blocked: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
   done: 'border-status-done/20 bg-status-done/10 text-status-done',
@@ -72,6 +117,16 @@ const approvalClasses: Record<string, string> = {
   pending: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
 }
 
+const statusLabels: Record<string, string> = {
+  'in-progress': 'in progress',
+  review: 'in review',
+  'waiting-approval': 'awaiting approval',
+  blocked: 'blocked',
+  done: 'done',
+  todo: 'todo',
+  cancelled: 'cancelled',
+}
+
 export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode?: 'preview' | 'page' }) {
   const navigate = useNavigate()
   const task = useAppStore(state => state.tasks.find(t => t.id === taskId))
@@ -79,12 +134,21 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
   const approveTask = useAppStore(state => state.approveTask)
   const rejectTask = useAppStore(state => state.rejectTask)
   const startAutoRun = useAppStore(state => state.startAutoRun)
+  const fetchReadModel = useAppStore(state => state.fetchReadModel)
+  const isLoading = useAppStore(state => state.isLoading)
   const agent = useAppStore(state => state.agents.find(a => a.id === task?.assigneeId))
   const project = useAppStore(state => state.projects.find(p => p.id === task?.projectId))
+  const subtasks = useAppStore(state => state.tasks.filter(entry => entry.parentTaskId === taskId))
   const auditLogs = useAppStore(state => state.auditLogs)
   const isMutating = useAppStore(state => state.isMutating)
   const mutationError = useAppStore(state => state.mutationError)
   const [rejectReason, setRejectReason] = useState(task?.approvalReason || '')
+  const [comments, setComments] = useState<ReadonlyArray<{ author: string; timestamp: string; body: string }>>([])
+  const [commentBody, setCommentBody] = useState('')
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentsSaving, setCommentsSaving] = useState(false)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
+  const [nextRunAtInput, setNextRunAtInput] = useState('')
 
   const sections = useMemo(() => {
     const body = task?.description
@@ -101,12 +165,78 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
     [auditLogs, taskId],
   )
 
-  if (!task) return null
+  const loadComments = useCallback(async () => {
+    setCommentsLoading(true)
+    setCommentsError(null)
+    try {
+      const response = await relayhqApi.getTaskComments(taskId)
+      setComments(response.data.comments)
+    } catch (error) {
+      setCommentsError(error instanceof Error ? error.message : 'Unable to load comments.')
+    } finally {
+      setCommentsLoading(false)
+    }
+  }, [taskId])
+
+  useEffect(() => {
+    void loadComments()
+  }, [loadComments])
+
+  useEffect(() => {
+    if (!task && !isLoading) {
+      void fetchReadModel()
+    }
+  }, [fetchReadModel, isLoading, task])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadComments()
+    }, 30000)
+
+    return () => window.clearInterval(interval)
+  }, [loadComments])
+
+  if (!task) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-sm text-text-tertiary">
+        Loading task detail…
+      </div>
+    )
+  }
 
   const links = task.links ?? []
   const dependsOn = task.dependsOn ?? []
   const approvalIds = task.approvalIds ?? []
   const tags = task.tags ?? []
+
+  const submitComment = async () => {
+    if (commentBody.trim().length === 0) return
+    setCommentsSaving(true)
+    setCommentsError(null)
+    try {
+      const response = await relayhqApi.addTaskComment(task.id, { author: 'operator', body: commentBody })
+      setComments(response.data.comments)
+      setCommentBody('')
+      await fetchReadModel()
+    } catch (error) {
+      setCommentsError(error instanceof Error ? error.message : 'Unable to add comment.')
+    } finally {
+      setCommentsSaving(false)
+    }
+  }
+
+  const scheduleTask = async (nextRunAt: string, reason: string) => {
+    await relayhqApi.scheduleTask(task.id, { actorId: 'relayhq-web', nextRunAt, reason })
+    await fetchReadModel()
+  }
+
+  const unscheduleTask = async () => {
+    await relayhqApi.patchTask(task.id, {
+      actorId: 'relayhq-web',
+      patch: { status: 'todo', column: 'todo', next_run_at: null, blocked_reason: null },
+    })
+    await fetchReadModel()
+  }
 
   return (
     <div className="flex h-full flex-col bg-surface-secondary">
@@ -134,7 +264,7 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
                 <h2 className="text-xl font-semibold text-text-primary">{task.title}</h2>
                 <div className="flex flex-wrap gap-2">
                   <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', statusClasses[task.status] ?? 'border-border bg-surface-secondary text-text-secondary')}>
-                    {task.status.replace('-', ' ')}
+                    {statusLabels[task.status] ?? task.status.replace('-', ' ')}
                   </span>
                   <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', priorityClasses[task.priority] ?? 'border-status-active/20 bg-brand-muted text-status-active')}>
                     {task.priority}
@@ -264,6 +394,29 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
             </div>
           </Section>
 
+          <Section title="Subtasks">
+            {subtasks.length > 0 ? (
+              <div className="space-y-2">
+                {subtasks.map((subtask) => (
+                  <button
+                    key={subtask.id}
+                    type="button"
+                    onClick={() => navigate(`/tasks/${subtask.id}`)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-left"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-text-primary">{subtask.title}</div>
+                      <div className="text-xs text-text-tertiary">{subtask.id}</div>
+                    </div>
+                    <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', statusClasses[subtask.status] ?? 'border-border bg-surface-secondary text-text-secondary')}>
+                      {statusLabels[subtask.status] ?? subtask.status.replace('-', ' ')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : <EmptyCopy>No subtasks spawned from this task yet.</EmptyCopy>}
+          </Section>
+
           <Section title="Constraints">
             {sections.constraints.length > 0 ? (
               <div className="space-y-2">
@@ -279,13 +432,78 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
 
           <Section title="Execution Notes">
             {task.executionNotes ? <p className="text-sm leading-6 text-text-primary">{task.executionNotes}</p> : <EmptyCopy>No execution notes captured yet.</EmptyCopy>}
-            {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'done' && task.status !== 'cancelled' && (
+            {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'review' && task.status !== 'done' && task.status !== 'cancelled' && (
               <div className="mt-4">
                 <Button type="button" variant="outline" onClick={() => void startAutoRun(task.id)} disabled={isMutating}>
                   {isMutating ? 'Starting…' : 'Auto-run'}
                 </Button>
               </div>
             )}
+          </Section>
+
+          <Section title="Schedule">
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => void scheduleTask(new Date(Date.now() + 60 * 60 * 1000).toISOString(), 'Scheduled for 1 hour later')}>In 1h</Button>
+                <Button variant="outline" size="sm" onClick={() => void scheduleTask(new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), 'Scheduled for 4 hours later')}>In 4h</Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  const next = new Date()
+                  next.setDate(next.getDate() + 1)
+                  next.setHours(9, 0, 0, 0)
+                  void scheduleTask(next.toISOString(), 'Scheduled for tomorrow 9am')
+                }}>Tomorrow 9am</Button>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input type="datetime-local" value={nextRunAtInput || toDateTimeLocalValue(task.nextRunAt)} onChange={(event) => setNextRunAtInput(event.target.value)} />
+                <Button variant="outline" onClick={() => {
+                  if (nextRunAtInput.trim().length === 0) return
+                  void scheduleTask(new Date(nextRunAtInput).toISOString(), 'Scheduled for custom time')
+                }}>Schedule</Button>
+                {task.status === 'scheduled' && <Button variant="ghost" onClick={() => void unscheduleTask()}>Cancel scheduled</Button>}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Comments">
+            <div className="space-y-3">
+              {commentsLoading ? (
+                <EmptyCopy>Loading comments…</EmptyCopy>
+              ) : comments.length > 0 ? (
+                <div className="space-y-3">
+                  {comments.map((comment) => (
+                    <div key={`${comment.author}-${comment.timestamp}`} className="rounded-lg border border-border bg-surface-secondary p-3">
+                      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-surface text-xs font-semibold text-text-primary">
+                            {isAgentComment(comment.author) ? <Bot className="h-3.5 w-3.5 text-brand" /> : readInitials(comment.author)}
+                          </span>
+                          <span className="font-medium text-text-primary">{comment.author}</span>
+                        </div>
+                        <span className="text-xs text-text-tertiary" title={formatTimestamp(comment.timestamp)}>{formatRelativeTimestamp(comment.timestamp)}</span>
+                      </div>
+                      <p className="text-sm leading-6 text-text-primary">{comment.body}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyCopy>No comments yet. Be the first to add context.</EmptyCopy>
+              )}
+
+              <div className="space-y-3 rounded-lg border border-border bg-surface-secondary p-3">
+                <Textarea
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  rows={3}
+                  placeholder="Add a task comment or coordination note"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  {commentsError ? <p className="text-sm text-status-blocked">{commentsError}</p> : <span />}
+                  <Button type="button" onClick={() => void submitComment()} disabled={commentsSaving || commentBody.trim().length === 0}>
+                    {commentsSaving ? 'Posting…' : 'Add comment'}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </Section>
 
           <Section title="Approval">

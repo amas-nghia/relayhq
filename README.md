@@ -194,13 +194,37 @@ RelayHQ is not trying to replace your project management tool. It fills the gap 
 
 ## Features
 
+### Core (available now)
+
 - **Kanban board** — visual task flow across columns (Todo → In Progress → Review → Done)
 - **Task lifecycle API** — claim, heartbeat, request-approval, complete
 - **Human approval workflow** — gate risky agent actions before they run
 - **Audit trail** — every action writes a note, persisted in Git forever
-- **Multi-agent coordination** — lock/expiry prevents two agents working the same task
+- **Multi-agent coordination** — lock/expiry prevents two agents claiming the same task
 - **Agent registry** — define capabilities, approval requirements, and task types per agent
-- **CLI for any runtime** — no custom SDK needed
+- **MCP integration** — `relayhq_*` tools available in Claude Code, OpenCode, and any MCP-compatible runtime
+- **CLI for any runtime** — no custom SDK needed; plain HTTP + Markdown
+- **Onboarding wizard** — 3-step setup: vault path, first project, connect your agent
+- **Project view** — per-project task overview with status breakdown
+
+### Coming next
+
+- **Scheduled tasks** — defer work until later; agents self-schedule when they hit a rate limit, with model fallback chain
+- **Recurring tasks** — cron expressions on any task; re-queue automatically on schedule
+- **Task templates** — reusable task shapes with pre-filled objective, criteria, and context
+- **Comments & threads** — per-task discussion attached to vault files; humans and agents leave notes in the same place
+- **Real-time board** — WebSocket push instead of polling; status changes appear instantly
+- **Agent subtasks** — parent tasks spawn child tasks; progress rolls up automatically
+
+### Planned
+
+- **Project docs** — attach briefs, meeting notes, specs, and links directly to a project; indexed for semantic search
+- **Semantic search** — Kioku-powered full-text + vector search across all tasks and project documents
+- **Notifications** — Slack messages and generic webhooks when tasks move, approvals are needed, or agents go stale
+- **Analytics** — token usage, cost tracking, cycle time, and throughput per project and per agent
+- **Mobile board** — horizontal scroll on small screens; touch-friendly drag and status updates
+- **Agent SDK** — `@relayhq/agent-sdk` TypeScript package with typed helpers for all lifecycle operations
+- **Skill system** — installable SKILL.md files that inject structured context into agent sessions (`npx relayhq skill install @relayhq/skill-code-review`)
 
 ---
 
@@ -301,12 +325,14 @@ RelayHQ/
 ## Roadmap
 
 - [x] Phase 1 — Core Kanban: tasks, boards, columns, assignment, approvals, audit
-- [ ] Phase 2 — Plans and task breakdowns
-- [ ] Phase 3 — Coordination threads tied to work
-- [ ] Phase 4 — Stale and blocked work nudges
-- [ ] Phase 5 — Project health and progress tracking
-- [ ] Phase 6 — GitHub Issues sync
+- [ ] Phase 2 — Scheduled & recurring tasks, rate-limit auto-retry, model fallback
+- [ ] Phase 3 — Task templates, comments/threads, real-time WebSocket board
+- [ ] Phase 4 — Project docs + semantic search (Kioku), attachments as links
+- [ ] Phase 5 — Notifications (Slack, webhooks), analytics dashboard, mobile board
+- [ ] Phase 6 — Agent SDK, skill system, subtask spawning, shared context pool
 - [ ] Phase 7 — Agent improvement loops (outcome feedback, quality signals)
+
+See [docs/roadmap.md](docs/roadmap.md) for full feature breakdown and user flows.
 
 ---
 

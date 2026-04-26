@@ -25,6 +25,8 @@ function createFixtureReadModel(): VaultReadModel {
         updatedAt: "2026-04-19T00:00:00Z",
         body: "project body should stay out",
         sourcePath: "vault/shared/projects/project-kioku.md",
+        attachments: [{ label: "Kickoff notes", url: "https://example.com/kickoff", type: "doc", addedAt: "2026-04-19T00:00:00Z" }],
+        codebases: [],
       },
     ],
     boards: [
@@ -118,8 +120,25 @@ function createFixtureReadModel(): VaultReadModel {
       },
     ],
     auditNotes: [],
-
-    docs: [],
+    docs: [
+      {
+        id: "doc-kioku",
+        type: "doc",
+        docType: "spec",
+        workspaceId: "ws-demo",
+        projectId: "project-kioku",
+        title: "Kioku search spec",
+        status: "active",
+        visibility: "workspace",
+        accessRoles: [],
+        sensitive: false,
+        createdAt: "2026-04-19T00:00:00Z",
+        updatedAt: "2026-04-19T00:00:00Z",
+        tags: ["kioku", "search"],
+        body: "Kioku search spec covers project docs and attachments.",
+        sourcePath: "vault/shared/docs/doc-kioku.md",
+      },
+    ],
     agents: [],
   };
 }
@@ -146,17 +165,22 @@ describe("Kioku integration", () => {
     const syncSummary = syncReadModelToKioku(readModel, storage);
     const result = await searchKiokuCanonicalState("kioku", { readModel, storage });
 
-    expect(syncSummary.totalDocuments).toBe(4);
-    expect(storage.count()).toBe(4);
+    expect(syncSummary.totalDocuments).toBe(6);
+    expect(storage.count()).toBe(6);
     expect(result.query).toBe("kioku");
     expect(result.hits.length).toBeGreaterThan(0);
     expect(result.tasks.map((task) => task.id)).toContain("task-search");
     expect(result.projects.map((project) => project.id)).toContain("project-kioku");
+    expect(result.docs.map((doc) => doc.id)).toContain("doc-kioku");
+
+    const attachmentHits = storage.search("kickoff");
+    expect(attachmentHits.some((hit) => hit.entityId === "project-kioku:attachment:0" && hit.entityType === "document")).toBe(true);
 
     const payload = JSON.stringify(result);
     expect(payload).not.toContain("task body should stay out");
     expect(payload).not.toContain("secret execution details");
     expect(payload).not.toContain("sensitive approval reason");
+    expect(payload).not.toContain("Kioku search spec covers project docs and attachments.");
   });
 
   test("sync is idempotent and search returns empty hits for misses", async () => {
@@ -168,23 +192,24 @@ describe("Kioku integration", () => {
     const result = await searchKiokuCanonicalState("nonexistent phrase", { readModel, storage });
 
     expect(first.totalDocuments).toBe(second.totalDocuments);
-    expect(storage.count()).toBe(4);
+    expect(storage.count()).toBe(6);
     expect(result.hits).toEqual([]);
     expect(result.tasks).toEqual([]);
     expect(result.projects).toEqual([]);
     expect(result.boards).toEqual([]);
     expect(result.approvals).toEqual([]);
+    expect(result.docs).toEqual([]);
   });
 
-  test("reads the real seeded vault, syncs it into Kioku, and returns task hits for a known keyword", async () => {
+  test("reads the real seeded vault, syncs it into Kioku, and returns doc hits for a known keyword", async () => {
     const storage = withStorage();
     const readModel = await readCanonicalVaultReadModel(resolveVaultWorkspaceRoot());
 
     syncReadModelToKioku(readModel, storage);
-    const hits = storage.search("regression");
+    const hits = storage.search("docs");
 
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits.every((hit) => hit.entityType === "task")).toBe(true);
+    expect(hits.some((hit) => hit.entityType === "document")).toBe(true);
   });
 
   test("returns no hits for a keyword missing from the seeded vault", async () => {

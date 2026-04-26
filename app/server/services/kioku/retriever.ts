@@ -1,6 +1,7 @@
 import type {
   ReadModelApproval,
   ReadModelBoard,
+  ReadModelDoc,
   ReadModelProject,
   ReadModelTask,
   VaultReadModel,
@@ -17,6 +18,7 @@ export interface KiokuRetrievalResult {
   readonly boards: ReadonlyArray<ReadModelBoard>;
   readonly tasks: ReadonlyArray<ReadModelTask>;
   readonly approvals: ReadonlyArray<ReadModelApproval>;
+  readonly docs: ReadonlyArray<ReadModelDoc>;
 }
 
 function uniqueById<T extends { readonly id: string }>(items: ReadonlyArray<T>): ReadonlyArray<T> {
@@ -50,6 +52,7 @@ export function resolveKiokuRetrieval(readModel: VaultReadModel, hits: ReadonlyA
     boards: resolveEntities(readModel.boards, collectHitIds(hits, "board")),
     tasks: resolveEntities(readModel.tasks, collectHitIds(hits, "task")),
     approvals: resolveEntities(readModel.approvals, collectHitIds(hits, "approval")),
+    docs: resolveEntities(readModel.docs, collectHitIds(hits, "document")),
   };
 }
 

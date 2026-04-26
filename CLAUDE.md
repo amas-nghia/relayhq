@@ -115,7 +115,7 @@ bun run ./cli/relayhq.ts tasks --assignee=agent-backend-dev
 bun run ./cli/relayhq.ts claim task-001 --assignee=agent-backend-dev
 bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-backend-dev
 bun run ./cli/relayhq.ts request-approval task-003 --assignee=agent-backend-dev --reason="Need sign-off"
-bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=done --progress=100 --result="Completed"
+bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=review --progress=100 --result="Completed"
 ```
 
 CLI transport notes:
@@ -151,7 +151,7 @@ Each vault object is one Markdown file with YAML frontmatter. Key fields for tas
 - `id`, `type: task`, `version: 1`
 - `workspace_id`, `project_id`, `board_id`
 - `column`: `todo | in-progress | review | done`
-- `status`: `todo | in-progress | blocked | waiting-approval | done | cancelled`
+- `status`: `todo | in-progress | blocked | review | waiting-approval | done | cancelled`
 - `priority`: `critical | high | medium | low`
 - `approval_needed`, `approval_outcome`: `pending | approved | rejected`
 - Lock fields: `locked_by`, `locked_at`, `lock_expires_at`
@@ -217,7 +217,7 @@ Agents interact with the vault by:
 2. During work: update `heartbeat_at`, `progress`, `execution_notes`
 3. Approval needed: set `approval_needed: true`, `status: waiting-approval`, stop
 4. Approval decision: keep task frontmatter and linked approval documents in sync
-5. Done: set `status: done`, `result`, `completed_at`, write audit note
+5. Work complete: set `status: review`, `result`, `completed_at`, write audit note
 6. Blocked: set `status: blocked`, `blocked_reason`, `blocked_since`
 
 Phase 1 verification already covers:

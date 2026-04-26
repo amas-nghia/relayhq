@@ -17,7 +17,7 @@ const PROTOCOL_INSTRUCTIONS = [
   "1. You already have this task claimed or are about to claim it. Call POST /api/vault/tasks/{taskId}/claim with your agentId before touching anything.",
   "2. Send a heartbeat every 10 minutes: POST /api/vault/tasks/{taskId}/heartbeat.",
   "3. If you need a human decision, call POST /api/vault/tasks/{taskId}/request-approval with a reason. Stop work until approved.",
-  "4. When done, call PATCH /api/vault/tasks/{taskId} with status=done, progress=100, result=<concrete outcome>.",
+  "4. When implementation is complete, call PATCH /api/vault/tasks/{taskId} with status=review, progress=100, result=<concrete outcome>.",
   "5. Do not write directly to vault files. All mutations go through the API.",
 ].join("\n");
 
@@ -279,7 +279,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event);
   const agent = String(query.agent ?? "anonymous");
   const since = typeof query.since === "string" ? query.since : undefined;
-  const includeProtocol = query.protocol !== "false";
+  const includeProtocol = query.includeProtocol !== "false" && query.protocol !== "false";
   const inlineContextFiles = query.inline === "true";
 
   const pack = await readTaskBootstrapPack(taskId, { includeProtocol, inlineContextFiles });

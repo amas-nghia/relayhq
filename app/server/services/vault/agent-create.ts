@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { assertAgentFrontmatter, type AgentFrontmatter } from "../../../shared/vault/schema";
 import { containsSecretMaterial } from "../security/secrets";
+import { publishRealtimeUpdate } from "../realtime/bus";
 import { VAULT_COLLECTION_DIRECTORIES } from "./repository";
 import { readSharedVaultCollections } from "./read";
 import { readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "./runtime";
@@ -236,6 +237,14 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
 
     throw error;
   }
+
+  publishRealtimeUpdate({
+    kind: "vault.changed",
+    reason: "agent.created",
+    agentId: frontmatter.id,
+    source: frontmatter.id,
+    timestamp: now.toISOString(),
+  });
 
   return {
     sourcePath,

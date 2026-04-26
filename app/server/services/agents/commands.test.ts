@@ -227,13 +227,14 @@ describe("relayhq cli surface", () => {
 
     expect(help[0]).toBe("RelayHQ CLI");
     expect(help.join("\n")).toContain("relayhq request-approval <task-id>");
+    expect(help.join("\n")).toContain("relayhq schedule <task-id>");
   });
 
-  test("resolves the CLI base URL from flags before env defaults", () => {
-    expect(resolveRelayHQBaseUrl(["tasks", "--base-url=http://127.0.0.1:4010"], { RELAYHQ_BASE_URL: "http://127.0.0.1:3001" })).toBe(
+  test("resolves the CLI base URL from flags before env defaults", async () => {
+    await expect(resolveRelayHQBaseUrl(["tasks", "--base-url=http://127.0.0.1:4010"], { RELAYHQ_BASE_URL: "http://127.0.0.1:3001" })).resolves.toBe(
       "http://127.0.0.1:4010",
     );
-    expect(resolveRelayHQBaseUrl(["tasks"], { RELAYHQ_BASE_URL: "http://127.0.0.1:3001" })).toBe("http://127.0.0.1:3001");
+    await expect(resolveRelayHQBaseUrl(["tasks"], { RELAYHQ_BASE_URL: "http://127.0.0.1:3001" })).resolves.toBe("http://127.0.0.1:3001");
   });
 
   test("uses the app read-model API to list tasks by assignee", async () => {
@@ -262,7 +263,7 @@ describe("relayhq cli surface", () => {
     const tasks = await client.listTasks("agent-alpha");
 
     expect(calls).toEqual([{ url: "http://127.0.0.1:3000/api/vault/read-model", method: "GET" }]);
-    expect(tasks).toEqual([createTask({ id: "task-002", title: "Ready task" })]);
+    expect(tasks).toEqual([expect.objectContaining(createTask({ id: "task-002", title: "Ready task" }))]);
   });
 
   test("writes claim, update, heartbeat, and approval requests through the app task APIs", async () => {

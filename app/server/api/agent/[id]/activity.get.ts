@@ -14,15 +14,15 @@ export async function readAgentActivity(agentId: string) {
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(note => {
       const task = model.tasks.find(entry => entry.id === note.taskId)
-      const eventType = note.message.startsWith('session_start')
-        ? 'session_start'
-        : note.message.startsWith('heartbeat')
-          ? 'heartbeat'
-          : task?.status === 'done'
-            ? 'task_completed'
-            : note.message.includes('approval')
-              ? 'approval_requested'
-              : 'task_claimed'
+        const eventType = note.message.startsWith('session_start')
+          ? 'session_start'
+          : note.message.startsWith('heartbeat')
+            ? 'heartbeat'
+            : task?.status === 'review' || task?.status === 'done'
+              ? 'task_completed'
+              : note.message.includes('approval')
+                ? 'approval_requested'
+                : 'task_claimed'
       return {
         timestamp: note.createdAt,
         event_type: eventType,

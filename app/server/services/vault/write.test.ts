@@ -33,6 +33,7 @@ function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
     execution_started_at: null,
     execution_notes: null,
     progress: 0,
+    next_run_at: null,
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -207,5 +208,29 @@ describe("vault write flow", () => {
     const siblingFiles = await readdir(dirname(filePath));
     const tempFiles = siblingFiles.filter((entry) => entry.startsWith(`.${basename(filePath)}.`) && entry.endsWith(".tmp"));
     expect(tempFiles).toEqual([]);
+  });
+
+  test("can release a task lock as part of a write", async () => {
+    const now = new Date("2026-04-14T12:00:00Z");
+    const { filePath } = await createVaultFile(createTask({
+      locked_by: "agent-backend-dev",
+      locked_at: "2026-04-14T11:55:00Z",
+      heartbeat_at: "2026-04-14T11:55:00Z",
+      lock_expires_at: "2026-04-14T12:00:00Z",
+    }));
+
+    const result = await syncTaskDocument({
+      filePath,
+      actorId: "agent-backend-dev",
+      now,
+      releaseLock: true,
+      mutate: () => ({ status: "scheduled", next_run_at: "2026-04-14T13:00:00Z" }),
+    });
+
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.locked_at).toBeNull();
+    expect(result.frontmatter.lock_expires_at).toBeNull();
+    expect(result.frontmatter.status).toBe("scheduled");
+    expect(result.frontmatter.next_run_at).toBe("2026-04-14T13:00:00Z");
   });
 });

@@ -71,10 +71,10 @@ bun run ./cli/relayhq.ts tasks
 # Claim a task as an agent
 bun run ./cli/relayhq.ts claim task-001 --assignee=my-agent
 
-# Mark it done
+# Mark it ready for review
 bun run ./cli/relayhq.ts update task-001 \
   --assignee=my-agent \
-  --status=done \
+  --status=review \
   --result="Done."
 ```
 

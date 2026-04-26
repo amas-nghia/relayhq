@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readBody } from "h3";
 
-import type { ReadModelApproval, ReadModelBoard, ReadModelProject, ReadModelTask, VaultReadModel } from "../../models/read-model";
+import type { ReadModelApproval, ReadModelBoard, ReadModelDoc, ReadModelProject, ReadModelTask, VaultReadModel } from "../../models/read-model";
 import { resolveKiokuRetrieval } from "../../services/kioku/retriever";
 import { getKiokuStorage, KiokuSearchQueryError, type KiokuStorage } from "../../services/kioku/storage";
 import { syncReadModelToKioku } from "../../services/kioku/sync";
@@ -60,6 +60,17 @@ export interface KiokuSearchApproval {
   readonly updatedAt: string;
 }
 
+export interface KiokuSearchDoc {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly projectId: string | null;
+  readonly title: string;
+  readonly docType: string;
+  readonly status: string;
+  readonly visibility: string;
+  readonly updatedAt: string;
+}
+
 export interface KiokuSearchResponse {
   readonly query: string;
   readonly hits: ReturnType<typeof resolveKiokuRetrieval>["hits"];
@@ -67,6 +78,7 @@ export interface KiokuSearchResponse {
   readonly boards: ReadonlyArray<KiokuSearchBoard>;
   readonly tasks: ReadonlyArray<KiokuSearchTask>;
   readonly approvals: ReadonlyArray<KiokuSearchApproval>;
+  readonly docs: ReadonlyArray<KiokuSearchDoc>;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -142,6 +154,19 @@ function sanitizeApproval(approval: ReadModelApproval): KiokuSearchApproval {
   };
 }
 
+function sanitizeDoc(doc: ReadModelDoc): KiokuSearchDoc {
+  return {
+    id: doc.id,
+    workspaceId: doc.workspaceId,
+    projectId: doc.projectId,
+    title: doc.title,
+    docType: doc.docType,
+    status: doc.status,
+    visibility: doc.visibility,
+    updatedAt: doc.updatedAt,
+  };
+}
+
 export async function searchKiokuCanonicalState(
   query: string,
   options: {
@@ -160,6 +185,7 @@ export async function searchKiokuCanonicalState(
     boards: resolved.boards.map(sanitizeBoard),
     tasks: resolved.tasks.map(sanitizeTask),
     approvals: resolved.approvals.map(sanitizeApproval),
+    docs: resolved.docs.map(sanitizeDoc),
   } satisfies KiokuSearchResponse;
 }
 

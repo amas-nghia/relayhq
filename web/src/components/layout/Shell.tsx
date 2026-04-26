@@ -13,8 +13,8 @@ import { useEffect } from 'react';
 export function Shell() {
   const isDetailPanelOpen = useAppStore(state => state.isDetailPanelOpen);
   const selectedTaskId = useAppStore(state => state.selectedTaskId);
-  const startPolling = useAppStore(state => state.startPolling);
-  const stopPolling = useAppStore(state => state.stopPolling);
+  const startRealtime = useAppStore(state => state.startRealtime);
+  const stopRealtime = useAppStore(state => state.stopRealtime);
   const location = useLocation();
   const closeDetail = useAppStore(state => state.closeTaskDetail);
   const isBoardRoute = location.pathname.startsWith('/boards/');
@@ -25,9 +25,9 @@ export function Shell() {
   }, [location.pathname, closeDetail]);
 
   useEffect(() => {
-    startPolling();
-    return () => stopPolling();
-  }, [startPolling, stopPolling]);
+    startRealtime();
+    return () => stopRealtime();
+  }, [startRealtime, stopRealtime]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface-secondary">

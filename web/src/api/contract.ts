@@ -1,4 +1,4 @@
-export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'waiting-approval' | 'done' | 'cancelled'
+export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low'
 export type ApprovalOutcome = 'approved' | 'rejected' | 'pending'
 
@@ -47,6 +47,12 @@ export interface ReadModelProject {
   readonly type: 'project'
   readonly workspaceId: string
   readonly name: string
+  readonly description: string | null
+  readonly budget: string | null
+  readonly deadline: string | null
+  readonly status: string | null
+  readonly links: ReadonlyArray<{ label: string; url: string }>
+  readonly attachments: ReadonlyArray<{ label: string; url: string; type: string; addedAt: string }>
   readonly codebases: ReadonlyArray<ProjectCodebase>
   readonly boardIds: ReadonlyArray<string>
   readonly columnIds: ReadonlyArray<string>
@@ -114,6 +120,7 @@ export interface ReadModelTask {
   readonly approvalOutcome: ApprovalOutcome
   readonly blockedReason: string | null
   readonly blockedSince: string | null
+  readonly nextRunAt?: string | null
   readonly result: string | null
   readonly completedAt: string | null
   readonly tokensUsed?: number | null

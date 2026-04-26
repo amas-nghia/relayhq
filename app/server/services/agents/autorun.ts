@@ -6,6 +6,7 @@ import { runHttpAgentAdapter } from "./http-adapter";
 import { agentRunnerManager } from "../runners/manager";
 import { writeAuditNote } from "../vault/audit-write";
 import { claimTaskLifecycle } from "../vault/task-lifecycle";
+import { scheduleTaskLifecycle } from "../vault/task-lifecycle";
 import { resolveVaultWorkspaceRoot } from "../vault/runtime";
 import { readTaskDocument } from "../vault/write";
 import { readCanonicalVaultReadModel } from "../vault/read";
@@ -70,6 +71,7 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
       agentId: assignee,
       provider,
       model: agent.model,
+      fallbackModels: agent.fallbackModels,
       apiKeyRef: agent.apiKeyRef,
       prompt,
     }).catch((error) => {
@@ -79,6 +81,7 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
   }
 
   ensureCommandAvailable(command)
+  let rateLimited = false
   const runner = agentRunnerManager.startRunner({
     agentName: assignee,
     taskId,
@@ -87,11 +90,21 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
     onStdout: (chunk) => {
       const text = chunk.trim()
       if (text.length === 0) return
+      if (!rateLimited && /\b429\b|rate limit|quota exceeded/i.test(text)) {
+        rateLimited = true
+        const nextRunAt = new Date(Date.now() + 3600 * 1000).toISOString()
+        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, reason: `Rate limited: ${text.slice(0, 160)}`, vaultRoot }).catch(() => undefined)
+      }
       void writeAuditNote({ vaultRoot, taskId, source: assignee, message: `autorun stdout: ${text.slice(0, 500)}` }).catch(() => undefined)
     },
     onStderr: (chunk) => {
       const text = chunk.trim()
       if (text.length === 0) return
+      if (!rateLimited && /\b429\b|rate limit|quota exceeded/i.test(text)) {
+        rateLimited = true
+        const nextRunAt = new Date(Date.now() + 3600 * 1000).toISOString()
+        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, reason: `Rate limited: ${text.slice(0, 160)}`, vaultRoot }).catch(() => undefined)
+      }
       void writeAuditNote({ vaultRoot, taskId, source: assignee, message: `autorun stderr: ${text.slice(0, 500)}` }).catch(() => undefined)
     },
     onError: (error) => {

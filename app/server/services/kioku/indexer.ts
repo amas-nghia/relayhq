@@ -1,6 +1,7 @@
 import type {
   ReadModelApproval,
   ReadModelBoard,
+  ReadModelDoc,
   ReadModelProject,
   ReadModelTask,
   VaultReadModel,
@@ -201,6 +202,50 @@ function buildApprovalUpdate(approval: ReadModelApproval): KiokuWorkStateUpdate 
   };
 }
 
+function buildDocUpdate(doc: ReadModelDoc): KiokuWorkStateUpdate {
+  return {
+    operation: "upsert",
+    document: buildDocument({
+      entityType: "document",
+      entityId: doc.id,
+      workspaceId: doc.workspaceId,
+      projectId: doc.projectId,
+      boardId: null,
+      taskId: null,
+      title: doc.title,
+      summary: doc.body,
+      keywords: [doc.id, doc.workspaceId, ...(doc.projectId === null ? [] : [doc.projectId]), doc.docType, doc.status, doc.visibility, ...doc.tags],
+      relations: doc.projectId === null ? [] : [{ kind: "project", id: doc.projectId }],
+      updatedAt: doc.updatedAt,
+      sourcePath: doc.sourcePath,
+    }),
+  };
+}
+
+function buildProjectAttachmentUpdate(
+  project: ReadModelProject,
+  attachment: ReadModelProject["attachments"][number],
+  index: number,
+): KiokuWorkStateUpdate {
+  return {
+    operation: "upsert",
+    document: buildDocument({
+      entityType: "document",
+      entityId: `${project.id}:attachment:${index}`,
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      boardId: null,
+      taskId: null,
+      title: attachment.label,
+      summary: `Attachment ${attachment.label} (${attachment.type}) ${attachment.url}`,
+      keywords: [project.id, project.workspaceId, attachment.label, attachment.type, attachment.url, "attachment"],
+      relations: [{ kind: "project", id: project.id }],
+      updatedAt: attachment.addedAt,
+      sourcePath: `${project.sourcePath}#attachment:${index}`,
+    }),
+  };
+}
+
 export function buildDocumentUpdate(input: {
   readonly id: string;
   readonly title: string;
@@ -265,5 +310,7 @@ export function buildKiokuIndexUpdates(readModel: VaultReadModel): ReadonlyArray
     ...readModel.boards.map(buildBoardUpdate),
     ...readModel.tasks.map(buildTaskUpdate),
     ...readModel.approvals.map(buildApprovalUpdate),
+    ...readModel.docs.map(buildDocUpdate),
+    ...readModel.projects.flatMap((project) => project.attachments.map((attachment, index) => buildProjectAttachmentUpdate(project, attachment, index))),
   ];
 }

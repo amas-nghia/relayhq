@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import { useAppStore } from '../store/appStore';
-import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import { TaskPriority, TaskStatus } from '../types';
 import { Button } from '../components/ui/button';
@@ -13,12 +13,14 @@ type SortDirection = 'asc' | 'desc' | null
 type FilterMenu = 'project' | 'status' | 'priority' | 'assignee' | null
 
 const STATUS_ORDER: Record<TaskStatus, number> = {
-  'waiting-approval': 0,
-  blocked: 1,
-  'in-progress': 2,
-  todo: 3,
-  done: 4,
-  cancelled: 5,
+  review: 0,
+  'waiting-approval': 1,
+  scheduled: 2,
+  blocked: 3,
+  'in-progress': 4,
+  todo: 5,
+  done: 6,
+  cancelled: 7,
 }
 
 const PRIORITY_ORDER: Record<TaskPriority, number> = {
@@ -68,6 +70,7 @@ export function TasksView() {
   const tasks = useAppStore(state => state.tasks);
   const agents = useAppStore(state => state.agents);
   const projects = useAppStore(state => state.projects);
+  const isLoading = useAppStore(state => state.isLoading);
   const openDetail = useAppStore(state => state.openTaskDetail);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
   const [searchQuery, setSearchQuery] = useState('')
@@ -93,21 +96,27 @@ export function TasksView() {
 
   const getStatusIcon = (status: TaskStatus) => {
     switch(status) {
+      case 'review': return <CheckCircle2 className="w-4 h-4 text-status-active" />;
       case 'waiting-approval': return <Clock className="w-4 h-4 text-status-waiting" />;
+      case 'scheduled': return <Clock className="w-4 h-4 text-text-tertiary" />;
       case 'blocked': return <AlertTriangle className="w-4 h-4 text-status-blocked" />;
       case 'in-progress': return <Circle className="w-4 h-4 text-status-active fill-current" />;
       case 'done': return <Check className="w-4 h-4 text-status-done" />;
       case 'todo': return <Circle className="w-4 h-4 text-text-tertiary" />;
+      case 'cancelled': return <AlertTriangle className="w-4 h-4 text-text-tertiary" />;
     }
   };
 
   const getStatusLabel = (status: TaskStatus) => {
     switch(status) {
-      case 'waiting-approval': return 'waiting';
+      case 'review': return 'in review';
+      case 'waiting-approval': return 'awaiting approval';
+      case 'scheduled': return 'scheduled';
       case 'blocked': return 'blocked';
       case 'in-progress': return 'in-prog';
       case 'done': return 'done';
       case 'todo': return 'todo';
+      case 'cancelled': return 'cancelled';
     }
   };
 
@@ -223,8 +232,11 @@ export function TasksView() {
     { value: 'todo', label: 'Todo', tone: 'bg-text-tertiary' },
     { value: 'in-progress', label: 'In progress', tone: 'bg-status-active' },
     { value: 'blocked', label: 'Blocked', tone: 'bg-status-blocked' },
+    { value: 'review', label: 'Review', tone: 'bg-status-active' },
     { value: 'waiting-approval', label: 'Waiting approval', tone: 'bg-status-waiting' },
+    { value: 'scheduled', label: 'Scheduled', tone: 'bg-text-tertiary' },
     { value: 'done', label: 'Done', tone: 'bg-status-done' },
+    { value: 'cancelled', label: 'Cancelled', tone: 'bg-text-tertiary' },
   ]
   const priorityOptions: Array<{ value: TaskPriority; label: string; tone: string }> = [
     { value: 'critical', label: 'Critical', tone: 'bg-status-blocked' },
@@ -340,6 +352,14 @@ export function TasksView() {
 
       <div className="flex-1 overflow-hidden rounded-lg border border-border bg-surface">
         <div className="h-full overflow-auto">
+          {isLoading && tasks.length === 0 ? (
+            <div className="space-y-3 p-4">
+              <div className="h-10 rounded-lg bg-surface-secondary animate-pulse" />
+              <div className="h-10 rounded-lg bg-surface-secondary animate-pulse" />
+              <div className="h-10 rounded-lg bg-surface-secondary animate-pulse" />
+              <div className="h-10 rounded-lg bg-surface-secondary animate-pulse" />
+            </div>
+          ) : (
           <table className="min-w-[1040px] w-full border-collapse text-left">
           <thead>
             <tr className="bg-surface-secondary text-xs uppercase tracking-wider text-text-tertiary border-b border-border">
@@ -379,12 +399,15 @@ export function TasksView() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={clsx(
-                      "text-[11px] font-bold uppercase tracking-wider p-2 rounded",
-                      task.status === 'in-progress' && "bg-blue-50 text-status-active",
-                      task.status === 'waiting-approval' && "bg-amber-50 text-status-waiting",
-                      task.status === 'blocked' && "bg-red-50 text-status-blocked",
-                      task.status === 'done' && "bg-green-50 text-status-done",
-                      task.status === 'todo' && "bg-slate-100 text-status-todo"
+                      "rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-wider",
+                      task.status === 'in-progress' && "border-status-active/20 bg-blue-50 text-status-active",
+                      task.status === 'review' && "border-status-active/20 bg-brand-muted text-status-active",
+                      task.status === 'waiting-approval' && "border-status-waiting/20 bg-amber-50 text-status-waiting",
+                      task.status === 'scheduled' && "border-border bg-slate-100 text-text-secondary",
+                      task.status === 'blocked' && "border-status-blocked/20 bg-red-50 text-status-blocked",
+                      task.status === 'done' && "border-status-done/20 bg-green-50 text-status-done",
+                      task.status === 'todo' && "border-border bg-slate-100 text-status-todo",
+                      task.status === 'cancelled' && "border-border bg-slate-100 text-text-secondary"
                     )}>
                       {getStatusLabel(task.status)}
                     </span>
@@ -413,7 +436,7 @@ export function TasksView() {
                 </tr>
               );
             })}
-            {visibleTasks.length === 0 && (
+            {!isLoading && visibleTasks.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-10 text-center text-sm text-text-tertiary">
                   No tasks match the current search.
@@ -422,6 +445,7 @@ export function TasksView() {
             )}
           </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

@@ -69,6 +69,7 @@ describe("task frontmatter validation", () => {
       execution_started_at: null,
       execution_notes: null,
       progress: 0,
+      next_run_at: null,
       approval_needed: false,
       approval_requested_by: null,
       approval_reason: null,
@@ -113,6 +114,7 @@ describe("task frontmatter validation", () => {
       execution_started_at: null,
       execution_notes: null,
       progress: 0,
+      next_run_at: "not-a-date",
       approval_needed: false,
       approval_requested_by: null,
       approval_reason: null,
@@ -138,7 +140,52 @@ describe("task frontmatter validation", () => {
     expect(result.issues.some((issue) => issue.field === "column")).toBe(true);
     expect(result.issues.some((issue) => issue.field === "status")).toBe(true);
     expect(result.issues.some((issue) => issue.field === "priority")).toBe(true);
+    expect(result.issues.some((issue) => issue.field === "next_run_at")).toBe(true);
     expect(result.issues.some((issue) => issue.field === "approval_outcome")).toBe(true);
+  });
+
+  test("accepts scheduled tasks with a next run timestamp", () => {
+    const result = validateTaskFrontmatter({
+      id: "task-001",
+      type: "task",
+      version: VAULT_SCHEMA_VERSION,
+      workspace_id: "ws-acme",
+      project_id: "project-auth",
+      board_id: "board-auth-main",
+      column: "todo",
+      status: "scheduled",
+      priority: "high",
+      title: "Retry later",
+      assignee: "agent-backend-dev",
+      created_by: "@alice",
+      created_at: "2026-04-14T10:00:00Z",
+      updated_at: "2026-04-14T10:00:00Z",
+      heartbeat_at: null,
+      execution_started_at: null,
+      execution_notes: null,
+      progress: 0,
+      next_run_at: "2026-04-14T11:00:00Z",
+      approval_needed: false,
+      approval_requested_by: null,
+      approval_reason: null,
+      approved_by: null,
+      approved_at: null,
+      approval_outcome: "pending",
+      blocked_reason: null,
+      blocked_since: null,
+      result: null,
+      completed_at: null,
+      parent_task_id: null,
+      source_issue_id: null,
+      depends_on: [],
+      tags: ["retry"],
+      links: [{ project: "project-auth", thread: "thread-001" }],
+      locked_by: null,
+      locked_at: null,
+      lock_expires_at: null,
+    });
+
+    expect(result.valid).toBe(true);
   });
 });
 
@@ -155,6 +202,7 @@ describe("other frontmatter validators", () => {
         provider: "claude",
         api_key_ref: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
         model: "claude-sonnet-4-6",
+        fallback_models: ["claude-haiku-4-5", "gpt-4o-mini"],
         monthly_budget_usd: 25,
         capabilities: ["write-go-code"],
         task_types_accepted: ["feature-implementation"],
@@ -275,7 +323,9 @@ describe("other frontmatter validators", () => {
 
 describe("schema constants", () => {
   test("keeps the canonical enums stable", () => {
+    expect(TASK_STATUSES).toContain("review");
     expect(TASK_STATUSES).toContain("done");
+    expect(TASK_STATUSES).toContain("scheduled");
     expect(TASK_COLUMNS).toContain("review");
     expect(TASK_PRIORITIES).toContain("critical");
     expect(APPROVAL_OUTCOMES).toContain("pending");

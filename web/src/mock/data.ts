@@ -1,9 +1,9 @@
 import { Agent, Project, Task, AuditLog } from '../types';
 
 export const mockProjects: Project[] = [
-  { id: 'proj-1', name: 'Meow Land', lastActive: true },
-  { id: 'proj-2', name: 'Auth API', lastActive: true },
-  { id: 'proj-3', name: 'Infra', lastActive: false },
+  { id: 'proj-1', name: 'Meow Land', lastActive: true, links: [], attachments: [], docs: [] },
+  { id: 'proj-2', name: 'Auth API', lastActive: true, links: [], attachments: [], docs: [] },
+  { id: 'proj-3', name: 'Infra', lastActive: false, links: [], attachments: [], docs: [] },
 ];
 
 export const mockAgents: Agent[] = [

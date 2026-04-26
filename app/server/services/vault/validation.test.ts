@@ -25,6 +25,7 @@ function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
     execution_started_at: null,
     execution_notes: null,
     progress: 0,
+    next_run_at: null,
     approval_needed: false,
     approval_requested_by: null,
     approval_reason: null,
@@ -70,6 +71,7 @@ describe("vault task write validation", () => {
       patch: {
         status: "in-progress",
         progress: 25,
+        next_run_at: "2026-04-14T12:00:00Z",
         execution_notes: "working through the implementation",
       },
       body: "## Notes\nNo secrets here.",

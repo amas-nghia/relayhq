@@ -37,6 +37,7 @@ const TASK_FRONTMATTER_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
   "execution_started_at",
   "execution_notes",
   "progress",
+  "next_run_at",
   "approval_needed",
   "approval_requested_by",
   "approval_reason",
@@ -51,6 +52,7 @@ const TASK_FRONTMATTER_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
   "model",
   "cost_usd",
   "parent_task_id",
+  "source_issue_id",
   "github_issue_id",
   "depends_on",
   "tags",
@@ -68,6 +70,7 @@ export interface SyncTaskRequest {
   readonly lockTtlMs?: number;
   readonly staleAfterMs?: number;
   readonly recoverStaleLock?: boolean;
+  readonly releaseLock?: boolean;
 }
 
 export interface SyncTaskResult extends VaultTaskDocument {
@@ -234,7 +237,10 @@ function applyTaskPatch(
   now: Date,
   actorId: string,
   lockTtlMs: number,
+  releaseLock: boolean,
 ): TaskFrontmatter {
+  const lockedAt = base.locked_by === actorId && base.locked_at !== null ? base.locked_at : toIso(now);
+
   return {
     ...base,
     ...patch,
@@ -248,9 +254,9 @@ function applyTaskPatch(
     created_at: base.created_at,
     updated_at: toIso(now),
     heartbeat_at: toIso(now),
-    locked_by: actorId,
-    locked_at: base.locked_by === actorId && base.locked_at !== null ? base.locked_at : toIso(now),
-    lock_expires_at: toIso(new Date(now.getTime() + lockTtlMs)),
+    locked_by: releaseLock ? null : actorId,
+    locked_at: releaseLock ? null : lockedAt,
+    lock_expires_at: releaseLock ? null : toIso(new Date(now.getTime() + lockTtlMs)),
   } as TaskFrontmatter;
 }
 
@@ -292,7 +298,7 @@ export async function syncTaskDocument(request: SyncTaskRequest): Promise<SyncTa
       throw new VaultSchemaError(validation.issues);
     }
 
-    const next = applyTaskPatch(leased, patch as Readonly<Partial<TaskFrontmatter>>, now, request.actorId, lockTtlMs);
+    const next = applyTaskPatch(leased, patch as Readonly<Partial<TaskFrontmatter>>, now, request.actorId, lockTtlMs, request.releaseLock ?? false);
 
     assertTaskFrontmatter(next);
     await writeTaskDocumentAtomic(request.filePath, { frontmatter: next, body: current.body });

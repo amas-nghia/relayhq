@@ -1,6 +1,7 @@
+import { useRef, useState } from 'react';
+
 import { useAppStore } from '../store/appStore';
 import { TaskCard } from '../components/task/TaskCard';
-import { TaskStatus } from '../types';
 import { Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../components/ui/button';
@@ -8,21 +9,27 @@ import { Card } from '../components/ui/card';
 import { Select } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 
-const COLUMNS: { id: TaskStatus; label: string }[] = [
-  { id: 'todo', label: 'TODO' },
+type BoardLaneId = 'todo' | 'in-progress' | 'review' | 'scheduled' | 'done'
+
+const COLUMNS: { id: BoardLaneId; label: string }[] = [
   { id: 'in-progress', label: 'IN PROGRESS' },
-  { id: 'waiting-approval', label: 'REVIEW' },
+  { id: 'review', label: 'REVIEW' },
+  { id: 'scheduled', label: 'SCHEDULED' },
+  { id: 'todo', label: 'TODO' },
   { id: 'done', label: 'DONE' }
 ];
 
 export function BoardView() {
   const tasks = useAppStore(state => state.tasks);
+  const isLoading = useAppStore(state => state.isLoading);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const setSelectedProjectId = useAppStore(state => state.setSelectedProjectId);
   const projects = useAppStore(state => state.projects);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
+  const [activeLane, setActiveLane] = useState<BoardLaneId>('in-progress');
+  const laneRefs = useRef<Record<BoardLaneId, HTMLDivElement | null>>({ todo: null, 'in-progress': null, review: null, scheduled: null, done: null });
 
-  const getTasksByStatus = (status: TaskStatus) => {
+  const getTasksByStatus = (status: BoardLaneId) => {
     let filteredTasks = tasks;
     if (selectedProjectId) {
       filteredTasks = filteredTasks.filter(t => t.projectId === selectedProjectId);
@@ -33,6 +40,19 @@ export function BoardView() {
         .filter(t => t.status === 'in-progress' || t.status === 'blocked')
         .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
     }
+
+    if (status === 'review') {
+      return filteredTasks
+        .filter(t => t.status === 'review' || t.status === 'waiting-approval')
+        .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
+    }
+
+    if (status === 'scheduled') {
+      return filteredTasks
+        .filter(t => t.status === 'scheduled')
+        .sort((left, right) => (left.nextRunAt ?? '').localeCompare(right.nextRunAt ?? '') || right.id.localeCompare(left.id));
+    }
+
     return filteredTasks
       .filter(t => t.status === status)
       .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
@@ -68,11 +88,35 @@ export function BoardView() {
         </Button>
       </div>
 
-      <div className="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 xl:hidden">
+        {COLUMNS.map((column) => (
+          <Button
+            key={column.id}
+            type="button"
+            size="sm"
+            variant={activeLane === column.id ? 'secondary' : 'ghost'}
+            className="whitespace-nowrap"
+            onClick={() => {
+              setActiveLane(column.id)
+              laneRefs.current[column.id]?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+            }}
+          >
+            {column.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto snap-x snap-mandatory xl:grid xl:auto-rows-[minmax(0,1fr)] xl:grid-cols-5 xl:overflow-visible">
           {COLUMNS.map(col => {
             const colTasks = getTasksByStatus(col.id);
             return (
-              <Card key={col.id} className="flex h-full min-h-0 flex-col overflow-hidden p-4">
+              <Card
+                key={col.id}
+                ref={(node) => {
+                  laneRefs.current[col.id] = node
+                }}
+                className="flex h-full min-h-0 min-w-full snap-start flex-col overflow-hidden p-4 md:min-w-[calc(50%-0.5rem)] xl:min-w-0"
+              >
                 <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
                     {col.label} <Badge variant="secondary" className="ml-1 border-brand/15 bg-brand-muted text-text-tertiary">{colTasks.length}</Badge>
@@ -91,7 +135,12 @@ export function BoardView() {
                 </div>
                 
                 <div className="lane-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-                  {colTasks.length === 0 ? (
+                  {isLoading && tasks.length === 0 ? (
+                    <div className="space-y-3">
+                      <div className="h-24 rounded-lg border border-dashed border-border bg-surface-secondary/60 animate-pulse" />
+                      <div className="h-24 rounded-lg border border-dashed border-border bg-surface-secondary/60 animate-pulse" />
+                    </div>
+                  ) : colTasks.length === 0 ? (
                     <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-secondary/60 p-4 text-center">
                       <span className="text-sm text-text-tertiary">No tasks</span>
                     </div>

@@ -39,12 +39,20 @@ export interface RelayHQApprovalRequest {
   readonly requestedAt: string;
 }
 
+export interface RelayHQScheduleRequest {
+  readonly taskId: string;
+  readonly assignee: string;
+  readonly nextRunAt: string;
+  readonly reason?: string;
+}
+
 export interface RelayHQProtocolClient {
   readonly listTasks: (assignee: string) => Promise<ReadonlyArray<TaskFrontmatter>>;
   readonly claimTask: (request: RelayHQClaimTaskRequest) => Promise<unknown>;
   readonly updateTaskStatus: (request: RelayHQUpdateTaskRequest) => Promise<unknown>;
   readonly sendHeartbeat: (request: RelayHQHeartbeatRequest) => Promise<unknown>;
   readonly requestApproval: (request: RelayHQApprovalRequest) => Promise<unknown>;
+  readonly scheduleTask: (request: RelayHQScheduleRequest) => Promise<unknown>;
 }
 
 export interface RelayHQCommandSurfaceItem {
@@ -67,7 +75,9 @@ export const RELAYHQ_COMMAND_SURFACE: ReadonlyArray<RelayHQCommandSurfaceItem> =
           ? "relayhq update <task-id> --assignee=<caller> --status=<status>"
           : command.name === "heartbeat"
             ? "relayhq heartbeat <task-id> --assignee=<caller>"
-            : "relayhq request-approval <task-id> --assignee=<caller> --reason=<text>",
+            : command.name === "request-approval"
+              ? "relayhq request-approval <task-id> --assignee=<caller> --reason=<text>"
+              : "relayhq schedule <task-id> --assignee=<caller> --next-run-at=<iso>",
 }));
 
 export interface RelayHQClaimIntent {
@@ -111,11 +121,22 @@ export interface RelayHQApprovalIntent {
   readonly approvalNeeded: true;
 }
 
+export interface RelayHQScheduleIntent {
+  readonly command: "schedule";
+  readonly target: "control-plane";
+  readonly taskId: string;
+  readonly assignee: string;
+  readonly nextRunAt: string;
+  readonly reason?: string;
+  readonly status: "scheduled";
+}
+
 export type RelayHQWritebackIntent =
   | RelayHQClaimIntent
   | RelayHQUpdateIntent
   | RelayHQHeartbeatIntent
-  | RelayHQApprovalIntent;
+  | RelayHQApprovalIntent
+  | RelayHQScheduleIntent;
 
 export function createClaimIntent(taskId: string, assignee: string, startedAt: string): RelayHQClaimIntent {
   return {
@@ -137,7 +158,7 @@ export function createUpdateIntent(
   progress?: number,
   result?: string,
 ): RelayHQUpdateIntent {
-  const completedAt = status === "done" ? updatedAt : undefined;
+  const completedAt = status === "review" || status === "done" ? updatedAt : undefined;
 
   return {
     command: "update",
@@ -177,6 +198,23 @@ export function createApprovalIntent(
     reason,
     status: "waiting-approval",
     approvalNeeded: true,
+  };
+}
+
+export function createScheduleIntent(
+  taskId: string,
+  assignee: string,
+  nextRunAt: string,
+  reason?: string,
+): RelayHQScheduleIntent {
+  return {
+    command: "schedule",
+    target: "control-plane",
+    taskId,
+    assignee,
+    nextRunAt,
+    ...(reason === undefined ? {} : { reason }),
+    status: "scheduled",
   };
 }
 

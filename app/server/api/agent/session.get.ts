@@ -1,7 +1,8 @@
-import { defineEventHandler, getQuery } from "h3";
+import { defineEventHandler, getHeader, getQuery } from "h3";
 import { execSync } from "node:child_process";
 
 import { filterVaultReadModelByWorkspaceId } from "../../models/read-model";
+import { publishRealtimeUpdate } from "../../services/realtime/bus";
 import { writeAuditNote } from "../../services/vault/audit-write";
 import { createVaultAgent } from "../../services/vault/agent-create";
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
@@ -27,12 +28,14 @@ export interface AgentSessionUnchanged {
   readonly vaultRoot?: string;
   readonly sessionToken: string;
   readonly etag: string;
+  readonly snapshot_hash: string;
 }
 
 export interface AgentSessionFullResponse {
   readonly vaultRoot?: string;
   readonly sessionToken: string;
   readonly etag: string;
+  readonly snapshot_hash: string;
   readonly protocol: AgentSessionProtocol | null;
   readonly context: AgentContextResponse;
   readonly tasks: ReadonlyArray<AgentSlimTask> | null;
@@ -198,6 +201,12 @@ export async function readAgentSession(
 
   const etag = computeSessionEtag({ protocol, context, tasks });
   sessionStore.setEtag(sessionToken, etag);
+  publishRealtimeUpdate({
+    kind: "vault.changed",
+    reason: "session.updated",
+    source: options.agent,
+    timestamp: now.toISOString(),
+  });
 
   if (activeSession !== null && options.since !== undefined && options.since === etag) {
     const exposedVaultRoot = readExposedVaultRoot();
@@ -206,6 +215,7 @@ export async function readAgentSession(
       ...(exposedVaultRoot === null ? {} : { vaultRoot: exposedVaultRoot }),
       sessionToken,
       etag,
+      snapshot_hash: etag,
     } satisfies AgentSessionUnchanged;
   }
 
@@ -229,6 +239,7 @@ export async function readAgentSession(
     ...(exposedVaultRoot === null ? {} : { vaultRoot: exposedVaultRoot }),
     sessionToken,
     etag,
+    snapshot_hash: etag,
     protocol,
     context,
     tasks,
@@ -241,9 +252,14 @@ export default defineEventHandler(async (event) => {
   const agent = String(query.agent ?? "anonymous");
   const taskId = typeof query.taskId === "string" ? query.taskId.trim() : undefined;
   const sessionToken = typeof query.sessionToken === "string" ? query.sessionToken : undefined;
-  const since = typeof query.since === "string" ? query.since : undefined;
-  const includeProtocol = query.protocol !== "false";
-  const includeTasks = query.tasks !== "false";
+  const since = typeof query.since === "string"
+    ? query.since
+    : (() => {
+        const header = getHeader(event, "if-none-match");
+        return typeof header === "string" && header.trim().length > 0 ? header.trim() : undefined;
+      })();
+  const includeProtocol = query.includeProtocol !== "false" && query.protocol !== "false";
+  const includeTasks = query.includeTasks !== "false" && query.tasks !== "false";
   const inlineContextFiles = query.inline === "true";
 
   const response = await readAgentSession({

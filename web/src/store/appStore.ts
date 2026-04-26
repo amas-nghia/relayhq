@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { relayhqApi } from '../api/client'
+import { getRelayHQApiBaseUrl, relayhqApi } from '../api/client'
 import type { RelayHQSettingsResponse } from '../api/client'
 import type { ActiveAgentSession, ReadModelColumn, ReadModelAuditNote, VaultReadModel } from '../api/contract'
 import type { Agent, AuditLog, Project, Task, Theme } from '../types'
@@ -10,6 +10,11 @@ const THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
 
 let themeMediaQuery: MediaQueryList | null = null
 let themeMediaListener: ((event: MediaQueryListEvent) => void) | null = null
+let realtimeSource: EventSource | null = null
+let realtimeRefreshTimeoutId: number | null = null
+let realtimeRefreshQueued = false
+let realtimeRefreshInFlight = false
+let snapshotLoadInFlight: Promise<void> | null = null
 
 interface AppState {
   tasks: Task[]
@@ -40,6 +45,8 @@ interface AppState {
   closeNewTaskModal: () => void
   loadData: () => Promise<void>
   fetchReadModel: () => Promise<void>
+  startRealtime: () => void
+  stopRealtime: () => void
   startPolling: () => void
   stopPolling: () => void
   addTask: (payload: {
@@ -103,6 +110,42 @@ function syncSystemThemeListener(themePreference: Theme) {
   themeMediaQuery.addEventListener('change', themeMediaListener)
 }
 
+function scheduleRealtimeRefresh(loadData: () => Promise<void>) {
+  realtimeRefreshQueued = true
+  if (realtimeRefreshInFlight || realtimeRefreshTimeoutId !== null) {
+    return
+  }
+
+  realtimeRefreshTimeoutId = window.setTimeout(() => {
+    realtimeRefreshTimeoutId = null
+    if (!realtimeRefreshQueued) {
+      return
+    }
+
+    realtimeRefreshQueued = false
+    realtimeRefreshInFlight = true
+    void loadData().finally(() => {
+      realtimeRefreshInFlight = false
+      if (realtimeRefreshQueued) {
+        scheduleRealtimeRefresh(loadData)
+      }
+    })
+  }, 250)
+}
+
+function closeRealtimeStream() {
+  realtimeSource?.close()
+  realtimeSource = null
+
+  if (realtimeRefreshTimeoutId !== null) {
+    window.clearTimeout(realtimeRefreshTimeoutId)
+    realtimeRefreshTimeoutId = null
+  }
+
+  realtimeRefreshQueued = false
+  realtimeRefreshInFlight = false
+}
+
 function relativeTime(value: string | null | undefined): string {
   if (!value) return '—'
   const diffMs = Date.now() - new Date(value).getTime()
@@ -156,6 +199,7 @@ function mapTasks(model: VaultReadModel): Task[] {
     approvalReason: task.approvalState.reason ?? undefined,
     blockedReason: task.blockedReason ?? undefined,
     blockedTime: task.blockedSince ? relativeTime(task.blockedSince) : undefined,
+    nextRunAt: task.nextRunAt ?? null,
     tags: [...task.tags],
   }))
 }
@@ -167,6 +211,23 @@ function mapProjects(model: VaultReadModel): Project[] {
     boardId: project.boardIds[0],
     lastActive: model.tasks.some((task) => task.projectId === project.id && task.status !== 'done' && task.status !== 'cancelled'),
     codebaseRoot: project.codebases[0]?.path ?? null,
+    description: project.description ?? null,
+    budget: project.budget ?? null,
+    deadline: project.deadline ?? null,
+    status: project.status ?? null,
+    links: [...project.links],
+    attachments: [...project.attachments],
+    docs: model.docs
+      .filter((doc) => doc.projectId === project.id)
+      .map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        docType: doc.docType,
+        status: doc.status,
+        visibility: doc.visibility,
+        updatedAt: doc.updatedAt,
+        sourcePath: doc.sourcePath,
+      })),
   }))
 }
 
@@ -216,7 +277,11 @@ function mapAuditLogs(model: VaultReadModel): AuditLog[] {
 }
 
 async function readSnapshot() {
-  const settings = await relayhqApi.getSettings()
+  const [settings, model, sessions] = await Promise.all([
+    relayhqApi.getSettings(),
+    relayhqApi.getReadModel(),
+    relayhqApi.getActiveAgents().catch(() => []),
+  ])
 
   const emptyModel: VaultReadModel = {
     workspaces: [],
@@ -244,11 +309,6 @@ async function readSnapshot() {
       showOnboarding: true,
     }
   }
-
-  const [model, sessions] = await Promise.all([
-    relayhqApi.getReadModel(),
-    relayhqApi.getActiveAgents().catch(() => []),
-  ])
 
   const projects = mapProjects(model)
   const tasks = mapTasks(model)
@@ -305,31 +365,73 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadData()
   },
 
-  loadData: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const snapshot = await readSnapshot()
-      set({
-        settings: snapshot.settings,
-        tasks: snapshot.tasks,
-        projects: snapshot.projects,
-        columns: snapshot.columns,
-        auditNotes: snapshot.model.auditNotes,
-        agents: snapshot.agents,
-        auditLogs: snapshot.auditLogs,
-        lastFetched: new Date(),
-        showOnboarding: snapshot.showOnboarding,
-        isLoading: false,
-      })
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Unable to load RelayHQ data.',
-        settings: null,
-        showOnboarding: false,
-        isLoading: false,
-        lastFetched: null,
-      })
+  startRealtime: () => {
+    const { loadData } = get()
+    if (typeof window === 'undefined') return
+
+    if (typeof EventSource === 'undefined') {
+      get().startPolling()
+      return
     }
+
+    get().stopPolling()
+
+    if (realtimeSource !== null) return
+
+    void loadData()
+
+    const source = new EventSource(`${getRelayHQApiBaseUrl()}/api/realtime/stream`)
+    realtimeSource = source
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { kind?: string }
+        if (payload.kind === 'vault.changed') {
+          scheduleRealtimeRefresh(loadData)
+        }
+      } catch {
+        scheduleRealtimeRefresh(loadData)
+      }
+    }
+  },
+
+  stopRealtime: () => {
+    closeRealtimeStream()
+    get().stopPolling()
+  },
+
+  loadData: async () => {
+    if (snapshotLoadInFlight !== null) return snapshotLoadInFlight
+
+    set({ isLoading: true, error: null })
+    snapshotLoadInFlight = (async () => {
+      try {
+        const snapshot = await readSnapshot()
+        set({
+          settings: snapshot.settings,
+          tasks: snapshot.tasks,
+          projects: snapshot.projects,
+          columns: snapshot.columns,
+          auditNotes: snapshot.model.auditNotes,
+          agents: snapshot.agents,
+          auditLogs: snapshot.auditLogs,
+          lastFetched: new Date(),
+          showOnboarding: snapshot.showOnboarding,
+          isLoading: false,
+        })
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : 'Unable to load RelayHQ data.',
+          settings: null,
+          showOnboarding: false,
+          isLoading: false,
+          lastFetched: null,
+        })
+      }
+    })().finally(() => {
+      snapshotLoadInFlight = null
+    })
+
+    return snapshotLoadInFlight
   },
 
   startPolling: () => {

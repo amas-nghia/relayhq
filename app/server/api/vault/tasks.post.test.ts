@@ -1,9 +1,10 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { describe, expect, test } from "bun:test";
 
+import { createTaskTemplate } from "../../services/vault/task-templates";
 import { createVaultTaskFromBody } from "./tasks.post";
 
 async function seedBoard(root: string) {
@@ -39,6 +40,38 @@ describe("POST /api/vault/tasks validation", () => {
         statusCode: 400,
         statusMessage: "objective: must be at least 50 characters, acceptanceCriteria: must contain at least 2 items, contextFiles: must contain at least 1 item",
       });
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("can hydrate task details from a saved template", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-template-"));
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      await seedBoard(root);
+      await createTaskTemplate({
+        name: "Bug Fix",
+        title: "Fix a bug",
+        objective: "Resolve the reported bug while preserving nearby behavior and documenting the regression coverage that proves the fix.",
+        acceptanceCriteria: "Bug reproduces before fix\nBug is gone after fix",
+        contextFiles: "app/server/api/\nweb/src/pages/",
+        constraints: "Do not change unrelated flows",
+      }, { vaultRoot: root });
+
+      const response = await createVaultTaskFromBody({
+        title: "Apply bug fix template",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-claude-code",
+        templateId: "bug-fix",
+      });
+
+      expect(response.taskId).toStartWith("task-");
+      await expect(readFile(join(root, response.sourcePath), "utf8")).resolves.toContain("## Acceptance Criteria");
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
       await rm(root, { recursive: true, force: true });

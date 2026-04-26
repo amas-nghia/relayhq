@@ -78,6 +78,7 @@ heartbeat_at: null
 execution_started_at: null
 execution_notes: null
 progress: 0
+next_run_at: null
 
 approval_needed: false
 approval_requested_by: null
@@ -103,11 +104,19 @@ links:
 
 ### Status values
 - todo
+- scheduled
 - in-progress
 - blocked
+- review
 - waiting-approval
 - done
 - cancelled
+
+`review` means the work is finished and ready for human verification.
+
+`waiting-approval` means the agent is blocked pending an explicit sign-off before it can continue.
+
+`scheduled` means the task is intentionally deferred until `next_run_at`, after which the scheduler re-queues it to `todo`.
 
 ### Column values
 - todo
@@ -120,6 +129,7 @@ links:
 - `execution_started_at`
 - `execution_notes`
 - `progress`
+- `next_run_at`
 - `result`
 - `completed_at`
 

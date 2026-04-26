@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { publishRealtimeUpdate } from "../../../services/realtime/bus";
 import { resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -53,6 +54,7 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   let next = content
     .replace(/^name:\s.*$/m, typeof patch.name === "string" && patch.name.trim().length > 0 ? `name: ${JSON.stringify(patch.name.trim())}` : "$&")
     .replace(/^capabilities:\s.*$/m, patch.capabilities !== undefined ? `capabilities: ${JSON.stringify(normalizeStringArray(patch.capabilities, "capabilities"))}` : "$&")
+    .replace(/^fallback_models:\s.*$/m, patch.fallback_models !== undefined ? `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}` : "$&")
     .replace(/^approval_required_for:\s.*$/m, patch.approval_required_for !== undefined ? `approval_required_for: ${JSON.stringify(normalizeStringArray(patch.approval_required_for, "approval_required_for"))}` : "$&")
     .replace(/^updated_at:\s.*$/m, `updated_at: ${JSON.stringify(new Date().toISOString())}`)
 
@@ -60,7 +62,24 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   next = upsertFrontmatterLine(next, "api_key_ref", typeof patch.api_key_ref === "string" && patch.api_key_ref.trim().length > 0 ? patch.api_key_ref.trim() : undefined)
   next = upsertFrontmatterLine(next, "monthly_budget_usd", typeof patch.monthly_budget_usd === "number" ? patch.monthly_budget_usd : undefined)
 
+  if (patch.fallback_models !== undefined) {
+    const line = `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}`
+    const pattern = /^fallback_models:\s.*$/m
+    next = pattern.test(next)
+      ? next.replace(pattern, line)
+      : next.replace(/^model:\s.*$/m, (match) => `${match}\n${line}`)
+  }
+
   await writeFile(filePath, next, "utf8")
+
+  publishRealtimeUpdate({
+    kind: "vault.changed",
+    reason: "agent.updated",
+    agentId,
+    source: agentId,
+    timestamp: new Date().toISOString(),
+  });
+
   return { success: true, agentId }
 }
 

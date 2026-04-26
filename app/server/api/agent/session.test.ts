@@ -32,6 +32,7 @@ function createTask(id: string, overrides: Partial<VaultReadModel["tasks"][numbe
     executionStartedAt: null,
     executionNotes: null,
     progress: 0,
+    nextRunAt: null,
     approvalNeeded: false,
     approvalRequestedBy: null,
     approvalReason: null,
@@ -119,6 +120,7 @@ describe("GET /api/agent/session", () => {
 
     expect(fullResponse.sessionToken).toBe("sess-new0001");
     expect(fullResponse.etag).toBe(computeSessionEtag({ protocol: fullResponse.protocol, context: fullResponse.context, tasks: fullResponse.tasks }));
+    expect(fullResponse.snapshot_hash).toBe(fullResponse.etag);
     expect(sessionStore.get("sess-new0001", new Date("2026-04-23T12:00:00Z"))).toEqual({
       agentName: "agent-claude-code",
       lastSeenAt: "2026-04-23T12:00:00.000Z",
@@ -185,6 +187,7 @@ describe("GET /api/agent/session", () => {
       changed: false,
       sessionToken: "sess-match0001",
       etag: initialResponse.etag,
+      snapshot_hash: initialResponse.etag,
     }));
   });
 

@@ -1,7 +1,7 @@
 import { DEFAULT_STALE_AFTER_MS, getTaskLockState } from "../vault/lock";
 import type { TaskFrontmatter } from "../../../shared/vault/schema";
 
-export type RelayHQProtocolCommandName = "tasks" | "claim" | "update" | "heartbeat" | "request-approval";
+export type RelayHQProtocolCommandName = "tasks" | "claim" | "update" | "heartbeat" | "request-approval" | "schedule";
 
 export interface RelayHQProtocolCommandSpec {
   readonly name: RelayHQProtocolCommandName;
@@ -61,6 +61,11 @@ export const RELAYHQ_PROTOCOL_COMMANDS = [
     description: "Request a human approval gate",
     boundary: "control-plane",
   },
+  {
+    name: "schedule",
+    description: "Defer a task until a future time",
+    boundary: "control-plane",
+  },
 ] as const satisfies ReadonlyArray<RelayHQProtocolCommandSpec>;
 
 function compareText(left: string, right: string): number {
@@ -83,6 +88,10 @@ function createTaskIndex(tasks: ReadonlyArray<TaskFrontmatter>): RelayHQTaskInde
 
 function isTerminalTask(task: TaskFrontmatter): boolean {
   return task.status === "done" || task.status === "cancelled";
+}
+
+function isDeferredTask(task: TaskFrontmatter): boolean {
+  return task.status === "scheduled";
 }
 
 function areDependenciesDone(task: TaskFrontmatter, index: RelayHQTaskIndex): boolean {
@@ -114,7 +123,7 @@ export function isTaskReadyForCaller(
   const lockState = getTaskLockState(task, now, staleAfterMs);
   const lockIsOwnedByAnotherActor = lockState.owner !== null && normalizeIdentity(lockState.owner) !== normalizedActorId;
 
-  return normalizeIdentity(task.assignee) === normalizedActorId && !isTerminalTask(task) && !lockState.stale && !lockIsOwnedByAnotherActor && areDependenciesDone(task, index);
+  return normalizeIdentity(task.assignee) === normalizedActorId && !isTerminalTask(task) && !isDeferredTask(task) && !lockState.stale && !lockIsOwnedByAnotherActor && areDependenciesDone(task, index);
 }
 
 export function selectReadyTasks(

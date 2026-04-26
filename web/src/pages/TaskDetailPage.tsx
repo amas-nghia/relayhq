@@ -1,13 +1,23 @@
 import { ArrowLeft } from 'lucide-react'
+import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { DetailPanel } from '../components/task/DetailPanel'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
+import { useAppStore } from '../store/appStore'
 
 export function TaskDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const loadData = useAppStore(state => state.loadData)
+  const taskExists = useAppStore(state => state.tasks.some(task => task.id === id))
+
+  useEffect(() => {
+    if (!taskExists) {
+      void loadData()
+    }
+  }, [loadData, taskExists])
 
   if (!id) {
     return (

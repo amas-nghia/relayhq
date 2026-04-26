@@ -21,9 +21,9 @@ func CanonicalLayout() Layout {
 			"shared/projects/",
 			"shared/boards/",
 			"shared/columns/",
-			"shared/issues/",
+			"shared/tasks/",
+			"shared/approvals/",
 			"shared/agents/",
-			"shared/runs/",
 			"shared/audit/",
 			"shared/threads/",
 		},
@@ -52,8 +52,10 @@ type TaskStatus string
 
 const (
 	TaskStatusTodo            TaskStatus = "todo"
+	TaskStatusScheduled       TaskStatus = "scheduled"
 	TaskStatusInProgress      TaskStatus = "in-progress"
 	TaskStatusBlocked         TaskStatus = "blocked"
+	TaskStatusReview          TaskStatus = "review"
 	TaskStatusWaitingApproval TaskStatus = "waiting-approval"
 	TaskStatusDone            TaskStatus = "done"
 	TaskStatusCancelled       TaskStatus = "cancelled"
@@ -61,7 +63,7 @@ const (
 
 func (s TaskStatus) Valid() bool {
 	switch s {
-	case TaskStatusTodo, TaskStatusInProgress, TaskStatusBlocked, TaskStatusWaitingApproval, TaskStatusDone, TaskStatusCancelled:
+	case TaskStatusTodo, TaskStatusScheduled, TaskStatusInProgress, TaskStatusBlocked, TaskStatusReview, TaskStatusWaitingApproval, TaskStatusDone, TaskStatusCancelled:
 		return true
 	default:
 		return false
@@ -145,6 +147,7 @@ type TaskFrontmatter struct {
 	ExecutionStartedAt  *time.Time
 	ExecutionNotes      *string
 	Progress            int
+	NextRunAt           *time.Time
 	ApprovalNeeded      bool
 	ApprovalRequestedBy *string
 	ApprovalReason      *string
@@ -177,6 +180,7 @@ type AgentFrontmatter struct {
 	Provider            string
 	APIKeyRef           *string
 	Model               string
+	FallbackModels      []string
 	MonthlyBudgetUSD    *float64
 	Capabilities        []string
 	TaskTypesAccepted   []string
@@ -419,6 +423,9 @@ func ValidateTaskFrontmatter(task TaskFrontmatter) error {
 	}
 	if task.Progress < 0 || task.Progress > 100 {
 		errs = appendError(errs, "progress", "must be between 0 and 100")
+	}
+	if task.NextRunAt != nil && task.NextRunAt.IsZero() {
+		errs = appendError(errs, "next_run_at", "must be a valid timestamp when set")
 	}
 	if !task.ApprovalOutcome.Valid() {
 		errs = appendError(errs, "approval_outcome", "invalid")

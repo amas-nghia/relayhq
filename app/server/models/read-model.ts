@@ -35,10 +35,14 @@ export interface ReadModelAgent {
   readonly type: "agent";
   readonly workspaceId: string;
   readonly name: string;
+  readonly accountId: string | null;
   readonly role: string;
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
+  readonly apiKeyRef: string | null;
   readonly model: string;
+  readonly fallbackModels: ReadonlyArray<string>;
+  readonly monthlyBudgetUsd: number | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly taskTypesAccepted: ReadonlyArray<string>;
   readonly approvalRequiredFor: ReadonlyArray<string>;
@@ -90,6 +94,12 @@ export interface ReadModelProject {
   readonly type: "project";
   readonly workspaceId: string;
   readonly name: string;
+  readonly description: string | null;
+  readonly budget: string | null;
+  readonly deadline: string | null;
+  readonly status: string | null;
+  readonly links: ReadonlyArray<{ readonly label: string; readonly url: string }>;
+  readonly attachments: ReadonlyArray<{ readonly label: string; readonly url: string; readonly type: string; readonly addedAt: string }>;
   readonly codebases: ReadonlyArray<{ readonly name: string; readonly path: string; readonly tech?: string; readonly primary?: boolean }>;
   readonly boardIds: ReadonlyArray<string>;
   readonly columnIds: ReadonlyArray<string>;
@@ -149,6 +159,7 @@ export interface ReadModelTask {
   readonly executionStartedAt: string | null;
   readonly executionNotes: string | null;
   readonly progress: number;
+  readonly nextRunAt?: string | null;
   readonly approvalNeeded: boolean;
   readonly approvalRequestedBy: string | null;
   readonly approvalReason: string | null;
@@ -428,6 +439,12 @@ function buildProjectModel(
     type: "project",
     workspaceId: document.frontmatter.workspace_id,
     name: document.frontmatter.name,
+    description: document.frontmatter.description ?? null,
+    budget: document.frontmatter.budget ?? null,
+    deadline: document.frontmatter.deadline ?? null,
+    status: document.frontmatter.status ?? null,
+    links: document.frontmatter.links ?? [],
+    attachments: document.frontmatter.attachments ?? [],
     codebases: normalizeCodebases(document.frontmatter),
     boardIds,
     columnIds,
@@ -546,6 +563,7 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     provider: document.frontmatter.provider,
     apiKeyRef: document.frontmatter.api_key_ref ?? null,
     model: document.frontmatter.model,
+    fallbackModels: [...(document.frontmatter.fallback_models ?? [])].sort(),
     monthlyBudgetUsd: document.frontmatter.monthly_budget_usd ?? null,
     capabilities: sortStrings(document.frontmatter.capabilities),
     taskTypesAccepted: sortStrings(document.frontmatter.task_types_accepted),
@@ -583,6 +601,7 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     executionStartedAt: document.frontmatter.execution_started_at,
     executionNotes: document.frontmatter.execution_notes,
     progress: document.frontmatter.progress,
+    nextRunAt: document.frontmatter.next_run_at ?? null,
     approvalNeeded: document.frontmatter.approval_needed,
     approvalRequestedBy: document.frontmatter.approval_requested_by,
     approvalReason: document.frontmatter.approval_reason,

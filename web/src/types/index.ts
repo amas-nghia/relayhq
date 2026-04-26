@@ -1,4 +1,4 @@
-export type TaskStatus = 'todo' | 'in-progress' | 'waiting-approval' | 'blocked' | 'done' | 'cancelled'
+export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type AgentState = 'idle' | 'active' | 'waiting' | 'stale'
 export type Theme = 'light' | 'dark' | 'system'
@@ -25,6 +25,35 @@ export interface Project {
   boardId?: string
   lastActive: boolean
   codebaseRoot?: string | null
+  description?: string | null
+  budget?: string | null
+  deadline?: string | null
+  status?: string | null
+  links: ReadonlyArray<ProjectLink>
+  attachments: ReadonlyArray<ProjectAttachment>
+  docs: ReadonlyArray<ProjectDoc>
+}
+
+export interface ProjectLink {
+  label: string
+  url: string
+}
+
+export interface ProjectAttachment {
+  label: string
+  url: string
+  type: string
+  addedAt: string
+}
+
+export interface ProjectDoc {
+  id: string
+  title: string
+  docType: string
+  status: string
+  visibility: string
+  updatedAt: string
+  sourcePath: string
 }
 
 export interface Task {
@@ -65,8 +94,9 @@ export interface Task {
    lastSeen?: string
    requestedApprovalTime?: string
    approvalReason?: string
-   blockedReason?: string
-   blockedTime?: string
+    blockedReason?: string
+    blockedTime?: string
+    nextRunAt?: string | null
   tags: string[]
 }
 

@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { publishRealtimeUpdate } from "../../../../services/realtime/bus";
 import { createTaskDocument, readTaskDocument } from "../../../../services/vault/write";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "../../../../services/vault/runtime";
 
@@ -78,6 +79,15 @@ export async function promoteIssueCapture(taskId: string, body: unknown) {
     frontmatter: nextFrontmatter,
     body: replaceIssueBody(objective, acceptanceCriteria, current.body),
   })
+
+  publishRealtimeUpdate({
+    kind: "vault.changed",
+    reason: "task.promoted",
+    taskId: nextFrontmatter.id,
+    agentId: nextFrontmatter.assignee,
+    source: nextFrontmatter.assignee,
+    timestamp: now.toISOString(),
+  });
 
   return {
     task: {

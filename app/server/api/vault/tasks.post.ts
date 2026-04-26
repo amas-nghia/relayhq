@@ -3,6 +3,7 @@ import { createError, defineEventHandler, readBody } from "h3";
 import type { TaskPriority } from "../../../shared/vault/schema";
 import { writeAuditNote } from "../../services/vault/audit-write";
 import { formatTaskInputIssues, validateTaskInput } from "../../services/vault/task-input";
+import { readTaskTemplate } from "../../services/vault/task-templates";
 import { VaultSchemaError } from "../../services/vault/write";
 import { createVaultTask, TaskCreateError } from "../../services/vault/task-create";
 import { resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
@@ -53,6 +54,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     "acceptanceCriteria",
     "constraints",
     "contextFiles",
+    "templateId",
     "sourceIssueId",
     "github_issue_id",
   ] as const;
@@ -88,18 +90,27 @@ export async function createVaultTaskFromBody(body: unknown) {
     throw createError({ statusCode: 400, statusMessage: "tags, dependsOn, acceptanceCriteria, constraints, and contextFiles must be string arrays when provided." });
   }
 
+  const vaultRoot = resolveVaultWorkspaceRoot();
+  const template = typeof body.templateId === "string" && body.templateId.trim().length > 0
+    ? await readTaskTemplate(body.templateId, { vaultRoot })
+    : null;
+
+  const objective = typeof body.objective === "string" ? body.objective : template?.objective;
+  const acceptanceCriteria = body.acceptanceCriteria ?? template?.acceptanceCriteria;
+  const constraints = body.constraints ?? template?.constraints;
+  const contextFiles = body.contextFiles ?? template?.contextFiles;
+
   const issues = validateTaskInput({
     title: body.title,
-    objective: typeof body.objective === "string" ? body.objective : undefined,
-    acceptanceCriteria: body.acceptanceCriteria,
-    contextFiles: body.contextFiles,
+    objective,
+    acceptanceCriteria,
+    contextFiles,
   });
 
   if (issues.length > 0) {
     throw createError({ statusCode: 400, statusMessage: formatTaskInputIssues(issues) });
   }
 
-  const vaultRoot = resolveVaultWorkspaceRoot();
   const result = await createVaultTask({
     title: body.title,
     projectId: body.projectId,
@@ -110,7 +121,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     requiredCapability: typeof body.requiredCapability === "string" ? body.requiredCapability : undefined,
     tags: body.tags,
     dependsOn: body.dependsOn,
-    body: buildBody(body.objective, body.acceptanceCriteria, body.constraints, body.contextFiles),
+    body: buildBody(objective, acceptanceCriteria, constraints, contextFiles),
     sourceIssueId: typeof body.sourceIssueId === "string" && body.sourceIssueId.trim().length > 0 ? body.sourceIssueId.trim() : undefined,
     githubIssueId: typeof body.github_issue_id === "string" && body.github_issue_id.trim().length > 0 ? body.github_issue_id.trim() : undefined,
     vaultRoot,
