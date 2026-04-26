@@ -93,6 +93,7 @@ export function OnboardingWizard() {
   }, null, 2)
 
   const cliSnippet = `export RELAYHQ_BASE_URL="http://127.0.0.1:44210"\nexport RELAYHQ_VAULT_ROOT="${activeVaultRoot}"`
+  const setupSnippet = `npx relayhq setup claude-code --base-url="http://127.0.0.1:44210" --agent-id="claude-code"`
 
   const hasDetectedTools = discoveredTools.some(tool => tool.detected)
   const selectedTools = discoveredTools.filter(tool => registeredToolIds.has(tool.id) || selectedToolIds.has(tool.id))
@@ -439,6 +440,23 @@ export function OnboardingWizard() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
+                    <div className="rounded-xl border border-brand/20 bg-brand-muted/20 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-text-primary">Install the protocol pack</div>
+                          <p className="text-sm text-text-secondary">
+                            Run RelayHQ setup once to write the agent instructions into your workspace.
+                          </p>
+                        </div>
+                        <Button type="button" variant="outline" onClick={async () => { await navigator.clipboard.writeText(setupSnippet); setSnippetCopied(true); setTimeout(() => setSnippetCopied(false), 2000) }}>
+                          {snippetCopied ? <><ClipboardCheck className="h-3.5 w-3.5" /> Copied</> : <><ClipboardCopy className="h-3.5 w-3.5" /> Copy command</>}
+                        </Button>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-border bg-slate-950 p-4">
+                        <pre className="overflow-x-auto text-xs leading-relaxed text-slate-300">{setupSnippet}</pre>
+                      </div>
+                    </div>
+
                     <Tabs value={connectTab} onValueChange={value => setConnectTab(value as ConnectTab)}>
                       <TabsList className="w-fit">
                         <TabsTrigger value="claude-code" className="flex items-center gap-2">

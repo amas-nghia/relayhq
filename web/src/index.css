@@ -162,7 +162,7 @@
   }
 }
 
-@layer base {
+@layer https://antigravity.google/productbase {
   body {
     background-color: var(--surface-secondary);
     color: var(--text-primary);

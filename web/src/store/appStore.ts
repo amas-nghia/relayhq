@@ -264,6 +264,9 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       provider: agent.provider,
       apiKeyRef: agent.apiKeyRef,
       monthlyBudgetUsd: agent.monthlyBudgetUsd,
+      aliases: [...agent.aliases],
+      runCommand: agent.runCommand,
+      runMode: agent.runMode,
       capabilities: [...agent.capabilities],
       approvalRequiredFor: [...agent.approvalRequiredFor],
       skillFile: agent.skillFile,
@@ -526,7 +529,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   startAutoRun: async (taskId) => {
     set({ isMutating: true, mutationError: null })
     try {
-      await relayhqApi.patchTask(taskId, { actorId: 'human-user', patch: {}, autoRun: true } as never)
+      const task = get().tasks.find(entry => entry.id === taskId)
+      const assigneeId = task?.assigneeId
+      if (!assigneeId || assigneeId === 'unassigned') {
+        throw new Error('Task must have an assignee before auto-run can start.')
+      }
+
+      await relayhqApi.runAgent(assigneeId, { taskId })
       await get().loadData()
       set({ isMutating: false })
     } catch (error) {

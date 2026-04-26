@@ -28,6 +28,8 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
   const navigate = useNavigate()
   const agent = useAppStore(state => state.agents.find(a => a.id === task.assigneeId));
   const fetchReadModel = useAppStore(state => state.fetchReadModel);
+  const startAutoRun = useAppStore(state => state.startAutoRun);
+  const isMutating = useAppStore(state => state.isMutating);
   const [, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -160,6 +162,17 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'review' && task.status !== 'done' && task.status !== 'cancelled' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              onClick={(event) => { event.stopPropagation(); void startAutoRun(task.id); }}
+              disabled={isMutating}
+            >
+              {isMutating ? 'Starting…' : 'Run'}
+            </Button>
+          )}
           {typeof task.costUsd === 'number' && task.costUsd > 0 && (
             <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
               ${task.costUsd.toFixed(2)}

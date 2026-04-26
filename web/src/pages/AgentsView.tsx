@@ -378,6 +378,7 @@ export function AgentsView() {
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsDashboardResponse | null>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsError, setAnalyticsError] = useState<string | null>(null)
+  const [runningAgentId, setRunningAgentId] = useState<string | null>(null)
 
   const editingAgent = agents.find(agent => agent.id === editingAgentId) ?? null
 
@@ -405,6 +406,19 @@ export function AgentsView() {
     setMonthlyBudgetUsd(agent.monthlyBudgetUsd != null ? String(agent.monthlyBudgetUsd) : '')
     setCapabilities((agent.capabilities ?? []).join('\n'))
     setApprovalRequiredFor((agent.approvalRequiredFor ?? []).join('\n'))
+  }
+
+  async function runInboxTask(agentId: string) {
+    const task = tasks.find(entry => entry.assigneeId === agentId && entry.status === 'todo')
+    if (!task) return
+
+    setRunningAgentId(agentId)
+    try {
+      await relayhqApi.runAgent(agentId, { taskId: task.id })
+      await loadData()
+    } finally {
+      setRunningAgentId(null)
+    }
   }
 
   async function saveAgent() {
@@ -602,6 +616,10 @@ export function AgentsView() {
               <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface divide-y divide-border">
                 {idleAgents.map(agent => (
                   <div key={agent.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-surface-secondary">
+                    {(() => {
+                      const inboxTask = tasks.find(task => task.assigneeId === agent.id && task.status === 'todo')
+                      return null
+                    })()}
                     <div className="flex items-center gap-2 text-sm text-text-secondary">
                       <Circle className="h-3 w-3 fill-current text-text-tertiary" />
                       <span className="inline-block w-32 font-semibold text-text-primary">{agent.name}</span>
@@ -616,6 +634,23 @@ export function AgentsView() {
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </div>
+                    {(() => {
+                      const inboxTask = tasks.find(task => task.assigneeId === agent.id && task.status === 'todo')
+                      if (!inboxTask) return null
+
+                      return (
+                        <div className="ml-5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-secondary/80 px-3 py-2 text-xs text-text-secondary">
+                          <span className="font-medium text-text-primary">Inbox:</span>
+                          <button type="button" className="font-medium text-accent transition-colors hover:text-accent-light" onClick={() => navigate(`/tasks/${inboxTask.id}`)}>
+                            {inboxTask.title}
+                          </button>
+                          <span className="text-text-tertiary">•</span>
+                          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px]" disabled={runningAgentId === agent.id} onClick={() => void runInboxTask(agent.id)}>
+                            {runningAgentId === agent.id ? 'Running…' : 'Run next'}
+                          </Button>
+                        </div>
+                      )
+                    })()}
                     <div className="ml-5 space-y-1 rounded-lg bg-surface-secondary/80 p-3">
                       <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeline</div>
                       {(activityByAgent[agent.id] ?? []).slice(0, 10).map((event, index) => (
