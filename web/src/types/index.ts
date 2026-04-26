@@ -14,6 +14,9 @@ export interface Agent {
   provider?: string
   apiKeyRef?: string | null
   monthlyBudgetUsd?: number | null
+  aliases?: ReadonlyArray<string>
+  runCommand?: string | null
+  runMode?: string | null
   capabilities?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string

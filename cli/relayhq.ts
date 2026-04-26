@@ -18,6 +18,7 @@ import {
   type RelayHQProtocolClient,
   type RelayHQWritebackIntent,
 } from "../app/server/services/agents/commands";
+import { setupProtocolPack } from "../app/server/services/agents/protocol-pack";
 import { TASK_STATUSES } from "../app/shared/vault/schema";
 
 const DEFAULT_RELAYHQ_BASE_URL = "http://127.0.0.1:44210";
@@ -362,6 +363,7 @@ export function renderRelayHQHelp(): ReadonlyArray<string> {
     "relayhq index <path>  # Index a single codebase path into Kioku",
     "relayhq index --project=<projectId>  # Index all configured codebases for a project",
     "relayhq init  # Write a local .relayhq file from server settings",
+    "relayhq setup <runtime>  # Install the RelayHQ protocol pack for a runtime",
     `Base URL: --base-url=<url> or RELAYHQ_BASE_URL (default: ${DEFAULT_RELAYHQ_BASE_URL})`,
   ];
 }
@@ -393,6 +395,21 @@ export async function executeRelayHQInvocation(
     const configPath = join(process.cwd(), ".relayhq");
     await writeFile(configPath, `RELAYHQ_BASE_URL=${baseUrl}\nRELAYHQ_VAULT_ROOT=${vaultRoot}\n`, "utf8");
     return { command: "init", payload: { path: configPath, baseUrl, vaultRoot } };
+  }
+
+  if (invocation.command === "setup") {
+    const [runtime = ""] = invocation.positional;
+    const validatedRuntime = requireNonEmpty(runtime, "runtime is required");
+    const baseUrl = await resolveRelayHQBaseUrl(argv);
+    const vaultRoot = await resolveRelayHQVaultRoot();
+    const agentId = invocation.flags.get("agent-id") ?? validatedRuntime;
+    const result = await setupProtocolPack(validatedRuntime, {
+      baseUrl,
+      vaultRoot,
+      agentId,
+      cwd: process.cwd(),
+    });
+    return { command: "setup", payload: result };
   }
 
   if (invocation.command === "tasks") {

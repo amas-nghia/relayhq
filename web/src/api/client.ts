@@ -1,4 +1,5 @@
 import type {
+  AgentStateResponse,
   ActiveAgentSession,
   AgentContextResponse,
   ProjectIndexStatusResponse,
@@ -189,6 +190,11 @@ export interface RelayHQScannedAgentTool {
 export interface VaultTaskPatchPayload {
   readonly actorId: string
   readonly patch: Record<string, unknown>
+  readonly autoRun?: boolean
+}
+
+export interface AgentRunPayload {
+  readonly taskId: string
 }
 
 export interface VaultTaskSchedulePayload {
@@ -361,6 +367,7 @@ export interface AnalyticsDashboardResponse {
 
 export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
+  getAgentState: (agentId: string) => request<AgentStateResponse>(`/api/agent/state?agentId=${encodeURIComponent(agentId)}`),
   getActiveAgents: () => request<ReadonlyArray<ActiveAgentSession>>('/api/agent/active'),
   getAgentContext: () => request<AgentContextResponse>('/api/agent/context'),
   getAgentActivity: (agentId: string) => request<ReadonlyArray<AgentActivityEvent>>(`/api/agent/${encodeURIComponent(agentId)}/activity`),
@@ -407,6 +414,10 @@ export const relayhqApi = {
   }),
   patchAgent: (agentId: string, payload: AgentPatchPayload) => request<{ success: boolean; agentId: string }>(`/api/vault/agents/${encodeURIComponent(agentId)}`, {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
+  runAgent: (agentId: string, payload: AgentRunPayload) => request<{ agentId: string; taskId: string; runnerId: string; command: string }>(`/api/agent/${encodeURIComponent(agentId)}/run`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   }),
 

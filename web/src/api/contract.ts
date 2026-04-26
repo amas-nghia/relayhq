@@ -230,6 +230,9 @@ export interface ReadModelAgent {
   readonly apiKeyRef: string | null
   readonly model: string
   readonly monthlyBudgetUsd: number | null
+  readonly aliases: ReadonlyArray<string>
+  readonly runCommand: string | null
+  readonly runMode: string | null
   readonly capabilities: ReadonlyArray<string>
   readonly taskTypesAccepted: ReadonlyArray<string>
   readonly approvalRequiredFor: ReadonlyArray<string>
@@ -242,6 +245,28 @@ export interface ReadModelAgent {
   readonly updatedAt: string
   readonly body: string
   readonly sourcePath: string
+}
+
+export interface AgentStateTaskSummary {
+  readonly id: string
+  readonly title: string
+  readonly status: string
+  readonly priority: string
+  readonly assignee: string | null
+  readonly boardId: string
+  readonly columnId: string
+  readonly progress: number
+  readonly resumeHint: string | null
+  readonly pooled?: boolean
+}
+
+export interface AgentStateResponse {
+  readonly agentId: string
+  readonly aliases: ReadonlyArray<string>
+  readonly health: { readonly vaultOk: boolean; readonly vaultRoot: string; readonly reason: string | null }
+  readonly active: AgentStateTaskSummary | null
+  readonly inbox: ReadonlyArray<AgentStateTaskSummary>
+  readonly pool: ReadonlyArray<AgentStateTaskSummary>
 }
 
 export interface VaultReadModel {
