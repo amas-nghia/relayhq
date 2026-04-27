@@ -18,7 +18,7 @@ const COLUMNS: { id: BoardLaneId; label: string }[] = [
   { id: 'done', label: 'DONE' }
 ];
 
-export function BoardView() {
+export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) => void } = {}) {
   const tasks = useAppStore(state => state.tasks);
   const isLoading = useAppStore(state => state.isLoading);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
@@ -224,7 +224,7 @@ export function BoardView() {
                           exit={{ opacity: 0, scale: 0.9, x: 20 }}
                           transition={{ duration: 0.25, ease: 'easeOut' }}
                         >
-                          <TaskCard task={task} />
+                          <TaskCard task={task} onTaskSelect={onTaskSelect} />
                         </motion.div>
                       ))}
                     </AnimatePresence>

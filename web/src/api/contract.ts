@@ -228,11 +228,14 @@ export interface ReadModelAgent {
   readonly roles: ReadonlyArray<string>
   readonly provider: string
   readonly apiKeyRef: string | null
+  readonly portraitAsset: string | null
+  readonly spriteAsset: string | null
   readonly model: string
   readonly monthlyBudgetUsd: number | null
   readonly aliases: ReadonlyArray<string>
   readonly runCommand: string | null
   readonly runMode: string | null
+  readonly webhookUrl: string | null
   readonly capabilities: ReadonlyArray<string>
   readonly taskTypesAccepted: ReadonlyArray<string>
   readonly approvalRequiredFor: ReadonlyArray<string>

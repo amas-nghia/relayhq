@@ -22,6 +22,7 @@ export interface SettingsResponse {
   readonly activeWorkspaceId: string | null;
   readonly activeWorkspaceName: string | null;
   readonly availableWorkspaces: ReadonlyArray<WorkspaceOption>;
+  readonly platform: string;
 }
 
 export async function readSettingsState(options: {
@@ -42,6 +43,7 @@ export async function readSettingsState(options: {
       activeWorkspaceId,
       activeWorkspaceName: null,
       availableWorkspaces: [],
+      platform: process.platform,
     };
   }
 
@@ -61,6 +63,7 @@ export async function readSettingsState(options: {
     activeWorkspaceId: normalizedActiveWorkspaceId,
     activeWorkspaceName: activeWorkspace?.name ?? null,
     availableWorkspaces,
+    platform: process.platform,
   };
 }
 

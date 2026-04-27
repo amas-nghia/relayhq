@@ -13,7 +13,7 @@ export default function WorkspaceView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden w-full">
-      <div className="shrink-0 flex items-center gap-2 rounded-xl border border-border bg-surface p-1">
+      <div className="shrink-0 flex items-center gap-2 rounded-none border border-accent bg-surface-secondary p-1">
         <Button type="button" variant={viewMode === 'board' ? 'secondary' : 'ghost'} className="gap-2" onClick={() => setViewMode('board')}>
           <KanbanSquare className="h-4 w-4" /> Board
         </Button>

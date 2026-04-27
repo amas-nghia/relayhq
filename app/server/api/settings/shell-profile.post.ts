@@ -11,15 +11,21 @@ export interface ShellProfileWriteResponse {
   readonly path: string;
 }
 
-const PROFILE_TARGETS = {
+const UNIX_PROFILE_TARGETS = {
   zshrc: ".zshrc",
   bashrc: ".bashrc",
 } as const;
 
-type ShellTarget = keyof typeof PROFILE_TARGETS;
+type UnixShellTarget = keyof typeof UNIX_PROFILE_TARGETS;
+type ShellTarget = UnixShellTarget | "powershell";
 
 function isShellTarget(value: unknown): value is ShellTarget {
-  return value === "zshrc" || value === "bashrc";
+  return value === "zshrc" || value === "bashrc" || value === "powershell";
+}
+
+function powershellProfilePath(homeDir: string): string {
+  // Standard PSModulePath location works on Windows, macOS, and Linux PowerShell installs.
+  return join(homeDir, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1");
 }
 
 export async function writeShellProfile(
@@ -28,7 +34,31 @@ export async function writeShellProfile(
 ): Promise<ShellProfileWriteResponse> {
   const env = options.env ?? process.env;
   const vaultRoot = readConfiguredVaultRoot(env) ?? resolveVaultWorkspaceRoot(options.cwd ?? process.cwd(), env);
-  const profilePath = join(options.homeDir ?? homedir(), PROFILE_TARGETS[target]);
+  const home = options.homeDir ?? homedir();
+
+  if (target === "powershell") {
+    const profilePath = powershellProfilePath(home);
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(join(home, "Documents", "PowerShell"), { recursive: true });
+
+    const lines = [
+      `$env:RELAYHQ_BASE_URL = "http://127.0.0.1:44210"`,
+      `$env:RELAYHQ_VAULT_ROOT = "${vaultRoot}"`,
+    ];
+
+    let existing = "";
+    try { existing = await readFile(profilePath, "utf-8"); } catch { /* new file */ }
+
+    if (existing.includes("RELAYHQ_BASE_URL")) {
+      return { written: false, path: profilePath };
+    }
+
+    const block = `\n# RelayHQ\n${lines.join("\n")}\n`;
+    await appendFile(profilePath, block, "utf-8");
+    return { written: true, path: profilePath };
+  }
+
+  const profilePath = join(home, UNIX_PROFILE_TARGETS[target]);
 
   const exportLines = [
     `export RELAYHQ_BASE_URL="http://127.0.0.1:44210"`,
@@ -56,7 +86,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event);
 
   if (!isShellTarget(body?.target)) {
-    throw createError({ statusCode: 400, statusMessage: "target must be 'zshrc' or 'bashrc'." });
+    throw createError({ statusCode: 400, statusMessage: "target must be 'zshrc', 'bashrc', or 'powershell'." });
   }
 
   return await writeShellProfile(body.target);

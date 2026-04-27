@@ -13,6 +13,7 @@ const templateDir = join(packageRoot, 'template')
 
 const COMMANDS = {
   init:    'Scaffold a new RelayHQ workspace',
+  setup:   'Write agent skill file for a runtime (claude-code | cursor | opencode | codex | antigravity)',
   start:   'Start RelayHQ services (PM2)',
   stop:    'Stop RelayHQ services (PM2)',
   destroy: 'Stop services and remove workspace directory',
@@ -33,7 +34,8 @@ ${Object.entries(COMMANDS).map(([cmd, desc]) => `  ${cmd.padEnd(10)} ${desc}`).j
 
 Examples:
   npx relayhq init my-workspace
-  npx relayhq init my-workspace --yes
+  npx relayhq setup claude-code
+  npx relayhq setup opencode
   npx relayhq start my-workspace
   npx relayhq stop my-workspace
   npx relayhq destroy my-workspace
@@ -260,6 +262,182 @@ function cmdSkill(positional) {
   fail('Usage: npx relayhq skill <install|list|remove> [args]')
 }
 
+const SUPPORTED_RUNTIMES = ['claude-code', 'cursor', 'antigravity', 'opencode', 'codex']
+
+const RUNTIME_TARGETS = {
+  'claude-code':  { path: 'CLAUDE.md',                                  append: true  },
+  cursor:         { path: '.cursor/rules/relayhq.mdc',                  append: false },
+  antigravity:    { path: '.antigravity/instructions/relayhq.md',       append: false },
+  opencode:       { path: '.opencode/agents/relayhq.md',                append: false },
+  codex:          { path: '.codex/instructions/relayhq.md',             append: false },
+}
+
+// Runtimes that use MCP tools — skill describes when/why, not raw HTTP
+const MCP_RUNTIMES = new Set(['claude-code', 'cursor', 'antigravity'])
+
+function buildMcpSkill(runtime, agentId, baseUrl) {
+  return `## RelayHQ
+
+RelayHQ is the task coordination layer for this project.
+Server: ${baseUrl} · Your agent ID: \`${agentId}\`
+
+### Workflow
+
+| When | Call |
+|------|------|
+| Start of every session | \`relayhq_inbox(agentId="${agentId}")\` |
+| Picking up a task | \`relayhq_start(agentId="${agentId}", taskId="task-xxx")\` |
+| Every 5–10 min while working | \`relayhq_progress(agentId="${agentId}", taskId, progress=N, notes="...")\` |
+| Work complete | \`relayhq_done(agentId="${agentId}", taskId, result="One-line summary")\` |
+| Stuck / missing info | \`relayhq_blocked(agentId="${agentId}", taskId, reason="What's missing")\` |
+
+### Session start rules
+
+1. Call \`relayhq_inbox\` — check \`active\` first. If a task is already in progress, **resume it**.
+2. Otherwise pick the highest-priority task from \`inbox\` (assigned to you) or \`pool\` (unassigned).
+3. Call \`relayhq_start\` to claim and get full context: \`objective\`, \`acceptance_criteria\`, \`context_files\`, \`constraints\`.
+
+### Hard rules
+
+- **Never mark a task "done" yourself.** \`relayhq_done\` moves it to "review" — a human approves the final step.
+- **Heartbeat keeps your lock.** Tasks idle for 30 min are auto-reclaimed. \`relayhq_progress\` resets the timer.
+- **Approval gate.** If the task has \`approval_needed: true\`, call \`relayhq_request_approval\` before the risky action.
+- Do not read vault Markdown files directly — use the API.
+- Claim before starting; do not work on unclaimed tasks.
+`
+}
+
+function buildHttpSkill(runtime, agentId, baseUrl) {
+  const enc = encodeURIComponent(agentId)
+  return `## RelayHQ — Agent Protocol
+
+RelayHQ is the task coordination layer for this project.
+Server: ${baseUrl} · Your agent ID: \`${agentId}\`
+
+### 1. Session start (every session)
+
+\`\`\`
+GET ${baseUrl}/api/agent/state?agentId=${enc}
+\`\`\`
+
+Response: \`active\` (resume first) · \`inbox\` (assigned, by priority) · \`pool\` (unassigned, claim before starting)
+
+### 2. Claim + get full context
+
+\`\`\`
+POST ${baseUrl}/api/vault/tasks/{taskId}/claim
+{"actorId": "${agentId}"}
+
+GET ${baseUrl}/api/agent/bootstrap/{taskId}?agentId=${enc}
+\`\`\`
+
+Returns: \`objective\`, \`acceptance_criteria\`, \`context_files\`, \`constraints\`, \`priority\`.
+
+### 3. Heartbeat (every 5–10 min)
+
+\`\`\`
+POST ${baseUrl}/api/vault/tasks/{taskId}/heartbeat
+{"actorId": "${agentId}"}
+\`\`\`
+
+Tasks idle for 30 min are auto-reclaimed.
+
+### 4. Progress update
+
+\`\`\`
+PATCH ${baseUrl}/api/vault/tasks/{taskId}
+{"actorId": "${agentId}", "patch": {"progress": 60, "execution_notes": "Completed X. Working on Y."}}
+\`\`\`
+
+### 5a. Done — move to review
+
+\`\`\`
+PATCH ${baseUrl}/api/vault/tasks/{taskId}
+{"actorId": "${agentId}", "patch": {"status": "review", "result": "What was done and where to look."}}
+\`\`\`
+
+**Never set status "done" directly.** "review" is the agent's final state — a human approves from there.
+
+### 5b. Blocked
+
+\`\`\`
+PATCH ${baseUrl}/api/vault/tasks/{taskId}
+{"actorId": "${agentId}", "patch": {"status": "blocked", "blocked_reason": "Need X before I can continue."}}
+\`\`\`
+
+### 5c. Request human approval
+
+\`\`\`
+POST ${baseUrl}/api/vault/tasks/{taskId}/request-approval
+{"actorId": "${agentId}", "reason": "About to do Y — need sign-off."}
+\`\`\`
+
+Stop and wait. Do not proceed until the approval response comes back.
+
+### Hard rules
+
+- Resume \`active\` before claiming new tasks.
+- Never set status "done" — use "review".
+- Heartbeat at least every 10 min or your lock expires.
+- Do not read vault Markdown files directly.
+- Claim pool tasks before starting work on them.
+`
+}
+
+async function cmdSetup(positional) {
+  const runtime = positional[0]
+  if (!runtime) fail(`Usage: npx relayhq setup <runtime>\n\nSupported: ${SUPPORTED_RUNTIMES.join(', ')}`)
+  if (!SUPPORTED_RUNTIMES.includes(runtime)) {
+    fail(`Unknown runtime: "${runtime}"\n\nSupported: ${SUPPORTED_RUNTIMES.join(', ')}`)
+  }
+
+  const target = RUNTIME_TARGETS[runtime]
+  const baseUrl = (process.env.RELAYHQ_BASE_URL ?? 'http://127.0.0.1:44210').replace(/\/+$/, '')
+  const agentId = process.env.RELAYHQ_AGENT_ID ?? runtime
+
+  // Try to get vault root from running server; fall back to env var
+  let vaultRoot = process.env.RELAYHQ_VAULT_ROOT ?? ''
+  try {
+    const { createRequire } = await import('node:module')
+    const res = await fetch(`${baseUrl}/api/settings`)
+    if (res.ok) {
+      const data = await res.json()
+      vaultRoot = data.resolvedRoot ?? data.vaultRoot ?? vaultRoot
+    }
+  } catch { /* server not running — use env var */ }
+
+  const content = MCP_RUNTIMES.has(runtime)
+    ? buildMcpSkill(runtime, agentId, baseUrl)
+    : buildHttpSkill(runtime, agentId, baseUrl)
+
+  const destPath = resolve(process.cwd(), target.path)
+  const marker = '## RelayHQ'
+
+  mkdirSync(dirname(destPath), { recursive: true })
+
+  let existing = ''
+  try { existing = readFileSync(destPath, 'utf8') } catch { /* new file */ }
+
+  if (existing.includes(marker)) {
+    console.log(`⚠  RelayHQ skill already present in ${target.path} — skipping.`)
+    console.log(`   To update, remove the "## RelayHQ" section and re-run.`)
+    return
+  }
+
+  const next = target.append && existing.trim().length > 0
+    ? `${existing.trimEnd()}\n\n${content}`
+    : content
+
+  writeFileSync(destPath, next, 'utf8')
+  console.log(`✓  Written: ${target.path}`)
+  if (vaultRoot) console.log(`   Vault:   ${vaultRoot}`)
+  console.log(`   Server:  ${baseUrl}`)
+  if (MCP_RUNTIMES.has(runtime)) {
+    console.log(`\nNext: add the MCP server entry to your settings, then restart ${runtime}.`)
+    console.log(`See: http://127.0.0.1:44211 → step 3 of onboarding for the JSON snippet.`)
+  }
+}
+
 function copyTemplate(targetDir) {
   if (existsSync(targetDir)) fail(`Directory already exists: ${targetDir}`)
   mkdirSync(targetDir, { recursive: true })
@@ -386,6 +564,7 @@ function main() {
   }
 
   if (command === 'init') return cmdInit(positional, flags)
+  if (command === 'setup') return cmdSetup(positional)
   if (command === 'start') return cmdStart(positional)
   if (command === 'stop') return cmdStop(positional)
   if (command === 'destroy') return cmdDestroy(positional)
@@ -394,8 +573,6 @@ function main() {
   fail(`Unknown command: "${command}"\nRun "npx relayhq --help" for usage.`)
 }
 
-try {
-  main()
-} catch (error) {
+Promise.resolve(main()).catch(error => {
   fail(error instanceof Error ? error.message : String(error))
-}
+})

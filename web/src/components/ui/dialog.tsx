@@ -9,7 +9,7 @@ export function DialogOverlay({ className, ...props }: ComponentPropsWithoutRef<
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
-        className={cn('fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm', className)}
+        className={cn('fixed inset-0 z-50 bg-black/80', className)}
         {...props}
       />
     </DialogPrimitive.Portal>
@@ -28,11 +28,11 @@ export function DialogContent({ className, ...props }: ComponentPropsWithoutRef<
 }
 
 export function DialogPanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('w-full rounded-sm border border-border bg-surface shadow-modal', className)} {...props} />
+  return <div className={cn('w-full rounded-none border border-accent bg-surface shadow-modal', className)} {...props} />
 }
 
 export function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex items-start justify-between gap-4 border-b border-border px-5 py-4', className)} {...props} />
+  return <div className={cn('flex items-start justify-between gap-4 border-b border-accent px-5 py-4', className)} {...props} />
 }
 
 export function DialogBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -40,7 +40,7 @@ export function DialogBody({ className, ...props }: HTMLAttributes<HTMLDivElemen
 }
 
 export function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex items-center justify-end gap-2 border-t border-border px-5 py-4', className)} {...props} />
+  return <div className={cn('flex items-center justify-end gap-2 border-t border-accent px-5 py-4', className)} {...props} />
 }
 
 export function DialogTitle({ className, ...props }: ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {

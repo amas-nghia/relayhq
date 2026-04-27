@@ -150,7 +150,15 @@ const statusLabels: Record<string, string> = {
   cancelled: 'cancelled',
 }
 
-export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode?: 'preview' | 'page' }) {
+export function DetailPanel({
+  taskId,
+  mode = 'preview',
+  onTaskSelect,
+}: {
+  taskId: string;
+  mode?: 'preview' | 'page';
+  onTaskSelect?: (taskId: string) => void;
+}) {
   const navigate = useNavigate()
   const task = useAppStore(state => state.tasks.find(t => t.id === taskId))
   const closeDetail = useAppStore(state => state.closeTaskDetail)
@@ -454,7 +462,14 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
                   <button
                     key={subtask.id}
                     type="button"
-                    onClick={() => navigate(`/tasks/${subtask.id}`)}
+                    onClick={() => {
+                      if (onTaskSelect) {
+                        onTaskSelect(subtask.id)
+                        return
+                      }
+
+                      navigate(`/tasks/${subtask.id}`)
+                    }}
                     className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-left"
                   >
                     <div>
@@ -698,7 +713,14 @@ export function DetailPanel({ taskId, mode = 'preview' }: { taskId: string; mode
           )) : <span className="text-xs text-text-tertiary">No tags</span>}
         </div>
         {mode === 'preview' ? (
-          <button type="button" onClick={() => navigate(`/tasks/${task.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
+          <button type="button" onClick={() => {
+            if (onTaskSelect) {
+              onTaskSelect(task.id)
+              return
+            }
+
+            navigate(`/tasks/${task.id}`)
+          }} className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
             Open full record <ExternalLink className="w-3.5 h-3.5" />
           </button>
         ) : (

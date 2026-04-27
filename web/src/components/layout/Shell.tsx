@@ -6,9 +6,8 @@ import { OnboardingWizard } from './OnboardingWizard';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
 import { useEffect } from 'react';
-import { LcdOverlay } from './LcdOverlay';
 import { toast } from 'sonner'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
+import { SidebarInset, SidebarProvider } from '../ui/sidebar';
 
 export function Shell() {
   const startRealtime = useAppStore(state => state.startRealtime);
@@ -30,20 +29,20 @@ export function Shell() {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen overflow-hidden bg-surface-secondary">
-        <LcdOverlay />
-        <Sidebar />
-        <SidebarInset>
-          <SidebarTrigger />
-          <AlertStrip />
-          <div className={clsx(
-            'flex min-h-0 flex-1',
-            isWorkspaceRoute ? 'px-3 py-4 md:px-4 md:py-4' : 'px-4 py-4 md:px-6 md:py-6',
-            isWorkspaceRoute ? 'overflow-hidden' : 'overflow-y-auto',
-          )}>
-            <Outlet />
-          </div>
-        </SidebarInset>
+      <div className="relative flex h-screen overflow-hidden bg-surface-secondary">
+        <div className="relative z-10 flex h-full w-full">
+          <Sidebar />
+          <SidebarInset>
+            <AlertStrip />
+            <div className={clsx(
+              'flex min-h-0 flex-1',
+              isWorkspaceRoute ? 'px-3 py-4 md:px-4 md:py-4' : 'px-4 py-4 md:px-6 md:py-6',
+              isWorkspaceRoute ? 'overflow-hidden' : 'overflow-y-auto',
+            )}>
+              <Outlet />
+            </div>
+          </SidebarInset>
+        </div>
 
         <OnboardingWizard />
         <NewTaskModal />

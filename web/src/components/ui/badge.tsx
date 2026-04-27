@@ -5,11 +5,11 @@ import { cn } from '../../lib/utils'
 type BadgeVariant = 'default' | 'secondary' | 'success' | 'warning' | 'danger'
 
 const badgeClasses: Record<BadgeVariant, string> = {
-  default: 'border-accent/15 bg-accent-light text-accent',
+  default: 'border-accent bg-accent text-surface',
   secondary: 'border-border bg-surface-secondary text-text-secondary',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  warning: 'border-amber-200 bg-amber-50 text-status-waiting',
-  danger: 'border-red-200 bg-red-50 text-status-blocked',
+  success: 'border-status-done bg-status-done text-surface',
+  warning: 'border-status-waiting bg-status-waiting text-surface',
+  danger: 'border-status-blocked bg-status-blocked text-surface',
 }
 
 export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
@@ -17,5 +17,5 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
 }
 
 export function Badge({ className, variant = 'secondary', ...props }: BadgeProps) {
-  return <span className={cn('inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide', badgeClasses[variant], className)} {...props} />
+  return <span className={cn('inline-flex items-center rounded-none border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide', badgeClasses[variant], className)} {...props} />
 }

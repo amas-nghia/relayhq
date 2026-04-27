@@ -60,10 +60,13 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
 
   next = upsertFrontmatterLine(next, "account_id", typeof patch.account_id === "string" && patch.account_id.trim().length > 0 ? patch.account_id.trim() : undefined)
   next = upsertFrontmatterLine(next, "api_key_ref", typeof patch.api_key_ref === "string" && patch.api_key_ref.trim().length > 0 ? patch.api_key_ref.trim() : undefined)
+  next = upsertFrontmatterLine(next, "portrait_asset", typeof patch.portrait_asset === "string" && patch.portrait_asset.trim().length > 0 ? patch.portrait_asset.trim() : undefined)
+  next = upsertFrontmatterLine(next, "sprite_asset", typeof patch.sprite_asset === "string" && patch.sprite_asset.trim().length > 0 ? patch.sprite_asset.trim() : undefined)
   next = upsertFrontmatterLine(next, "monthly_budget_usd", typeof patch.monthly_budget_usd === "number" ? patch.monthly_budget_usd : undefined)
   next = upsertFrontmatterLine(next, "aliases", patch.aliases !== undefined ? normalizeStringArray(patch.aliases, "aliases") : undefined)
   next = upsertFrontmatterLine(next, "run_command", typeof patch.run_command === "string" && patch.run_command.trim().length > 0 ? patch.run_command.trim() : undefined)
   next = upsertFrontmatterLine(next, "run_mode", typeof patch.run_mode === "string" && patch.run_mode.trim().length > 0 ? patch.run_mode.trim() : undefined)
+  next = upsertFrontmatterLine(next, "webhook_url", typeof patch.webhook_url === "string" && patch.webhook_url.trim().length > 0 ? patch.webhook_url.trim() : undefined)
 
   if (patch.fallback_models !== undefined) {
     const line = `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}`

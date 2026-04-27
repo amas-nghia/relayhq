@@ -408,20 +408,20 @@ export function NewTaskModal() {
                 </Button>
               </div>
               {contextFileList.length > 0 ? (
-                <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-surface-secondary p-2">
+                <div className="flex flex-wrap gap-2 rounded-none border border-border bg-surface-secondary p-2">
                   {contextFileList.map(file => (
                     <button
                       key={file}
                       type="button"
                       onClick={() => setContextFiles(joinList(contextFileList.filter(item => item !== file)))}
-                      className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+                      className="rounded-none border border-border bg-surface px-3 py-1 text-xs text-text-secondary transition-colors hover:bg-brand-muted hover:text-brand"
                     >
                       {file}
                     </button>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-text-tertiary">
+                <div className="rounded-none border border-dashed border-border px-4 py-6 text-sm text-text-tertiary">
                   No context files selected.
                 </div>
               )}
@@ -473,7 +473,7 @@ export function NewTaskModal() {
               <DialogBody>
                 <div className="flex flex-col gap-4">
                   <Input value={vaultFileSearch} onChange={event => setVaultFileSearch(event.target.value)} placeholder="Search vault files…" />
-                  <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-border bg-surface-secondary p-2">
+                  <div className="max-h-[50vh] overflow-y-auto rounded-none border border-border bg-surface-secondary p-2">
                     {isLoadingVaultFiles ? (
                       <div className="px-3 py-6 text-sm text-text-tertiary">Loading files…</div>
                     ) : filteredVaultFiles.length === 0 ? (
@@ -483,7 +483,7 @@ export function NewTaskModal() {
                         {filteredVaultFiles.map(file => {
                           const checked = pickerSelection.includes(file.path)
                           return (
-                            <label key={file.path} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-surface">
+                            <label key={file.path} className="flex cursor-pointer items-center gap-3 rounded-none px-3 py-2 text-sm hover:bg-brand-muted hover:text-brand">
                               <input
                                 type="checkbox"
                                 checked={checked}
@@ -495,7 +495,7 @@ export function NewTaskModal() {
                                 <span className="block truncate font-medium text-text-primary">{file.label}</span>
                                 <span className="block truncate text-xs text-text-tertiary">{file.path}</span>
                               </span>
-                              <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{file.kind}</span>
+                              <span className="shrink-0 rounded-none border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{file.kind}</span>
                             </label>
                           )
                         })}

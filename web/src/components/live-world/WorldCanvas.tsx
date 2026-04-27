@@ -14,6 +14,8 @@ export function WorldCanvas() {
 
     let app: PIXI.Application;
     let isDestroyed = false;
+    let tickerCleanup: (() => void) | null = null;
+    let removeWheelListener: (() => void) | null = null;
 
     const initPixi = async () => {
       app = new PIXI.Application();
@@ -33,6 +35,12 @@ export function WorldCanvas() {
 
       const container = new PIXI.Container();
       app.stage.addChild(container);
+
+      const agentTexture = await PIXI.Assets.load('/assets/characters/cyber-demon.png') as PIXI.Texture;
+      if (isDestroyed) {
+        app.destroy(true, { children: true });
+        return;
+      }
 
       // Pan & Zoom
       let dragging = false;
@@ -77,6 +85,9 @@ export function WorldCanvas() {
       };
 
       canvasRef.current?.addEventListener('wheel', handleWheel, { passive: false });
+      removeWheelListener = () => {
+        canvasRef.current?.removeEventListener('wheel', handleWheel);
+      };
 
       // Layout Grid (Floor)
       const grid = new PIXI.Graphics();
@@ -179,15 +190,22 @@ export function WorldCanvas() {
       const agentSprites = new Map();
       agents.forEach(agent => {
         const sprite = new PIXI.Container();
-        const avatar = new PIXI.Graphics();
-        avatar.circle(0, 0, 16);
         const isStale = agent.state === 'stale'
         const isWaiting = agent.state === 'waiting';
         const isActive = agent.state === 'active';
         const fillColor = isStale ? 0x64748b : isWaiting ? 0xf59e0b : 0x2563eb;
         const strokeColor = isStale ? 0x94a3b8 : isWaiting ? 0xfbbf24 : isActive ? 0x60a5fa : 0x64748b;
-        avatar.fill({ color: fillColor });
-        avatar.stroke({ width: 3, color: strokeColor });
+
+        const glow = new PIXI.Graphics();
+        glow.circle(0, 0, 22);
+        glow.fill({ color: fillColor, alpha: 0.18 });
+        glow.stroke({ width: 2, color: strokeColor, alpha: 0.55 });
+        sprite.addChild(glow);
+
+        const avatar = new PIXI.Sprite(agentTexture);
+        avatar.anchor.set(0.5);
+        avatar.width = 36;
+        avatar.height = 36;
         sprite.addChild(avatar);
 
         const initials = agent.name.slice(0, 2).toUpperCase();
@@ -249,7 +267,8 @@ export function WorldCanvas() {
       };
 
       // Ticker loop
-      app.ticker.add((ticker) => {
+      const tickerFn = (ticker: PIXI.Ticker) => {
+        if (isDestroyed) return;
         const tasks = useAppStore.getState().tasks;
         const dt = ticker.deltaTime;
 
@@ -328,14 +347,21 @@ export function WorldCanvas() {
             sprite.y += Math.sin(performance.now() * 0.02) * 2;
           }
         });
-      });
+      };
+      app.ticker.add(tickerFn);
+      tickerCleanup = () => {
+        app.ticker.remove(tickerFn);
+      };
 
       // Initial center
       container.position.set(0, 0);
       container.scale.set(0.9);
       
       return () => {
-        canvasRef.current?.removeEventListener('wheel', handleWheel);
+        tickerCleanup?.();
+        tickerCleanup = null;
+        removeWheelListener?.();
+        removeWheelListener = null;
       }
     };
 
@@ -345,6 +371,10 @@ export function WorldCanvas() {
     return () => {
       isDestroyed = true;
       if (cleanupFn) cleanupFn();
+      tickerCleanup?.();
+      tickerCleanup = null;
+      removeWheelListener?.();
+      removeWheelListener = null;
       if (appRef.current) {
         appRef.current.destroy(true, { children: true });
         appRef.current = null;

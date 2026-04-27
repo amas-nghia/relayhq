@@ -26,19 +26,8 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { ProjectSettingsDialog } from '../components/project/ProjectSettingsDialog'
-import type { Task, TaskStatus } from '../types'
+import { ProjectMark } from '../components/project/ProjectMark'
 import clsx from 'clsx'
-
-const STATUS_CONFIG: Record<TaskStatus, { label: string; icon: ReactNode; color: string }> = {
-  'todo':             { label: 'To do',       icon: <Circle className="w-4 h-4" />,            color: 'text-text-tertiary' },
-  'in-progress':      { label: 'In progress', icon: <Circle className="w-4 h-4 fill-current" />, color: 'text-status-active' },
-  'scheduled':        { label: 'Scheduled',   icon: <Clock className="w-4 h-4" />,              color: 'text-text-tertiary' },
-  'review':           { label: 'Review',      icon: <CheckCircle2 className="w-4 h-4" />,       color: 'text-status-active' },
-  'waiting-approval': { label: 'Waiting',     icon: <Clock className="w-4 h-4" />,              color: 'text-status-waiting' },
-  'blocked':          { label: 'Blocked',     icon: <AlertTriangle className="w-4 h-4" />,       color: 'text-status-blocked' },
-  'done':             { label: 'Done',        icon: <CheckCircle2 className="w-4 h-4" />,        color: 'text-status-done' },
-  'cancelled':        { label: 'Cancelled',   icon: <Ban className="w-4 h-4" />,                 color: 'text-text-tertiary' },
-}
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'border-red-500/20 bg-red-500/10 text-red-600',
@@ -60,13 +49,13 @@ function getAttachmentIcon(type: string): LucideIcon {
   return Paperclip
 }
 
-function ProjectMeta({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+function ProjectMeta({ label, value, icon: Icon, valueClassName }: { label: string; value: string; icon: LucideIcon; valueClassName?: string }) {
   return (
     <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-secondary px-3 py-2">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
       <div className="min-w-0">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{label}</div>
-        <div className="truncate text-sm font-medium text-text-primary">{value}</div>
+        <div className={clsx('text-sm font-medium text-text-primary', valueClassName ?? 'truncate')}>{value}</div>
       </div>
     </div>
   )
@@ -81,28 +70,6 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
   )
 }
 
-function TaskRow({ task }: { task: Task; key?: string }) {
-  const navigate = useNavigate()
-  const cfg = STATUS_CONFIG[task.status]
-
-  return (
-    <button
-      type="button"
-      onClick={() => navigate(`/tasks/${task.id}`)}
-      className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-secondary"
-    >
-      <span className={clsx('shrink-0', cfg.color)}>{cfg.icon}</span>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{task.title}</span>
-      <Badge className={clsx('shrink-0 text-xs capitalize', PRIORITY_COLOR[task.priority])}>
-        {task.priority}
-      </Badge>
-      {task.assigneeId && (
-        <span className="shrink-0 text-xs text-text-tertiary">{task.assigneeId}</span>
-      )}
-    </button>
-  )
-}
-
 export function ProjectView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -113,8 +80,6 @@ export function ProjectView() {
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false)
 
   const project = projects.find(p => p.id === id)
-  const projectTasks = tasks.filter(t => t.projectId === id)
-
   if (!project) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
@@ -123,13 +88,6 @@ export function ProjectView() {
     )
   }
 
-  const statuses: TaskStatus[] = ['review', 'waiting-approval', 'scheduled', 'in-progress', 'blocked', 'todo', 'done', 'cancelled']
-  const countByStatus = Object.fromEntries(
-    statuses.map(s => [s, projectTasks.filter(t => t.status === s).length])
-  ) as Record<TaskStatus, number>
-
-  const activeTasks = projectTasks.filter(t => t.status !== 'done' && t.status !== 'cancelled')
-  const doneTasks = projectTasks.filter(t => t.status === 'done')
   const links = project.links ?? []
   const attachments = project.attachments ?? []
   const docs = project.docs ?? []
@@ -143,9 +101,7 @@ export function ProjectView() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand text-sm font-bold text-surface">
-              {project.name.slice(0, 2).toUpperCase()}
-            </div>
+            <ProjectMark className="h-10 w-10 shrink-0" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-bold text-text-primary">{project.name}</h1>
@@ -155,16 +111,16 @@ export function ProjectView() {
                   </Badge>
                 )}
               </div>
-              {project.codebaseRoot && <p className="truncate text-xs text-text-tertiary">{project.codebaseRoot}</p>}
             </div>
           </div>
         </div>
         {project.boardId && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="shrink-0" onClick={() => setIsProjectSettingsOpen(true)}>
+          <div className="shrink-0 flex items-center gap-2 rounded-none border border-accent bg-surface-secondary p-1">
+            <Button type="button" variant={isProjectSettingsOpen ? 'secondary' : 'ghost'} className="gap-2" onClick={() => setIsProjectSettingsOpen(true)}>
               <Settings className="h-4 w-4" />
+              Settings
             </Button>
-            <Button variant="outline" className="shrink-0 gap-2" onClick={() => navigate(`/boards/${project.boardId}`)}>
+            <Button type="button" variant="ghost" className="gap-2" onClick={() => navigate(`/boards/${project.boardId}`)}>
               <KanbanSquare className="h-4 w-4" />
               Open board
             </Button>
@@ -182,27 +138,13 @@ export function ProjectView() {
           )}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {hasText(project.codebaseRoot) && <ProjectMeta label="Codebase" value={project.codebaseRoot} icon={File} />}
+            {hasText(project.codebaseRoot) && <ProjectMeta label="Codebase" value={project.codebaseRoot} icon={File} valueClassName="break-all" />}
             {hasText(project.budget) && <ProjectMeta label="Budget" value={project.budget} icon={CircleDollarSign} />}
             {hasText(project.deadline) && <ProjectMeta label="Deadline" value={project.deadline} icon={CalendarDays} />}
             {hasText(project.status) && <ProjectMeta label="Status" value={project.status.replace(/-/g, ' ')} icon={Clock} />}
           </div>
         </Card>
       )}
-
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-        {statuses.map(s => {
-          const cfg = STATUS_CONFIG[s]
-          const count = countByStatus[s]
-          return (
-            <Card key={s} className="flex flex-col items-center gap-1 p-3 text-center">
-              <span className={clsx('mb-1', cfg.color)}>{cfg.icon}</span>
-              <span className="text-xl font-bold text-text-primary">{count}</span>
-              <span className="text-xs text-text-tertiary">{cfg.label}</span>
-            </Card>
-          )
-        })}
-      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title={`External links${links.length > 0 ? ` — ${links.length}` : ''}`}>
@@ -284,26 +226,6 @@ export function ProjectView() {
           )}
         </SectionCard>
       </div>
-
-      {activeTasks.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">Active — {activeTasks.length}</h2>
-          {activeTasks.map(t => <TaskRow key={t.id} task={t} />)}
-        </div>
-      )}
-
-      {doneTasks.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">Done — {doneTasks.length}</h2>
-          {doneTasks.map(t => <TaskRow key={t.id} task={t} />)}
-        </div>
-      )}
-
-      {projectTasks.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-text-tertiary">
-          No tasks yet.
-        </div>
-      )}
 
       <ProjectSettingsDialog
         open={isProjectSettingsOpen}

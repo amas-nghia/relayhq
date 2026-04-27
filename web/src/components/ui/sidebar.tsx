@@ -1,11 +1,9 @@
 import type { HTMLAttributes, PropsWithChildren } from 'react'
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { Menu } from 'lucide-react'
 
 import { cn } from '../../lib/utils'
 import { Button } from './button'
-
-const SIDEBAR_STATE_KEY = 'relayhq-sidebar-collapsed'
 
 type SidebarContextValue = {
   open: boolean
@@ -19,17 +17,8 @@ type SidebarContextValue = {
 const SidebarContext = createContext<SidebarContextValue | null>(null)
 
 export function SidebarProvider({ children, defaultOpen = true }: PropsWithChildren<{ defaultOpen?: boolean }>) {
-  const [open, setOpen] = useState(() => {
-    if (typeof window === 'undefined') return defaultOpen
-    const stored = window.localStorage.getItem(SIDEBAR_STATE_KEY)
-    return stored === null ? defaultOpen : stored !== 'true'
-  })
+  const [open, setOpen] = useState(defaultOpen)
   const [mobileOpen, setMobileOpen] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(SIDEBAR_STATE_KEY, String(!open))
-  }, [open])
 
   const value = useMemo<SidebarContextValue>(() => ({
     open,
@@ -136,5 +125,5 @@ export function SidebarMenuItem({ className, ...props }: HTMLAttributes<HTMLLIEl
 }
 
 export function SidebarMenuButton({ className, ...props }: HTMLAttributes<HTMLButtonElement>) {
-  return <button className={cn('flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-surface-secondary', className)} {...props} />
+  return <button className={cn('flex w-full items-center gap-2 rounded-none px-3 py-2 text-sm transition-colors hover:bg-brand-muted hover:text-brand', className)} {...props} />
 }

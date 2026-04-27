@@ -143,12 +143,15 @@ export interface AgentFrontmatter {
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly api_key_ref?: string | null;
+  readonly portrait_asset?: string;
+  readonly sprite_asset?: string;
   readonly model: string;
   readonly fallback_models?: ReadonlyArray<string>;
   readonly monthly_budget_usd?: number | null;
   readonly aliases?: ReadonlyArray<string>;
   readonly run_command?: string;
   readonly run_mode?: AgentRunMode;
+  readonly webhook_url?: string;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
   readonly approval_required_for: ReadonlyArray<string>;
@@ -659,6 +662,12 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
       pushIssue(issues, "api_key_ref", "must reference a secret by env:, secret:, or vault:");
     }
   }
+  if (hasKey(input, "portrait_asset")) {
+    requireStringField(input, "portrait_asset", issues);
+  }
+  if (hasKey(input, "sprite_asset")) {
+    requireStringField(input, "sprite_asset", issues);
+  }
   const model = requireStringField(input, "model", issues);
   if (model !== undefined && !isAllowedModel(model)) {
     pushIssue(issues, "model", `"${model}" is not an allowed model. Allowed: ${ALLOWED_MODELS.join(", ")}`);
@@ -683,6 +692,9 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   }
   if (hasKey(input, "run_mode")) {
     requireEnumField(input, "run_mode", AGENT_RUN_MODES, issues);
+  }
+  if (hasKey(input, "webhook_url")) {
+    requireStringField(input, "webhook_url", issues);
   }
   requireStringArrayField(input, "capabilities", issues);
   requireStringArrayField(input, "task_types_accepted", issues);

@@ -13,13 +13,20 @@ export interface Agent {
   roles?: ReadonlyArray<string>
   provider?: string
   apiKeyRef?: string | null
+  model?: string | null
+  portraitAsset?: string | null
+  spriteAsset?: string | null
   monthlyBudgetUsd?: number | null
   aliases?: ReadonlyArray<string>
   runCommand?: string | null
   runMode?: string | null
+  webhookUrl?: string | null
   capabilities?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string
+  skillFiles?: ReadonlyArray<string>
+  body?: string
+  sourcePath?: string
 }
 
 export interface Project {

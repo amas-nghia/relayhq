@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './components/layout/Shell';
 import { Toaster } from './components/ui/toaster';
 
+const DesktopView = lazy(async () => ({ default: (await import('./pages/DesktopView')).DesktopView }));
 const WorkspaceView = lazy(async () => ({ default: (await import('./pages/WorkspaceView')).default }));
 const ApprovalsView = lazy(async () => ({ default: (await import('./pages/ApprovalsView')).ApprovalsView }));
 const AgentsView = lazy(async () => ({ default: (await import('./pages/AgentsView')).AgentsView }));
@@ -13,7 +14,7 @@ const AuditView = lazy(async () => ({ default: (await import('./pages/AuditView'
 
 function RouteFallback() {
   return (
-    <div className="flex h-full min-h-[320px] items-center justify-center rounded-xl border border-border bg-surface px-6 py-10 text-sm text-text-secondary">
+    <div className="flex h-full min-h-[320px] items-center justify-center rounded-none border border-accent bg-surface-secondary px-6 py-10 text-sm text-text-secondary">
       Loading view…
     </div>
   )
@@ -24,6 +25,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster />
       <Routes>
+        <Route path="/desktop" element={<Suspense fallback={<RouteFallback />}><DesktopView /></Suspense>} />
         <Route element={<Shell />}>
           <Route path="/boards/:id" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
           <Route path="/projects/:id" element={<Suspense fallback={<RouteFallback />}><ProjectView /></Suspense>} />

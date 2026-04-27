@@ -67,7 +67,7 @@ function getPriorityBadgeClass(priority: TaskPriority) {
   }
 }
 
-export function TasksView() {
+export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) => void } = {}) {
   const tasks = useAppStore(state => state.tasks);
   const agents = useAppStore(state => state.agents);
   const projects = useAppStore(state => state.projects);
@@ -383,7 +383,14 @@ export function TasksView() {
               return (
                 <tr 
                   key={task.id} 
-                  onClick={() => navigate(`/tasks/${task.id}`)}
+                  onClick={() => {
+                    if (onTaskSelect) {
+                      onTaskSelect(task.id)
+                      return
+                    }
+
+                    navigate(`/tasks/${task.id}`)
+                  }}
                   className="hover:bg-surface-secondary/50 transition-colors cursor-pointer group"
                 >
                   <td className="px-4 py-3">

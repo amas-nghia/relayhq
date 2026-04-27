@@ -24,7 +24,7 @@ function resolveDeferredTime(input: string): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-export function TaskCard({ task }: { task: Task; key?: string | number }) {
+export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | number; onTaskSelect?: (taskId: string) => void }) {
   const navigate = useNavigate()
   const agent = useAppStore(state => state.agents.find(a => a.id === task.assigneeId));
   const fetchReadModel = useAppStore(state => state.fetchReadModel);
@@ -97,7 +97,14 @@ export function TaskCard({ task }: { task: Task; key?: string | number }) {
       onDragEnd={(event) => {
         event.dataTransfer.clearData()
       }}
-      onClick={() => navigate(`/tasks/${task.id}`)}
+      onClick={() => {
+        if (onTaskSelect) {
+          onTaskSelect(task.id)
+          return
+        }
+
+        navigate(`/tasks/${task.id}`)
+      }}
       className={clsx(
         'group relative flex min-h-[72px] flex-col justify-between p-3 cursor-pointer transition-all duration-150 ease-out hover:-translate-y-[2px] hover:shadow-hover hover:border-brand/30 active:cursor-grabbing gallery-item board-card',
         leftBorderClass,

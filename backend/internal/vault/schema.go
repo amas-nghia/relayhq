@@ -196,12 +196,15 @@ type AgentFrontmatter struct {
 	Role                string
 	Provider            string
 	APIKeyRef           *string
+	PortraitAsset       *string
+	SpriteAsset         *string
 	Model               string
 	FallbackModels      []string
 	MonthlyBudgetUSD    *float64
 	Aliases             []string
 	RunCommand          *string
 	RunMode             *AgentRunMode
+	WebhookURL          *string
 	Capabilities        []string
 	TaskTypesAccepted   []string
 	ApprovalRequiredFor []string
@@ -481,6 +484,12 @@ func ValidateAgentFrontmatter(agent AgentFrontmatter) error {
 			errs = appendError(errs, "api_key_ref", "must reference env:, secret:, or vault:")
 		}
 	}
+	if agent.PortraitAsset != nil && strings.TrimSpace(*agent.PortraitAsset) == "" {
+		errs = appendError(errs, "portrait_asset", "must not be empty when set")
+	}
+	if agent.SpriteAsset != nil && strings.TrimSpace(*agent.SpriteAsset) == "" {
+		errs = appendError(errs, "sprite_asset", "must not be empty when set")
+	}
 	if agent.Role == "" {
 		errs = appendError(errs, "role", "required")
 	}
@@ -495,6 +504,9 @@ func ValidateAgentFrontmatter(agent AgentFrontmatter) error {
 	}
 	if agent.RunMode != nil && !agent.RunMode.Valid() {
 		errs = appendError(errs, "run_mode", "invalid")
+	}
+	if agent.WebhookURL != nil && strings.TrimSpace(*agent.WebhookURL) == "" {
+		errs = appendError(errs, "webhook_url", "must not be empty when set")
 	}
 	if agent.SkillFile == "" {
 		errs = appendError(errs, "skill_file", "required")

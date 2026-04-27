@@ -12,11 +12,11 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'bg-accent text-white hover:bg-accent/90',
-  outline: 'border border-border bg-surface text-text-secondary hover:bg-surface-secondary hover:text-text-primary',
-  ghost: 'bg-transparent text-text-secondary hover:bg-surface-secondary hover:text-text-primary',
-  secondary: 'bg-surface-secondary text-text-primary hover:bg-surface',
-  danger: 'bg-status-blocked text-white hover:bg-red-700',
+  default: 'border border-accent bg-accent text-surface hover:bg-brand-light',
+  outline: 'border border-accent bg-transparent text-accent hover:border-brand-bright hover:text-brand-bright hover:bg-transparent hover:shadow-[0_0_12px_rgba(255,215,0,0.4)]',
+  ghost: 'bg-transparent text-text-secondary hover:bg-transparent hover:text-brand-bright hover:shadow-[0_0_12px_rgba(255,215,0,0.4)]',
+  secondary: 'border border-accent bg-transparent text-accent hover:border-brand-bright hover:text-brand-bright hover:bg-brand-muted',
+  danger: 'border border-status-blocked bg-status-blocked text-surface hover:bg-red-600',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -30,7 +30,7 @@ export function Button({ className, variant = 'default', size = 'default', type 
     <button
       type={type}
       className={cn(
-        'lcd-button inline-flex items-center justify-center gap-2 rounded-sm font-medium uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'lcd-button inline-flex items-center justify-center gap-2 rounded-none font-medium uppercase tracking-[0.14em] transition-all disabled:cursor-not-allowed disabled:opacity-60',
         variantClasses[variant],
         sizeClasses[size],
         className,

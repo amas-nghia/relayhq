@@ -1,4 +1,4 @@
-import { Bot, CheckSquare, Hexagon, Hourglass, KanbanSquare, Menu } from 'lucide-react';
+import { Bot, CheckSquare, Hourglass, KanbanSquare, Menu, Monitor } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -23,7 +23,7 @@ export function TopBar() {
   }, [location.pathname]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur-md md:hidden">
+    <header className="sticky top-0 z-30 border-b border-accent bg-surface-secondary/95 md:hidden">
       <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <Button
@@ -37,36 +37,44 @@ export function TopBar() {
             <Menu className="w-4 h-4" />
           </Button>
 
-          <button className="flex min-w-0 items-center gap-2 text-left" onClick={() => navigate('/boards/main')}>
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-light text-accent ring-1 ring-accent/15">
-              <Hexagon className="w-5 h-5 fill-current" />
-            </span>
+          <button className="flex min-w-0 items-center gap-2 text-left" onClick={() => navigate('/')}>
+            <img src="/favicon.svg" className="h-9 w-9 shrink-0" alt="RelayHQ" />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-text-primary sm:text-base">RelayHQ</span>
-              <span className="hidden text-xs text-text-tertiary sm:block">Vault-first control plane</span>
+              <span className="hidden text-xs text-text-secondary sm:block">Vault-first control plane</span>
             </span>
           </button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-[9px] tracking-[0.18em]"
+            onClick={() => navigate('/desktop')}
+          >
+            <Monitor className="h-4 w-4" />
+            DESKTOP
+          </Button>
         </div>
 
       </div>
 
-      <div className="border-t border-border/70 px-3 py-2 sm:hidden">
+      <div className="border-t border-accent/70 px-3 py-2 sm:hidden">
         <nav className={clsx('grid gap-2', isMobileNavOpen ? 'grid-cols-2' : 'hidden')}>
           {navItems.map(item => (
             <NavLink
               key={item.name}
               to={item.path}
               className={({ isActive }) => clsx(
-                'flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-2 rounded-none border px-3 py-2 text-sm font-medium uppercase tracking-[0.08em] transition-colors',
                 isActive
-                  ? 'border-accent bg-accent-light text-accent'
-                  : 'border-border bg-surface text-text-secondary hover:bg-surface-secondary hover:text-text-primary'
+                  ? 'border-accent bg-brand-muted text-accent'
+                  : 'border-border bg-surface-secondary text-text-secondary hover:bg-brand-muted hover:text-accent'
               )}
             >
               <item.icon className="w-4 h-4 shrink-0" />
               <span className="truncate">{item.name}</span>
               {!!item.badge && (
-                <span className="ml-auto rounded-full bg-status-blocked px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className="ml-auto rounded-none bg-status-blocked px-1.5 py-0.5 text-[10px] font-bold text-surface">
                   {item.badge}
                 </span>
               )}

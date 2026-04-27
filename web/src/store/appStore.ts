@@ -263,13 +263,19 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       roles: [...agent.roles],
       provider: agent.provider,
       apiKeyRef: agent.apiKeyRef,
+      portraitAsset: agent.portraitAsset,
+      spriteAsset: agent.spriteAsset,
       monthlyBudgetUsd: agent.monthlyBudgetUsd,
       aliases: [...agent.aliases],
       runCommand: agent.runCommand,
       runMode: agent.runMode,
+      webhookUrl: agent.webhookUrl,
       capabilities: [...agent.capabilities],
       approvalRequiredFor: [...agent.approvalRequiredFor],
       skillFile: agent.skillFile,
+      skillFiles: [...(agent.skillFiles ?? [])],
+      body: agent.body,
+      sourcePath: agent.sourcePath,
     }
   })
 }

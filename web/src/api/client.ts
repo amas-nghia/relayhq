@@ -8,6 +8,8 @@ import type {
   VaultReadModel,
 } from './contract'
 
+export type { AgentStateResponse } from './contract'
+
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:44210'
 
 export class RelayHQApiError extends Error {
@@ -87,6 +89,7 @@ export interface RelayHQSettingsResponse {
   readonly activeWorkspaceId: string | null
   readonly activeWorkspaceName: string | null
   readonly availableWorkspaces: ReadonlyArray<RelayHQWorkspaceOption>
+  readonly platform?: string
 }
 
 export interface RelayHQVaultInitPayload {
@@ -127,6 +130,18 @@ export interface RelayHQProjectCreateResponse {
   readonly project: { id: string; name: string; codebaseRoot: string | null }
   readonly board: { id: string; name: string }
   readonly columns: ReadonlyArray<{ id: string; name: string }>
+}
+
+export interface RelayHQApiKeyEntry {
+  readonly envVar: string
+  readonly provider: string
+  readonly label: string
+  readonly isSet: boolean
+  readonly preview: string | null
+}
+
+export interface RelayHQApiKeysResponse {
+  readonly keys: ReadonlyArray<RelayHQApiKeyEntry>
 }
 
 export interface RelayHQBrowseDirectoryEntry {
@@ -272,12 +287,36 @@ export interface RegisterAgentsPayload {
   readonly toolIds: ReadonlyArray<string>
 }
 
+export interface AgentCreatePayload {
+  readonly name: string
+  readonly role: string
+  readonly provider: string
+  readonly model: string
+  readonly accountId?: string | null
+  readonly apiKeyRef?: string | null
+  readonly portraitAsset?: string | null
+  readonly spriteAsset?: string | null
+  readonly monthlyBudgetUsd?: number | null
+  readonly aliases?: ReadonlyArray<string>
+  readonly runCommand?: string | null
+  readonly runMode?: string | null
+  readonly webhookUrl?: string | null
+  readonly capabilities?: ReadonlyArray<string>
+  readonly approvalRequiredFor?: ReadonlyArray<string>
+}
+
 export interface AgentPatchPayload {
   readonly patch: {
     readonly name?: string
     readonly account_id?: string
     readonly api_key_ref?: string
+    readonly portrait_asset?: string
+    readonly sprite_asset?: string
     readonly monthly_budget_usd?: number
+    readonly run_command?: string
+    readonly run_mode?: string
+    readonly webhook_url?: string
+    readonly aliases?: ReadonlyArray<string>
     readonly capabilities?: ReadonlyArray<string>
     readonly approval_required_for?: ReadonlyArray<string>
   }
@@ -377,11 +416,17 @@ export const relayhqApi = {
   getAnalyticsVelocity: () => request<AnalyticsVelocityResponse>('/api/analytics/velocity'),
   getAnalyticsAgents: () => request<AnalyticsAgentsResponse>('/api/analytics/agents'),
   getSettings: () => request<RelayHQSettingsResponse>('/api/settings'),
+  getAgentInstall: (runtime: string) => request<{ runtime: string; filename: string; content: string }>(`/api/agent/install?runtime=${encodeURIComponent(runtime)}`),
+  getMcpSnippet: (tool: string) => request<{ snippet: string; configFilePath: string; instruction: string }>(`/api/settings/snippets?tool=${encodeURIComponent(tool)}`),
   initVault: (payload: RelayHQVaultInitPayload) => request<RelayHQVaultInitResponse>('/api/vault/init', {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
   saveSettings: (payload: RelayHQSettingsSavePayload) => request<{ success: true; vaultRoot: string; workspaceId: string | null }>('/api/settings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  createAgent: (payload: AgentCreatePayload) => request<{ agent: { id: string; type: string; name: string }; sourcePath: string }>('/api/vault/agents', {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
@@ -397,6 +442,7 @@ export const relayhqApi = {
     method: 'DELETE',
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  getApiKeys: () => request<RelayHQApiKeysResponse>('/api/settings/api-keys'),
   listVaultFiles: () => request<ReadonlyArray<RelayHQVaultFileEntry>>('/api/settings/vault-files'),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
   getWebhookSettings: () => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks'),
@@ -415,6 +461,9 @@ export const relayhqApi = {
   patchAgent: (agentId: string, payload: AgentPatchPayload) => request<{ success: boolean; agentId: string }>(`/api/vault/agents/${encodeURIComponent(agentId)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  }),
+  deleteAgent: (agentId: string) => request<{ success: boolean; agentId: string }>(`/api/vault/agents/${encodeURIComponent(agentId)}`, {
+    method: 'DELETE',
   }),
   runAgent: (agentId: string, payload: AgentRunPayload) => request<{ agentId: string; taskId: string; runnerId: string; command: string }>(`/api/agent/${encodeURIComponent(agentId)}/run`, {
     method: 'POST',
@@ -454,7 +503,15 @@ export const relayhqApi = {
   getTaskComments: (taskId: string) => request<{ data: TaskThreadRecord; error: string | null }>(`/api/vault/tasks/${encodeURIComponent(taskId)}/comments`),
   addTaskComment: (taskId: string, payload: { author: string; body: string }) => request<{ data: TaskThreadRecord; error: string | null }>(`/api/vault/tasks/${encodeURIComponent(taskId)}/comments`, { method: 'POST', body: JSON.stringify(payload) }),
 
-  writeShellProfile: (target: 'zshrc' | 'bashrc') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
+  startOAuth: (provider: 'openrouter' | 'openai') => request<{ authUrl: string; state: string }>(`/api/auth/${provider}/start`),
+  pollOAuth: (provider: 'openrouter' | 'openai', state: string) => request<{ status: 'pending' | 'complete' | 'error' | 'expired'; apiKey?: string; error?: string }>(`/api/auth/${provider}/result?state=${encodeURIComponent(state)}`),
+
+  verifyApiKey: (provider: string, apiKey: string) => request<{ valid: boolean; error?: string; models?: string[] }>('/api/settings/verify-key', {
+    method: 'POST',
+    body: JSON.stringify({ provider, apiKey }),
+  }),
+
+  writeShellProfile: (target: 'zshrc' | 'bashrc' | 'powershell') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
     method: 'POST',
     body: JSON.stringify({ target }),
   }),

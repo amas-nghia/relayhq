@@ -3,7 +3,7 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('lcd-card gallery-item rounded-sm border border-border bg-surface shadow-card', className)} {...props} />
+  return <div className={cn('lcd-card gallery-item rounded-none border border-border bg-surface shadow-card', className)} {...props} />
 }
 
 export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

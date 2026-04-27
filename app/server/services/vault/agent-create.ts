@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { buildAgentSkillFile } from "../agents/protocol-pack";
+
 import { assertAgentFrontmatter, isAllowedModel, isExpensiveModel, type AgentFrontmatter } from "../../../shared/vault/schema";
 import { containsSecretMaterial } from "../security/secrets";
 import { publishRealtimeUpdate } from "../realtime/bus";
@@ -21,6 +23,7 @@ export interface CreateAgentInput {
   readonly aliases?: ReadonlyArray<string>;
   readonly runCommand?: string | null;
   readonly runMode?: string | null;
+  readonly webhookUrl?: string | null;
   readonly capabilities?: ReadonlyArray<string>;
   readonly taskTypesAccepted?: ReadonlyArray<string>;
   readonly approvalRequiredFor?: ReadonlyArray<string>;
@@ -104,11 +107,14 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     `role: ${serializeValue(frontmatter.role)}`,
     `provider: ${serializeValue(frontmatter.provider)}`,
     ...(frontmatter.api_key_ref === undefined ? [] : [`api_key_ref: ${serializeValue(frontmatter.api_key_ref)}`]),
+    ...(frontmatter.portrait_asset === undefined ? [] : [`portrait_asset: ${serializeValue(frontmatter.portrait_asset)}`]),
+    ...(frontmatter.sprite_asset === undefined ? [] : [`sprite_asset: ${serializeValue(frontmatter.sprite_asset)}`]),
     `model: ${serializeValue(frontmatter.model)}`,
     ...(frontmatter.monthly_budget_usd === undefined ? [] : [`monthly_budget_usd: ${serializeValue(frontmatter.monthly_budget_usd)}`]),
     ...(frontmatter.aliases === undefined ? [] : [`aliases: ${serializeValue(frontmatter.aliases)}`]),
     ...(frontmatter.run_command === undefined ? [] : [`run_command: ${serializeValue(frontmatter.run_command)}`]),
     ...(frontmatter.run_mode === undefined ? [] : [`run_mode: ${serializeValue(frontmatter.run_mode)}`]),
+    ...(frontmatter.webhook_url === undefined ? [] : [`webhook_url: ${serializeValue(frontmatter.webhook_url)}`]),
     `capabilities: ${serializeValue(frontmatter.capabilities)}`,
     `task_types_accepted: ${serializeValue(frontmatter.task_types_accepted)}`,
     `approval_required_for: ${serializeValue(frontmatter.approval_required_for)}`,
@@ -155,11 +161,14 @@ function buildAgentFrontmatter(input: {
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly apiKeyRef: string | null;
+  readonly portraitAsset?: string | null;
+  readonly spriteAsset?: string | null;
   readonly model: string;
   readonly monthlyBudgetUsd: number | null;
   readonly aliases: ReadonlyArray<string>;
   readonly runCommand: string | null;
   readonly runMode: string | null;
+  readonly webhookUrl: string | null;
   readonly workspaceId: string;
   readonly now: Date;
   readonly capabilities: ReadonlyArray<string>;
@@ -181,11 +190,14 @@ function buildAgentFrontmatter(input: {
     roles: input.roles,
     provider: input.provider,
     ...(input.apiKeyRef === null ? {} : { api_key_ref: input.apiKeyRef }),
+    ...(input.portraitAsset === null || input.portraitAsset === undefined ? {} : { portrait_asset: input.portraitAsset }),
+    ...(input.spriteAsset === null || input.spriteAsset === undefined ? {} : { sprite_asset: input.spriteAsset }),
     model: input.model,
     ...(input.monthlyBudgetUsd === null ? {} : { monthly_budget_usd: input.monthlyBudgetUsd }),
     ...(input.aliases === undefined || input.aliases.length === 0 ? {} : { aliases: [...new Set(input.aliases.map((entry) => entry.trim()).filter((entry) => entry.length > 0))] }),
     ...(input.runCommand === null || input.runCommand === undefined ? {} : { run_command: input.runCommand }),
     ...(input.runMode === null || input.runMode === undefined ? {} : { run_mode: input.runMode as AgentFrontmatter["run_mode"] }),
+    ...(input.webhookUrl === null || input.webhookUrl === undefined ? {} : { webhook_url: input.webhookUrl }),
     capabilities: input.capabilities,
     task_types_accepted: input.taskTypesAccepted,
     approval_required_for: input.approvalRequiredFor,
@@ -233,11 +245,14 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     roles,
     provider,
     apiKeyRef: input.apiKeyRef ?? null,
+    portraitAsset: input.portraitAsset ?? null,
+    spriteAsset: input.spriteAsset ?? null,
     model,
     monthlyBudgetUsd: input.monthlyBudgetUsd ?? null,
     aliases: input.aliases ?? [],
     runCommand: input.runCommand ?? null,
     runMode: input.runMode ?? null,
+    webhookUrl: input.webhookUrl ?? null,
     workspaceId,
     now,
     capabilities,
@@ -264,6 +279,16 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
 
     throw error;
   }
+
+  // Write the agent's skill file with RelayHQ protocol instructions.
+  // This ensures every agent starts with a full understanding of how to
+  // claim tasks, send heartbeats, report progress, and move work to review.
+  const skillFilePath = join(vaultRoot, skillFile);
+  const baseUrl = (env?.RELAYHQ_BASE_URL ?? "http://127.0.0.1:44210").replace(/\/+$/, "");
+  const skillContent = buildAgentSkillFile({ agentId: id, baseUrl });
+  await mkdir(join(vaultRoot, "shared", "skills"), { recursive: true }).catch(() => undefined);
+  // Use flag "w" (not "wx") — auto-registered agents may be re-created; overwrite is safe.
+  await writeFile(skillFilePath, skillContent, { encoding: "utf8" }).catch(() => undefined);
 
   publishRealtimeUpdate({
     kind: "vault.changed",

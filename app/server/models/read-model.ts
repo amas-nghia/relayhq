@@ -40,12 +40,15 @@ export interface ReadModelAgent {
   readonly roles: ReadonlyArray<string>;
   readonly provider: string;
   readonly apiKeyRef: string | null;
+  readonly portraitAsset: string | null;
+  readonly spriteAsset: string | null;
   readonly model: string;
   readonly fallbackModels: ReadonlyArray<string>;
   readonly monthlyBudgetUsd: number | null;
   readonly aliases: ReadonlyArray<string>;
   readonly runCommand: string | null;
   readonly runMode: string | null;
+  readonly webhookUrl: string | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly taskTypesAccepted: ReadonlyArray<string>;
   readonly approvalRequiredFor: ReadonlyArray<string>;
@@ -576,12 +579,15 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     roles: [...document.frontmatter.roles].sort(),
     provider: document.frontmatter.provider,
     apiKeyRef: document.frontmatter.api_key_ref ?? null,
+    portraitAsset: document.frontmatter.portrait_asset ?? null,
+    spriteAsset: document.frontmatter.sprite_asset ?? null,
     model: document.frontmatter.model,
     fallbackModels: [...(document.frontmatter.fallback_models ?? [])].sort(),
     monthlyBudgetUsd: document.frontmatter.monthly_budget_usd ?? null,
     aliases: [...(document.frontmatter.aliases ?? [])].sort(),
     runCommand: document.frontmatter.run_command ?? null,
     runMode: document.frontmatter.run_mode ?? null,
+    webhookUrl: document.frontmatter.webhook_url ?? null,
     capabilities: sortStrings(document.frontmatter.capabilities),
     taskTypesAccepted: sortStrings(document.frontmatter.task_types_accepted),
     approvalRequiredFor: sortStrings(document.frontmatter.approval_required_for),
