@@ -1,32 +1,7 @@
 @import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
 
-:root,
-[data-theme='light'],
-.theme-light {
-  color-scheme: dark;
-  --brand: #f59e0b;
-  --brand-bright: #ffd900;
-  --brand-light: rgba(245, 158, 11, 0.16);
-  --brand-dark: #d97706;
-  --brand-muted: rgba(245, 158, 11, 0.1);
-  --surface: #221409;
-  --surface-secondary: #1a0f05;
-  --surface-sidebar: #120b05;
-  --border: #8a5a2f;
-  --text-primary: #ffcf86;
-  --text-secondary: #e8a35a;
-  --text-tertiary: #8f5a2b;
-  --status-active: #f59e0b;
-  --status-waiting: #fbbf24;
-  --status-blocked: #fb7185;
-  --status-done: #22c55e;
-  --status-todo: #a39b7f;
-}
-
-[data-theme='dark'],
-.theme-dark,
-.dark {
+:root {
   color-scheme: dark;
   --brand: #f59e0b;
   --brand-bright: #ffd900;

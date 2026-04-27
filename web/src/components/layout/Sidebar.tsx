@@ -1,10 +1,9 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, Monitor, Moon, Sun, User2 } from 'lucide-react'
+import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, Monitor, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAppStore } from '../../store/appStore'
-import type { Theme } from '../../types'
 import { NewProjectDialog } from '../project/NewProjectDialog'
 import { ProjectMark } from '../project/ProjectMark'
 import { Badge } from '../ui/badge'
@@ -13,38 +12,23 @@ import { Card } from '../ui/card'
 import { Separator } from '../ui/separator'
 import { Sidebar as SidebarRoot, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuItem, useSidebar } from '../ui/sidebar'
 
-const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string; icon: typeof Sun }> = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
-]
-
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { open, mobileOpen, setMobileOpen } = useSidebar()
-  const themePreference = useAppStore(state => state.themePreference)
-  const setTheme = useAppStore(state => state.setTheme)
   const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length)
   const projects = useAppStore(state => state.projects)
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length)
   const agents = useAppStore(state => state.agents)
-  const loadData = useAppStore(state => state.loadData)
 
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null)
-  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const themeMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setOpenMenu(null)
-      }
-
-      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
-        setIsThemeMenuOpen(false)
       }
     }
 
@@ -176,48 +160,6 @@ export function Sidebar() {
 
         <div ref={menuRef} className="relative space-y-2">
           <div className={clsx('flex gap-2', open ? 'items-center' : 'flex-col items-center')}>
-            <div ref={themeMenuRef} className="relative">
-              <Button
-                type="button"
-                title="Theme"
-                variant="outline"
-                size="icon"
-                className={footerIconButtonClass}
-                onClick={() => setIsThemeMenuOpen(current => !current)}
-              >
-                <Sun className="h-4 w-4" />
-              </Button>
-
-              {isThemeMenuOpen && (
-                <div className={clsx('absolute bottom-11 z-40 min-w-40 rounded-none border border-accent bg-surface-secondary p-2 shadow-panel', open ? 'left-0' : 'left-12')}>
-                  <div className="space-y-1">
-                    {THEME_OPTIONS.map(option => {
-                      const OptionIcon = option.icon
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            setTheme(option.value)
-                            setIsThemeMenuOpen(false)
-                          }}
-                          className={clsx(
-                            'flex w-full items-center gap-2 rounded-none px-3 py-2 text-sm uppercase tracking-[0.08em] transition-colors',
-                            option.value === themePreference
-                              ? 'bg-brand-muted text-accent'
-                              : 'text-text-secondary hover:bg-brand-muted hover:text-accent',
-                          )}
-                        >
-                          <OptionIcon className="h-4 w-4" />
-                          <span>{option.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
             <Button
               type="button"
               title="Notifications"

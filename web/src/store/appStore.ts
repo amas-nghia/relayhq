@@ -3,13 +3,7 @@ import { create } from 'zustand'
 import { getRelayHQApiBaseUrl, relayhqApi } from '../api/client'
 import type { RelayHQSettingsResponse } from '../api/client'
 import type { ActiveAgentSession, ReadModelColumn, ReadModelAuditNote, VaultReadModel } from '../api/contract'
-import type { Agent, AuditLog, Project, Task, Theme } from '../types'
-
-const THEME_STORAGE_KEY = 'relayhq-theme'
-const THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
-
-let themeMediaQuery: MediaQueryList | null = null
-let themeMediaListener: ((event: MediaQueryListEvent) => void) | null = null
+import type { Agent, AuditLog, Project, Task } from '../types'
 let realtimeSource: EventSource | null = null
 let realtimeRefreshTimeoutId: number | null = null
 let realtimeRefreshQueued = false
@@ -35,10 +29,8 @@ interface AppState {
   isMutating: boolean
   mutationError: string | null
   refreshIntervalId: number | null
-  themePreference: Theme
 
   setSelectedProjectId: (id: string | null) => void
-  setTheme: (theme: Theme) => void
   openTaskDetail: (taskId: string) => void
   closeTaskDetail: () => void
   openNewTaskModal: () => void
@@ -67,49 +59,6 @@ interface AppState {
   rejectTask: (taskId: string, reason: string) => Promise<void>
   startAutoRun: (taskId: string) => Promise<void>
   moveTaskToStatus: (taskId: string, status: Task['status'], actorId?: string) => Promise<void>
-}
-
-function isTheme(value: string | null): value is Theme {
-  return value === 'light' || value === 'dark' || value === 'system'
-}
-
-function readStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'system'
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
-  return isTheme(stored) ? stored : 'system'
-}
-
-function resolveTheme(themePreference: Theme): 'light' | 'dark' {
-  if (themePreference !== 'system' || typeof window === 'undefined') {
-    return themePreference === 'dark' ? 'dark' : 'light'
-  }
-
-  return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light'
-}
-
-function applyTheme(themePreference: Theme) {
-  if (typeof document === 'undefined') return
-  const resolvedTheme = resolveTheme(themePreference)
-  document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
-  document.documentElement.dataset.theme = resolvedTheme
-}
-
-function syncSystemThemeListener(themePreference: Theme) {
-  if (typeof window === 'undefined') return
-
-  if (themeMediaQuery === null) {
-    themeMediaQuery = window.matchMedia(THEME_MEDIA_QUERY)
-  }
-
-  if (themeMediaListener !== null) {
-    themeMediaQuery.removeEventListener('change', themeMediaListener)
-    themeMediaListener = null
-  }
-
-  if (themePreference !== 'system') return
-
-  themeMediaListener = () => applyTheme('system')
-  themeMediaQuery.addEventListener('change', themeMediaListener)
 }
 
 function scheduleRealtimeRefresh(loadData: () => Promise<void>) {
@@ -364,17 +313,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isMutating: false,
   mutationError: null,
   refreshIntervalId: null,
-  themePreference: readStoredTheme(),
 
   setSelectedProjectId: (id) => set({ selectedProjectId: id }),
-  setTheme: (theme) => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme)
-    }
-    applyTheme(theme)
-    syncSystemThemeListener(theme)
-    set({ themePreference: theme })
-  },
   openTaskDetail: (taskId) => set({ selectedTaskId: taskId, isDetailPanelOpen: true }),
   closeTaskDetail: () => set({ selectedTaskId: null, isDetailPanelOpen: false }),
   openNewTaskModal: () => set({ isNewTaskModalOpen: true }),
@@ -576,9 +516,3 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 }))
-
-if (typeof window !== 'undefined') {
-  const initialTheme = useAppStore.getState().themePreference
-  applyTheme(initialTheme)
-  syncSystemThemeListener(initialTheme)
-}
