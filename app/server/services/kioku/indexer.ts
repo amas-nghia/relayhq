@@ -83,7 +83,7 @@ function buildDocument(input: {
     ...(input.codebaseName === undefined ? {} : { codebaseName: input.codebaseName }),
     title: normalizeWhitespace(input.title),
     summary: normalizeWhitespace(input.summary),
-    keywords: uniqueStrings(input.keywords),
+    keywords: uniqueStrings([...input.keywords, input.sourcePath]),
     relations: uniqueRelations(input.relations),
     updatedAt: input.updatedAt,
     sourcePath: input.sourcePath,
@@ -311,6 +311,6 @@ export function buildKiokuIndexUpdates(readModel: VaultReadModel): ReadonlyArray
     ...readModel.tasks.map(buildTaskUpdate),
     ...readModel.approvals.map(buildApprovalUpdate),
     ...readModel.docs.map(buildDocUpdate),
-    ...readModel.projects.flatMap((project) => project.attachments.map((attachment, index) => buildProjectAttachmentUpdate(project, attachment, index))),
+    ...readModel.projects.flatMap((project) => (project.attachments ?? []).map((attachment, index) => buildProjectAttachmentUpdate(project, attachment, index))),
   ];
 }

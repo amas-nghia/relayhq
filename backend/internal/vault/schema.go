@@ -54,6 +54,7 @@ const (
 	TaskStatusTodo            TaskStatus = "todo"
 	TaskStatusScheduled       TaskStatus = "scheduled"
 	TaskStatusInProgress      TaskStatus = "in-progress"
+	TaskStatusFailed          TaskStatus = "failed"
 	TaskStatusBlocked         TaskStatus = "blocked"
 	TaskStatusReview          TaskStatus = "review"
 	TaskStatusWaitingApproval TaskStatus = "waiting-approval"
@@ -63,7 +64,7 @@ const (
 
 func (s TaskStatus) Valid() bool {
 	switch s {
-	case TaskStatusTodo, TaskStatusScheduled, TaskStatusInProgress, TaskStatusBlocked, TaskStatusReview, TaskStatusWaitingApproval, TaskStatusDone, TaskStatusCancelled:
+	case TaskStatusTodo, TaskStatusScheduled, TaskStatusInProgress, TaskStatusFailed, TaskStatusBlocked, TaskStatusReview, TaskStatusWaitingApproval, TaskStatusDone, TaskStatusCancelled:
 		return true
 	default:
 		return false
@@ -123,6 +124,98 @@ func (m AgentRunMode) Valid() bool {
 	}
 }
 
+type AgentRuntimeKind string
+
+const (
+	AgentRuntimeKindClaudeCode      AgentRuntimeKind = "claude-code"
+	AgentRuntimeKindCursor          AgentRuntimeKind = "cursor"
+	AgentRuntimeKindAntigravity     AgentRuntimeKind = "antigravity"
+	AgentRuntimeKindOpenCode        AgentRuntimeKind = "opencode"
+	AgentRuntimeKindCodex           AgentRuntimeKind = "codex"
+	AgentRuntimeKindCustomSubprocess AgentRuntimeKind = "custom-subprocess"
+	AgentRuntimeKindCustomWebhook   AgentRuntimeKind = "custom-webhook"
+)
+
+func (k AgentRuntimeKind) Valid() bool {
+	switch k {
+	case AgentRuntimeKindClaudeCode, AgentRuntimeKindCursor, AgentRuntimeKindAntigravity, AgentRuntimeKindOpenCode, AgentRuntimeKindCodex, AgentRuntimeKindCustomSubprocess, AgentRuntimeKindCustomWebhook:
+		return true
+	default:
+		return false
+	}
+}
+
+type AgentRuntimeVerificationStatus string
+
+const (
+	AgentRuntimeVerificationStatusUnknown AgentRuntimeVerificationStatus = "unknown"
+	AgentRuntimeVerificationStatusReady   AgentRuntimeVerificationStatus = "ready"
+	AgentRuntimeVerificationStatusFailed  AgentRuntimeVerificationStatus = "failed"
+)
+
+func (s AgentRuntimeVerificationStatus) Valid() bool {
+	switch s {
+	case AgentRuntimeVerificationStatusUnknown, AgentRuntimeVerificationStatusReady, AgentRuntimeVerificationStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+type AgentWorkingDirectoryStrategy string
+
+const (
+	AgentWorkingDirectoryStrategyProjectRoot AgentWorkingDirectoryStrategy = "project-root"
+	AgentWorkingDirectoryStrategyRepoRoot    AgentWorkingDirectoryStrategy = "repo-root"
+	AgentWorkingDirectoryStrategyCustom      AgentWorkingDirectoryStrategy = "custom"
+)
+
+func (s AgentWorkingDirectoryStrategy) Valid() bool {
+	switch s {
+	case AgentWorkingDirectoryStrategyProjectRoot, AgentWorkingDirectoryStrategyRepoRoot, AgentWorkingDirectoryStrategyCustom:
+		return true
+	default:
+		return false
+	}
+}
+
+type AgentBootstrapStrategy string
+
+const (
+	AgentBootstrapStrategyInstructionFile AgentBootstrapStrategy = "instruction-file"
+	AgentBootstrapStrategyEnvVars         AgentBootstrapStrategy = "env-vars"
+	AgentBootstrapStrategyStdinPrompt     AgentBootstrapStrategy = "stdin-prompt"
+)
+
+func (s AgentBootstrapStrategy) Valid() bool {
+	switch s {
+	case AgentBootstrapStrategyInstructionFile, AgentBootstrapStrategyEnvVars, AgentBootstrapStrategyStdinPrompt:
+		return true
+	default:
+		return false
+	}
+}
+
+type TaskDispatchStatus string
+
+const (
+	TaskDispatchStatusIdle     TaskDispatchStatus = "idle"
+	TaskDispatchStatusChecking TaskDispatchStatus = "checking"
+	TaskDispatchStatusReady    TaskDispatchStatus = "ready"
+	TaskDispatchStatusStarted  TaskDispatchStatus = "started"
+	TaskDispatchStatusBlocked  TaskDispatchStatus = "blocked"
+	TaskDispatchStatusFailed   TaskDispatchStatus = "failed"
+)
+
+func (s TaskDispatchStatus) Valid() bool {
+	switch s {
+	case TaskDispatchStatusIdle, TaskDispatchStatusChecking, TaskDispatchStatusReady, TaskDispatchStatusStarted, TaskDispatchStatusBlocked, TaskDispatchStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 type ApprovalOutcome string
 
 const (
@@ -165,6 +258,9 @@ type TaskFrontmatter struct {
 	ExecutionNotes      *string
 	Progress            int
 	NextRunAt           *time.Time
+	DispatchStatus      *TaskDispatchStatus
+	DispatchReason      *string
+	LastDispatchAttemptAt *time.Time
 	ApprovalNeeded      bool
 	ApprovalRequestedBy *string
 	ApprovalReason      *string
@@ -202,9 +298,16 @@ type AgentFrontmatter struct {
 	FallbackModels      []string
 	MonthlyBudgetUSD    *float64
 	Aliases             []string
+	RuntimeKind         *AgentRuntimeKind
 	RunCommand          *string
+	CommandTemplate     *string
 	RunMode             *AgentRunMode
 	WebhookURL          *string
+	WorkingDirectoryStrategy *AgentWorkingDirectoryStrategy
+	SupportsResume      *bool
+	SupportsStreaming   *bool
+	BootstrapStrategy   *AgentBootstrapStrategy
+	VerificationStatus  *AgentRuntimeVerificationStatus
 	Capabilities        []string
 	TaskTypesAccepted   []string
 	ApprovalRequiredFor []string
@@ -450,6 +553,15 @@ func ValidateTaskFrontmatter(task TaskFrontmatter) error {
 	if task.NextRunAt != nil && task.NextRunAt.IsZero() {
 		errs = appendError(errs, "next_run_at", "must be a valid timestamp when set")
 	}
+	if task.DispatchStatus != nil && !task.DispatchStatus.Valid() {
+		errs = appendError(errs, "dispatch_status", "invalid")
+	}
+	if task.DispatchReason != nil && strings.TrimSpace(*task.DispatchReason) == "" {
+		errs = appendError(errs, "dispatch_reason", "must not be empty when set")
+	}
+	if task.LastDispatchAttemptAt != nil && task.LastDispatchAttemptAt.IsZero() {
+		errs = appendError(errs, "last_dispatch_attempt_at", "must be a valid timestamp when set")
+	}
 	if !task.ApprovalOutcome.Valid() {
 		errs = appendError(errs, "approval_outcome", "invalid")
 	}
@@ -502,11 +614,26 @@ func ValidateAgentFrontmatter(agent AgentFrontmatter) error {
 	if agent.RunCommand != nil && strings.TrimSpace(*agent.RunCommand) == "" {
 		errs = appendError(errs, "run_command", "must not be empty when set")
 	}
+	if agent.RuntimeKind != nil && !agent.RuntimeKind.Valid() {
+		errs = appendError(errs, "runtime_kind", "invalid")
+	}
+	if agent.CommandTemplate != nil && strings.TrimSpace(*agent.CommandTemplate) == "" {
+		errs = appendError(errs, "command_template", "must not be empty when set")
+	}
 	if agent.RunMode != nil && !agent.RunMode.Valid() {
 		errs = appendError(errs, "run_mode", "invalid")
 	}
 	if agent.WebhookURL != nil && strings.TrimSpace(*agent.WebhookURL) == "" {
 		errs = appendError(errs, "webhook_url", "must not be empty when set")
+	}
+	if agent.WorkingDirectoryStrategy != nil && !agent.WorkingDirectoryStrategy.Valid() {
+		errs = appendError(errs, "working_directory_strategy", "invalid")
+	}
+	if agent.BootstrapStrategy != nil && !agent.BootstrapStrategy.Valid() {
+		errs = appendError(errs, "bootstrap_strategy", "invalid")
+	}
+	if agent.VerificationStatus != nil && !agent.VerificationStatus.Valid() {
+		errs = appendError(errs, "verification_status", "invalid")
 	}
 	if agent.SkillFile == "" {
 		errs = appendError(errs, "skill_file", "required")

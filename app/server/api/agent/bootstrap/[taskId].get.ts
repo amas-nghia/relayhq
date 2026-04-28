@@ -16,10 +16,10 @@ const INLINE_CONTEXT_FILE_CHAR_LIMIT = 4000;
 const INLINE_CONTEXT_TOTAL_CHAR_LIMIT = 16000;
 
 const PROTOCOL_INSTRUCTIONS = [
-  "1. You already have this task claimed or are about to claim it. Call POST /api/vault/tasks/{taskId}/claim with your agentId before touching anything.",
-  "2. Send a heartbeat every 10 minutes: POST /api/vault/tasks/{taskId}/heartbeat.",
-  "3. If you need a human decision, call POST /api/vault/tasks/{taskId}/request-approval with a reason. Stop work until approved.",
-  "4. When implementation is complete, call PATCH /api/vault/tasks/{taskId} with status=review, progress=100, result=<concrete outcome>.",
+  "1. You already have this task claimed or are about to claim it. Claim shape: POST /api/vault/tasks/{taskId}/claim with JSON {\"actorId\": \"<your-agent-id>\"} before touching anything.",
+  "2. Send a heartbeat every 10 minutes: POST /api/vault/tasks/{taskId}/heartbeat with JSON {\"actorId\": \"<your-agent-id>\"}.",
+  "3. If you need a human decision, call POST /api/vault/tasks/{taskId}/request-approval with JSON {\"actorId\": \"<your-agent-id>\", \"reason\": \"<why>\"}. Stop work until approved.",
+  "4. When implementation is complete, call PATCH /api/vault/tasks/{taskId} with JSON {\"actorId\": \"<your-agent-id>\", \"patch\": {\"status\": \"review\", \"progress\": 100, \"result\": \"<concrete outcome>\"}}.",
   "5. Do not write directly to vault files. All mutations go through the API.",
 ].join("\n");
 

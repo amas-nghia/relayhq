@@ -47,7 +47,7 @@ function requireRuntime(runtime: string): RelayHQRuntime {
 function buildMcpSkill(runtime: RelayHQRuntime, options: ProtocolPackOptions): string {
   const { agentId, baseUrl } = options;
 
-  return `## RelayHQ
+  return `## RelayHQ - Agent Protocol
 
 RelayHQ is the task coordination layer for this project.
 It tracks what you own, your progress, and human approval gates.
@@ -85,7 +85,7 @@ function buildHttpSkill(runtime: RelayHQRuntime, options: ProtocolPackOptions): 
   const { agentId, baseUrl } = options;
   const enc = encodeURIComponent(agentId);
 
-  return `## RelayHQ — Agent Protocol
+  return `## RelayHQ - Agent Protocol
 
 RelayHQ is the task coordination layer for this project.
 Server: ${baseUrl} · Your agent ID: \`${agentId}\`

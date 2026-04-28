@@ -81,6 +81,7 @@ describe("settings endpoints", () => {
         activeWorkspaceId: "ws-configured",
         activeWorkspaceName: "Configured Workspace",
         availableWorkspaces: [{ id: "ws-configured", name: "Configured Workspace" }],
+        platform: process.platform,
       });
 
       const unconfiguredState = await readSettingsState({
@@ -96,6 +97,7 @@ describe("settings endpoints", () => {
         activeWorkspaceId: null,
         activeWorkspaceName: null,
         availableWorkspaces: [{ id: "ws-default", name: "Default Workspace" }],
+        platform: process.platform,
       });
     } finally {
       await Promise.all([

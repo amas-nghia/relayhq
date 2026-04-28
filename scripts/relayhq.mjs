@@ -13,7 +13,7 @@ const templateDir = join(packageRoot, 'template')
 
 const COMMANDS = {
   init:    'Scaffold a new RelayHQ workspace',
-  setup:   'Write agent skill file for a runtime (claude-code | cursor | opencode | codex | antigravity)',
+  setup:   'Write agent skill file for a runtime (claude-code | cursor | antigravity | opencode | codex | copilot)',
   start:   'Start RelayHQ services (PM2)',
   stop:    'Stop RelayHQ services (PM2)',
   destroy: 'Stop services and remove workspace directory',
@@ -262,14 +262,15 @@ function cmdSkill(positional) {
   fail('Usage: npx relayhq skill <install|list|remove> [args]')
 }
 
-const SUPPORTED_RUNTIMES = ['claude-code', 'cursor', 'antigravity', 'opencode', 'codex']
+const SUPPORTED_RUNTIMES = ['claude-code', 'cursor', 'antigravity', 'opencode', 'codex', 'copilot']
 
 const RUNTIME_TARGETS = {
-  'claude-code':  { path: 'CLAUDE.md',                                  append: true  },
-  cursor:         { path: '.cursor/rules/relayhq.mdc',                  append: false },
-  antigravity:    { path: '.antigravity/instructions/relayhq.md',       append: false },
-  opencode:       { path: '.opencode/agents/relayhq.md',                append: false },
-  codex:          { path: '.codex/instructions/relayhq.md',             append: false },
+  'claude-code':  { path: 'CLAUDE.md',                                          append: true  },
+  cursor:         { path: '.cursor/rules/relayhq.mdc',                          append: false },
+  antigravity:    { path: '.antigravity/instructions/relayhq.md',               append: false },
+  opencode:       { path: '.opencode/agents/relayhq.md',                        append: false },
+  codex:          { path: '.codex/instructions/relayhq.md',                     append: false },
+  copilot:        { path: '.github/copilot-instructions.md',                    append: true  },
 }
 
 // Runtimes that use MCP tools — skill describes when/why, not raw HTTP

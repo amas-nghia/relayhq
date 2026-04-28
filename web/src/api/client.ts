@@ -210,6 +210,50 @@ export interface VaultTaskPatchPayload {
 
 export interface AgentRunPayload {
   readonly taskId: string
+  readonly mode?: 'fresh' | 'resume'
+  readonly surface?: 'background' | 'visible-terminal'
+  readonly previousSessionId?: string | null
+}
+
+export interface AgentRunResponse {
+  readonly agentId: string
+  readonly taskId: string
+  readonly sessionId: string
+  readonly runnerId: string
+  readonly runtimeKind: string
+  readonly launchSurface: 'background' | 'visible-terminal'
+  readonly launchMode: 'fresh' | 'resume'
+  readonly command: string
+  readonly args: ReadonlyArray<string>
+}
+
+export interface AgentSessionRecord {
+  readonly id: string
+  readonly sessionId: string
+  readonly agentName: string
+  readonly taskId?: string
+  readonly provider: string
+  readonly runtimeKind: string
+  readonly launchSurface: 'background' | 'visible-terminal'
+  readonly launchMode: 'fresh' | 'resume'
+  readonly resumedFromSessionId: string | null
+  readonly status: 'starting' | 'running' | 'handed-off' | 'completed' | 'failed' | 'stopped'
+  readonly command: string
+  readonly cwd: string | null
+  readonly pid?: number
+  readonly startTime: string
+  readonly lastEventAt: string
+}
+
+export interface AgentSessionEventRecord {
+  readonly id: string
+  readonly sessionId: string
+  readonly agentId: string
+  readonly taskId: string | null
+  readonly type: 'session.started' | 'session.ended' | 'session.failed' | 'terminal.stdout' | 'terminal.stderr' | 'reasoning.summary' | 'user.message'
+  readonly timestamp: string
+  readonly text?: string
+  readonly code?: number | null
 }
 
 export interface VaultTaskSchedulePayload {
@@ -298,9 +342,16 @@ export interface AgentCreatePayload {
   readonly spriteAsset?: string | null
   readonly monthlyBudgetUsd?: number | null
   readonly aliases?: ReadonlyArray<string>
+  readonly runtimeKind?: string | null
   readonly runCommand?: string | null
+  readonly commandTemplate?: string | null
   readonly runMode?: string | null
   readonly webhookUrl?: string | null
+  readonly workingDirectoryStrategy?: string | null
+  readonly supportsResume?: boolean
+  readonly supportsStreaming?: boolean
+  readonly bootstrapStrategy?: string | null
+  readonly verificationStatus?: string | null
   readonly capabilities?: ReadonlyArray<string>
   readonly approvalRequiredFor?: ReadonlyArray<string>
 }
@@ -313,13 +364,39 @@ export interface AgentPatchPayload {
     readonly portrait_asset?: string
     readonly sprite_asset?: string
     readonly monthly_budget_usd?: number
+    readonly runtime_kind?: string
     readonly run_command?: string
+    readonly command_template?: string
     readonly run_mode?: string
     readonly webhook_url?: string
+    readonly working_directory_strategy?: string
+    readonly supports_resume?: boolean
+    readonly supports_streaming?: boolean
+    readonly bootstrap_strategy?: string
+    readonly verification_status?: string
     readonly aliases?: ReadonlyArray<string>
     readonly capabilities?: ReadonlyArray<string>
     readonly approval_required_for?: ReadonlyArray<string>
   }
+}
+
+export interface AgentRuntimeBindingResponse {
+  readonly success: boolean
+  readonly agentId: string
+  readonly runtime: string
+  readonly install: { runtime: string; filename: string; content: string }
+  readonly settingsSnippet: { snippet: string; configFilePath: string; instruction: string }
+}
+
+export interface AgentRuntimeReadinessResponse {
+  readonly agentId: string
+  readonly runtimeKind: string | null
+  readonly launchMode: string | null
+  readonly verificationStatus: 'unknown' | 'ready' | 'failed'
+  readonly installed: boolean
+  readonly command: string | null
+  readonly path: string | null
+  readonly reason: string | null
 }
 
 export interface AgentActivityEvent {
@@ -462,12 +539,30 @@ export const relayhqApi = {
     method: 'PATCH',
     body: JSON.stringify(payload),
   }),
+  bindAgentRuntime: (agentId: string, runtime: string) => request<AgentRuntimeBindingResponse>(`/api/vault/agents/${encodeURIComponent(agentId)}/bind-runtime`, {
+    method: 'POST',
+    body: JSON.stringify({ runtime }),
+  }),
+  getAgentRuntimeReadiness: (agentId: string) => request<AgentRuntimeReadinessResponse>(`/api/vault/agents/${encodeURIComponent(agentId)}/runtime-readiness`),
   deleteAgent: (agentId: string) => request<{ success: boolean; agentId: string }>(`/api/vault/agents/${encodeURIComponent(agentId)}`, {
     method: 'DELETE',
   }),
-  runAgent: (agentId: string, payload: AgentRunPayload) => request<{ agentId: string; taskId: string; runnerId: string; command: string }>(`/api/agent/${encodeURIComponent(agentId)}/run`, {
+  runAgent: (agentId: string, payload: AgentRunPayload) => request<AgentRunResponse>(`/api/agent/${encodeURIComponent(agentId)}/run`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  }),
+  resumeAgent: (agentId: string, payload: { taskId: string; previousSessionId?: string | null; surface?: 'background' | 'visible-terminal' }) => request<AgentRunResponse>(`/api/agent/${encodeURIComponent(agentId)}/resume`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  listAgentSessions: (agentId: string) => request<ReadonlyArray<AgentSessionRecord>>(`/api/agent/${encodeURIComponent(agentId)}/sessions`),
+  getAgentSessionEvents: (sessionId: string) => request<ReadonlyArray<AgentSessionEventRecord>>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/events`),
+  sendAgentSessionMessage: (sessionId: string, message: string) => request<{ success: boolean; sessionId: string }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  }),
+  stopAgentSession: (sessionId: string) => request<{ success: boolean; sessionId: string }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
   }),
 
   createTask: (payload: VaultTaskCreatePayload) => request<{ taskId: string; boardId: string; sourcePath: string }>('/api/vault/tasks', {

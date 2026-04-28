@@ -1,12 +1,24 @@
 import { createError, defineEventHandler, readBody } from "h3";
 
 import type { TaskPriority } from "../../../shared/vault/schema";
+import { autoDispatchAssignedTask } from "../../services/agents/dispatch";
 import { writeAuditNote } from "../../services/vault/audit-write";
 import { formatTaskInputIssues, validateTaskInput } from "../../services/vault/task-input";
 import { readTaskTemplate } from "../../services/vault/task-templates";
+import { patchTaskLifecycle } from "../../services/vault/task-lifecycle";
+import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { VaultSchemaError } from "../../services/vault/write";
 import { createVaultTask, TaskCreateError } from "../../services/vault/task-create";
 import { resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
+
+const DEFAULT_ACTOR_ID = "@relayhq-web" as const;
+
+export interface CreateVaultTaskFromBodyDependencies {
+  readonly createVaultTask?: typeof createVaultTask;
+  readonly readCanonicalVaultReadModel?: typeof readCanonicalVaultReadModel;
+  readonly autoDispatchAssignedTask?: typeof autoDispatchAssignedTask;
+  readonly patchTaskLifecycle?: typeof patchTaskLifecycle;
+}
 
 export function buildBody(
   objective: string | undefined,
@@ -35,7 +47,12 @@ export function buildBody(
   return parts.join("\n\n");
 }
 
-export async function createVaultTaskFromBody(body: unknown) {
+export async function createVaultTaskFromBody(body: unknown, dependencies: CreateVaultTaskFromBodyDependencies = {}) {
+  const runCreateVaultTask = dependencies.createVaultTask ?? createVaultTask;
+  const runReadCanonicalVaultReadModel = dependencies.readCanonicalVaultReadModel ?? readCanonicalVaultReadModel;
+  const runAutoDispatchAssignedTask = dependencies.autoDispatchAssignedTask ?? autoDispatchAssignedTask;
+  const runPatchTaskLifecycle = dependencies.patchTaskLifecycle ?? patchTaskLifecycle;
+
   if (!isPlainRecord(body)) {
     throw createError({ statusCode: 400, statusMessage: "Request body must be an object." });
   }
@@ -113,7 +130,7 @@ export async function createVaultTaskFromBody(body: unknown) {
     throw createError({ statusCode: 400, statusMessage: formatTaskInputIssues(issues) });
   }
 
-  const result = await createVaultTask({
+  const result = await runCreateVaultTask({
     title: body.title,
     projectId: body.projectId,
     boardId: body.boardId,
@@ -141,10 +158,35 @@ export async function createVaultTaskFromBody(body: unknown) {
     });
   }
 
+  let autoDispatch: Awaited<ReturnType<typeof autoDispatchAssignedTask>> | undefined;
+
+  if (result.frontmatter.assignee !== "unassigned" && result.frontmatter.status === "todo") {
+    const readModel = await runReadCanonicalVaultReadModel(vaultRoot);
+    autoDispatch = await runAutoDispatchAssignedTask({
+      readModel,
+      taskId: result.frontmatter.id,
+      agentId: result.frontmatter.assignee,
+      launchSurface: "background",
+      vaultRoot,
+    });
+
+    const dispatchPatch = autoDispatch.launched
+      ? { dispatch_status: "started", dispatch_reason: "Background session started automatically.", last_dispatch_attempt_at: new Date().toISOString() }
+      : { dispatch_status: autoDispatch.decision.status === "ready" ? "ready" : "blocked", dispatch_reason: autoDispatch.decision.reason, last_dispatch_attempt_at: new Date().toISOString() };
+
+    await runPatchTaskLifecycle({
+      taskId: result.frontmatter.id,
+      actorId: autoDispatch.launched ? result.frontmatter.assignee : DEFAULT_ACTOR_ID,
+      patch: dispatchPatch,
+      releaseLock: !autoDispatch.launched,
+    });
+  }
+
   return {
     taskId: result.frontmatter.id,
     boardId: result.frontmatter.board_id,
     sourcePath: `vault/shared/tasks/${result.frontmatter.id}.md`,
+    ...(autoDispatch ? { autoDispatch } : {}),
   };
 }
 

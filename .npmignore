@@ -1,34 +1,32 @@
-# Dependencies
-app/node_modules/
-web/node_modules/
-node_modules/
-
 # Build outputs
 app/.nuxt/
 app/.output/
+app/node_modules/
 web/dist/
+web/node_modules/
+backend/
+node_modules/
 
-# Dev/local files
+# Environment / secrets — NEVER publish
 .env
 .env.*
+**/.env
+**/.env.*
 *.local
 
-# Vault user data (never publish real vault data)
+# Vault user data
 vault/
 !template/
 
-# Git
-.git/
-.gitignore
-
-# IDE
-.vscode/
-.idea/
-
-# Test artifacts
+# Dev artifacts
 coverage/
 *.test.ts.snap
+**/__snapshots__/
 
-# OS
+# Git / IDE / OS
+.git/
+.gitignore
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db

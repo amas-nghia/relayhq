@@ -19,6 +19,7 @@ export interface TaskLifecycleRequest {
 export interface PatchTaskLifecycleRequest extends TaskLifecycleRequest {
   readonly patch: Readonly<Partial<TaskFrontmatter>>;
   readonly recoverStaleLock?: boolean;
+  readonly releaseLock?: boolean;
 }
 
 export interface ClaimTaskLifecycleRequest extends TaskLifecycleRequest {
@@ -219,10 +220,12 @@ export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Pr
     () => patch,
     {
       recoverStaleLock: request.recoverStaleLock ?? (request.patch.status !== undefined && (request.patch.status === "review" || request.patch.status === "done")),
-      releaseLock: request.patch.status !== undefined && (
-        request.patch.status === "review"
-        || request.patch.status === "done"
-        || (request.recoverStaleLock === true && request.patch.status === "todo")
+      releaseLock: request.releaseLock ?? (
+        request.patch.status !== undefined && (
+          request.patch.status === "review"
+          || request.patch.status === "done"
+          || (request.recoverStaleLock === true && request.patch.status === "todo")
+        )
       ),
     },
   );

@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader } from '../ui/card'
 import { Input } from '../ui/input'
+import { Select } from '../ui/select'
 import { Textarea } from '../ui/textarea'
 
 function readSection(body: string | undefined, heading: string): string | null {
@@ -140,6 +141,21 @@ const approvalClasses: Record<string, string> = {
   pending: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
 }
 
+const dispatchClasses: Record<string, string> = {
+  idle: 'border-border bg-surface-secondary text-text-secondary',
+  checking: 'border-status-active/20 bg-brand-muted text-status-active',
+  ready: 'border-status-active/20 bg-brand-muted text-status-active',
+  started: 'border-status-done/20 bg-status-done/10 text-status-done',
+  blocked: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+  failed: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+}
+
+const RUNTIME_OPTIONS = [
+  { id: 'opencode', label: 'OpenCode' },
+  { id: 'claude-code', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex' },
+] as const
+
 const statusLabels: Record<string, string> = {
   'in-progress': 'in progress',
   review: 'in review',
@@ -170,6 +186,7 @@ export function DetailPanel({
   const agent = useAppStore(state => state.agents.find(a => a.id === task?.assigneeId))
   const project = useAppStore(state => state.projects.find(p => p.id === task?.projectId))
   const tasks = useAppStore(state => state.tasks)
+  const agents = useAppStore(state => state.agents)
   const auditLogs = useAppStore(state => state.auditLogs)
   const isMutating = useAppStore(state => state.isMutating)
   const [rejectReason, setRejectReason] = useState(task?.approvalReason || '')
@@ -180,6 +197,10 @@ export function DetailPanel({
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [nextRunAtInput, setNextRunAtInput] = useState('')
   const [cronScheduleInput, setCronScheduleInput] = useState('')
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState(task?.assigneeId ?? '')
+  const [selectedRuntimeId, setSelectedRuntimeId] = useState('opencode')
+  const [launchState, setLaunchState] = useState<'idle' | 'working'>('idle')
+  const [agentControlError, setAgentControlError] = useState<string | null>(null)
 
   const sections = useMemo(() => {
     const body = task?.description
@@ -238,6 +259,16 @@ export function DetailPanel({
   useEffect(() => {
     setCronScheduleInput(task?.cronSchedule ?? '')
   }, [task?.cronSchedule])
+
+  useEffect(() => {
+    setSelectedAssigneeId(task?.assigneeId ?? '')
+  }, [task?.assigneeId])
+
+  useEffect(() => {
+    if (agent?.provider === 'claude') setSelectedRuntimeId('claude-code')
+    else if (agent?.provider === 'codex') setSelectedRuntimeId('codex')
+    else setSelectedRuntimeId(agent?.runtimeKind ?? 'opencode')
+  }, [agent?.provider, agent?.runtimeKind])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -299,6 +330,63 @@ export function DetailPanel({
     await fetchReadModel()
   }
 
+  const assignAgent = async () => {
+    if (!task) return
+    setLaunchState('working')
+    setAgentControlError(null)
+    try {
+      await relayhqApi.patchTask(task.id, {
+        actorId: 'human-user',
+        patch: {
+          assignee: selectedAssigneeId.trim().length > 0 ? selectedAssigneeId : 'unassigned',
+        },
+      })
+      await fetchReadModel()
+    } catch (error) {
+      setAgentControlError(error instanceof Error ? error.message : 'Unable to assign agent.')
+    } finally {
+      setLaunchState('idle')
+    }
+  }
+
+  const bindAndVerifyRuntime = async () => {
+    if (!selectedAssigneeId) return
+    setLaunchState('working')
+    setAgentControlError(null)
+    try {
+      await relayhqApi.bindAgentRuntime(selectedAssigneeId, selectedRuntimeId)
+      await fetchReadModel()
+    } catch (error) {
+      setAgentControlError(error instanceof Error ? error.message : 'Unable to bind runtime.')
+    } finally {
+      setLaunchState('idle')
+    }
+  }
+
+  const launchAgent = async (mode: 'fresh' | 'resume') => {
+    if (!task || !selectedAssigneeId) return
+    setLaunchState('working')
+    setAgentControlError(null)
+    try {
+      if ((task.assigneeId ?? '') !== selectedAssigneeId) {
+        await relayhqApi.patchTask(task.id, {
+          actorId: 'human-user',
+          patch: { assignee: selectedAssigneeId },
+        })
+      }
+      if (mode === 'resume') {
+        await relayhqApi.resumeAgent(selectedAssigneeId, { taskId: task.id, surface: 'background' })
+      } else {
+        await relayhqApi.runAgent(selectedAssigneeId, { taskId: task.id, mode: 'fresh', surface: 'background' })
+      }
+      await fetchReadModel()
+    } catch (error) {
+      setAgentControlError(error instanceof Error ? error.message : 'Unable to launch agent runtime.')
+    } finally {
+      setLaunchState('idle')
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-surface-secondary">
       <div className="flex items-center justify-between border-b border-border bg-surface p-4">
@@ -333,6 +421,11 @@ export function DetailPanel({
                   {task.isStale && (
                     <span className="rounded-sm border border-status-blocked/20 bg-status-blocked/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-status-blocked">
                       stale
+                    </span>
+                  )}
+                  {task.dispatchStatus && (
+                    <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', dispatchClasses[task.dispatchStatus] ?? 'border-border bg-surface-secondary text-text-secondary')}>
+                      {task.dispatchStatus}
                     </span>
                   )}
                 </div>
@@ -375,6 +468,18 @@ export function DetailPanel({
                 <span>Completed</span>
                 <span className="font-medium text-text-primary">{formatTimestamp(task.completedAt)}</span>
               </div>
+              {task.dispatchStatus && (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
+                  <span>Dispatch</span>
+                  <span className="font-medium text-text-primary">{task.dispatchStatus}</span>
+                </div>
+              )}
+              {task.dispatchReason && (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
+                  <span>Dispatch reason</span>
+                  <span className="font-medium text-text-primary">{task.dispatchReason}</span>
+                </div>
+              )}
               {task.model && (
                 <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
                   <span>Model</span>
@@ -500,13 +605,28 @@ export function DetailPanel({
 
           <Section title="Execution Notes">
             {task.executionNotes ? <p className="text-sm leading-6 text-text-primary">{task.executionNotes}</p> : <EmptyCopy>No execution notes captured yet.</EmptyCopy>}
-            {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'review' && task.status !== 'done' && task.status !== 'cancelled' && (
-              <div className="mt-4">
-                <Button type="button" variant="outline" onClick={() => void startAutoRun(task.id)} disabled={isMutating}>
-                  {isMutating ? 'Starting…' : 'Auto-run'}
+          </Section>
+
+          <Section title="Agent Control">
+            <div className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Select value={selectedAssigneeId} onChange={(event) => setSelectedAssigneeId(event.target.value)}>
+                  <option value="">Unassigned</option>
+                  {agents.map((entry) => (
+                    <option key={entry.id} value={entry.id}>{entry.name}</option>
+                  ))}
+                </Select>
+                <Button type="button" variant="outline" onClick={() => void assignAgent()} disabled={launchState === 'working'}>
+                  Assign
                 </Button>
               </div>
-            )}
+
+              {agentControlError ? (
+                <p className="text-sm text-status-blocked">{agentControlError}</p>
+              ) : (
+                <p className="text-sm text-text-tertiary">Assign an agent to let RelayHQ auto-dispatch work and open chat from the agent surface when you want to follow along.</p>
+              )}
+            </div>
           </Section>
 
           <Section title="Schedule">

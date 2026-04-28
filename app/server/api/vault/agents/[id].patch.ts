@@ -18,12 +18,12 @@ function normalizeStringArray(value: unknown, field: string): string[] {
   return [...new Set(value.map((entry) => entry.trim()).filter((entry) => entry.length > 0))]
 }
 
-function upsertFrontmatterLine(content: string, key: string, value: string | number | ReadonlyArray<string> | undefined): string {
+function upsertFrontmatterLine(content: string, key: string, value: string | number | boolean | ReadonlyArray<string> | undefined): string {
   if (value === undefined) {
     return content
   }
 
-  const line = `${key}: ${typeof value === 'number' ? value : JSON.stringify(value)}`
+  const line = `${key}: ${typeof value === 'number' || typeof value === 'boolean' ? value : JSON.stringify(value)}`
   const pattern = new RegExp(`^${key}:\\s.*$`, 'm')
   if (pattern.test(content)) {
     return content.replace(pattern, line)
@@ -64,9 +64,16 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   next = upsertFrontmatterLine(next, "sprite_asset", typeof patch.sprite_asset === "string" && patch.sprite_asset.trim().length > 0 ? patch.sprite_asset.trim() : undefined)
   next = upsertFrontmatterLine(next, "monthly_budget_usd", typeof patch.monthly_budget_usd === "number" ? patch.monthly_budget_usd : undefined)
   next = upsertFrontmatterLine(next, "aliases", patch.aliases !== undefined ? normalizeStringArray(patch.aliases, "aliases") : undefined)
+  next = upsertFrontmatterLine(next, "runtime_kind", typeof patch.runtime_kind === "string" && patch.runtime_kind.trim().length > 0 ? patch.runtime_kind.trim() : undefined)
   next = upsertFrontmatterLine(next, "run_command", typeof patch.run_command === "string" && patch.run_command.trim().length > 0 ? patch.run_command.trim() : undefined)
+  next = upsertFrontmatterLine(next, "command_template", typeof patch.command_template === "string" && patch.command_template.trim().length > 0 ? patch.command_template.trim() : undefined)
   next = upsertFrontmatterLine(next, "run_mode", typeof patch.run_mode === "string" && patch.run_mode.trim().length > 0 ? patch.run_mode.trim() : undefined)
   next = upsertFrontmatterLine(next, "webhook_url", typeof patch.webhook_url === "string" && patch.webhook_url.trim().length > 0 ? patch.webhook_url.trim() : undefined)
+  next = upsertFrontmatterLine(next, "working_directory_strategy", typeof patch.working_directory_strategy === "string" && patch.working_directory_strategy.trim().length > 0 ? patch.working_directory_strategy.trim() : undefined)
+  next = upsertFrontmatterLine(next, "supports_resume", typeof patch.supports_resume === "boolean" ? patch.supports_resume : undefined)
+  next = upsertFrontmatterLine(next, "supports_streaming", typeof patch.supports_streaming === "boolean" ? patch.supports_streaming : undefined)
+  next = upsertFrontmatterLine(next, "bootstrap_strategy", typeof patch.bootstrap_strategy === "string" && patch.bootstrap_strategy.trim().length > 0 ? patch.bootstrap_strategy.trim() : undefined)
+  next = upsertFrontmatterLine(next, "verification_status", typeof patch.verification_status === "string" && patch.verification_status.trim().length > 0 ? patch.verification_status.trim() : undefined)
 
   if (patch.fallback_models !== undefined) {
     const line = `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}`

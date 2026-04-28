@@ -6,6 +6,7 @@ export const TASK_STATUSES = [
   "todo",
   "scheduled",
   "in-progress",
+  "failed",
   "blocked",
   "review",
   "waiting-approval",
@@ -18,6 +19,11 @@ export const TASK_COLUMNS = ["todo", "in-progress", "review", "done"] as const;
 export const TASK_PRIORITIES = ["critical", "high", "medium", "low"] as const;
 
 export const AGENT_RUN_MODES = ["manual", "subprocess", "webhook"] as const;
+export const AGENT_RUNTIME_KINDS = ["claude-code", "cursor", "antigravity", "opencode", "codex", "custom-subprocess", "custom-webhook"] as const;
+export const AGENT_RUNTIME_VERIFICATION_STATUSES = ["unknown", "ready", "failed"] as const;
+export const AGENT_WORKING_DIRECTORY_STRATEGIES = ["project-root", "repo-root", "custom"] as const;
+export const AGENT_BOOTSTRAP_STRATEGIES = ["instruction-file", "env-vars", "stdin-prompt"] as const;
+export const TASK_DISPATCH_STATUSES = ["idle", "checking", "ready", "started", "blocked", "failed"] as const;
 
 export const APPROVAL_OUTCOMES = ["approved", "rejected", "pending"] as const;
 
@@ -53,6 +59,11 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskColumn = (typeof TASK_COLUMNS)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type AgentRunMode = (typeof AGENT_RUN_MODES)[number];
+export type AgentRuntimeKind = (typeof AGENT_RUNTIME_KINDS)[number];
+export type AgentRuntimeVerificationStatus = (typeof AGENT_RUNTIME_VERIFICATION_STATUSES)[number];
+export type AgentWorkingDirectoryStrategy = (typeof AGENT_WORKING_DIRECTORY_STRATEGIES)[number];
+export type AgentBootstrapStrategy = (typeof AGENT_BOOTSTRAP_STRATEGIES)[number];
+export type TaskDispatchStatus = (typeof TASK_DISPATCH_STATUSES)[number];
 export type ApprovalOutcome = (typeof APPROVAL_OUTCOMES)[number];
 
 export interface ValidationIssue {
@@ -110,6 +121,9 @@ export interface TaskFrontmatter {
   readonly history?: ReadonlyArray<TaskHistoryEntry>;
   readonly next_run_at?: string | null;
   readonly cron_schedule?: string | null;
+  readonly dispatch_status?: TaskDispatchStatus | null;
+  readonly dispatch_reason?: string | null;
+  readonly last_dispatch_attempt_at?: string | null;
   readonly approval_needed: boolean;
   readonly approval_requested_by: string | null;
   readonly approval_reason: string | null;
@@ -149,9 +163,16 @@ export interface AgentFrontmatter {
   readonly fallback_models?: ReadonlyArray<string>;
   readonly monthly_budget_usd?: number | null;
   readonly aliases?: ReadonlyArray<string>;
+  readonly runtime_kind?: AgentRuntimeKind;
   readonly run_command?: string;
+  readonly command_template?: string;
   readonly run_mode?: AgentRunMode;
   readonly webhook_url?: string;
+  readonly working_directory_strategy?: AgentWorkingDirectoryStrategy;
+  readonly supports_resume?: boolean;
+  readonly supports_streaming?: boolean;
+  readonly bootstrap_strategy?: AgentBootstrapStrategy;
+  readonly verification_status?: AgentRuntimeVerificationStatus;
   readonly capabilities: ReadonlyArray<string>;
   readonly task_types_accepted: ReadonlyArray<string>;
   readonly approval_required_for: ReadonlyArray<string>;
@@ -574,6 +595,16 @@ export function validateTaskFrontmatter(input: unknown): ValidationResult {
     }
   }
 
+  if (hasKey(input, "dispatch_status") && input.dispatch_status !== null) {
+    requireEnumField(input, "dispatch_status", TASK_DISPATCH_STATUSES, issues);
+  }
+  if (hasKey(input, "dispatch_reason")) {
+    requireNullableStringField(input, "dispatch_reason", issues);
+  }
+  if (hasKey(input, "last_dispatch_attempt_at") && input.last_dispatch_attempt_at !== null) {
+    requireRequiredTimestampField(input, "last_dispatch_attempt_at", issues);
+  }
+
   requireBooleanField(input, "approval_needed", issues);
   requireNullableStringField(input, "approval_requested_by", issues);
   requireNullableStringField(input, "approval_reason", issues);
@@ -687,14 +718,35 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   if (hasKey(input, "aliases")) {
     requireStringArrayField(input, "aliases", issues);
   }
+  if (hasKey(input, "runtime_kind")) {
+    requireEnumField(input, "runtime_kind", AGENT_RUNTIME_KINDS, issues);
+  }
   if (hasKey(input, "run_command")) {
     requireStringField(input, "run_command", issues);
+  }
+  if (hasKey(input, "command_template")) {
+    requireStringField(input, "command_template", issues);
   }
   if (hasKey(input, "run_mode")) {
     requireEnumField(input, "run_mode", AGENT_RUN_MODES, issues);
   }
   if (hasKey(input, "webhook_url")) {
     requireStringField(input, "webhook_url", issues);
+  }
+  if (hasKey(input, "working_directory_strategy")) {
+    requireEnumField(input, "working_directory_strategy", AGENT_WORKING_DIRECTORY_STRATEGIES, issues);
+  }
+  if (hasKey(input, "supports_resume") && typeof input.supports_resume !== "boolean") {
+    pushIssue(issues, "supports_resume", "must be a boolean");
+  }
+  if (hasKey(input, "supports_streaming") && typeof input.supports_streaming !== "boolean") {
+    pushIssue(issues, "supports_streaming", "must be a boolean");
+  }
+  if (hasKey(input, "bootstrap_strategy")) {
+    requireEnumField(input, "bootstrap_strategy", AGENT_BOOTSTRAP_STRATEGIES, issues);
+  }
+  if (hasKey(input, "verification_status")) {
+    requireEnumField(input, "verification_status", AGENT_RUNTIME_VERIFICATION_STATUSES, issues);
   }
   requireStringArrayField(input, "capabilities", issues);
   requireStringArrayField(input, "task_types_accepted", issues);

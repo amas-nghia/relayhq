@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 import type { VaultReadModel } from "../../models/read-model";
 import { searchKiokuCanonicalState } from "../../api/kioku/search.post";
 import { createKiokuStorage } from "./storage";
 import { syncReadModelToKioku } from "./sync";
 import { readCanonicalVaultReadModel } from "../vault/read";
-import { resolveVaultWorkspaceRoot } from "../vault/runtime";
+
+const SEEDED_VAULT_ROOT = fileURLToPath(new URL("../../../../template/", import.meta.url));
 
 function createFixtureReadModel(): VaultReadModel {
   return {
@@ -201,20 +203,20 @@ describe("Kioku integration", () => {
     expect(result.docs).toEqual([]);
   });
 
-  test("reads the real seeded vault, syncs it into Kioku, and returns doc hits for a known keyword", async () => {
+  test("reads the real seeded template vault, syncs it into Kioku, and returns canonical hits for a known keyword", async () => {
     const storage = withStorage();
-    const readModel = await readCanonicalVaultReadModel(resolveVaultWorkspaceRoot());
+    const readModel = await readCanonicalVaultReadModel(SEEDED_VAULT_ROOT);
 
     syncReadModelToKioku(readModel, storage);
-    const hits = storage.search("docs");
+    const hits = storage.search("project");
 
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits.some((hit) => hit.entityType === "document")).toBe(true);
+    expect(hits.some((hit) => hit.entityType === "project")).toBe(true);
   });
 
   test("returns no hits for a keyword missing from the seeded vault", async () => {
     const storage = withStorage();
-    const readModel = await readCanonicalVaultReadModel(resolveVaultWorkspaceRoot());
+    const readModel = await readCanonicalVaultReadModel(SEEDED_VAULT_ROOT);
 
     syncReadModelToKioku(readModel, storage);
     const hits = storage.search("xyzzy_nonexistent_keyword");

@@ -17,11 +17,12 @@ const STATUS_ORDER: Record<TaskStatus, number> = {
   review: 0,
   'waiting-approval': 1,
   scheduled: 2,
-  blocked: 3,
-  'in-progress': 4,
-  todo: 5,
-  done: 6,
-  cancelled: 7,
+  failed: 3,
+  blocked: 4,
+  'in-progress': 5,
+  todo: 6,
+  done: 7,
+  cancelled: 8,
 }
 
 const PRIORITY_ORDER: Record<TaskPriority, number> = {
@@ -400,7 +401,14 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
                     {task.id}
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-text-primary">
-                    <span className="truncate flex items-center gap-2 max-w-sm xl:max-w-md">{task.title}</span>
+                    <div className="max-w-sm xl:max-w-md">
+                      <span className="truncate flex items-center gap-2">{task.title}</span>
+                      {task.dispatchStatus && task.status === 'todo' && task.assigneeId && task.assigneeId !== 'unassigned' ? (
+                        <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-text-tertiary">
+                          {task.dispatchStatus}{task.dispatchReason ? ` · ${task.dispatchReason}` : ''}
+                        </div>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-text-secondary truncate">
                     {project?.name || '—'}

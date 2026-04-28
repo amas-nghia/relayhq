@@ -1,8 +1,8 @@
-import { Pencil, X } from 'lucide-react'
+import { MessageSquare, Pencil, Square, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 
-import { relayhqApi, type AgentStateResponse } from '../api/client'
+import { relayhqApi, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AgentStateResponse } from '../api/client'
 import { useAppStore } from '../store/appStore'
 import { Button } from '../components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogOverlay, DialogPanel, DialogTitle } from '../components/ui/dialog'
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/input'
 import { Textarea } from '../components/ui/textarea'
 import { useNavigate } from 'react-router-dom'
 import { AgentSetupWizard } from '../components/layout/AgentSetupWizard'
+import { RuntimeTruthBadges, RuntimeTruthMessage } from '../components/agent/RuntimeTruth'
 
 const SPRITE_OPTIONS = [
   '/assets/sprites/girl_cyber_demon_dual_scythe_1.png',
@@ -37,6 +38,12 @@ const PORTRAIT_OPTIONS = [
   '/assets/portraits/bunny_white_girl_6.png',
 ] as const
 
+const RUNTIME_OPTIONS = [
+  { id: 'opencode', label: 'OpenCode' },
+  { id: 'claude-code', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex' },
+] as const
+
 export function AgentsView() {
   const agents = useAppStore(state => state.agents)
   const tasks = useAppStore(state => state.tasks)
@@ -61,9 +68,17 @@ export function AgentsView() {
   const [isSaving, setIsSaving] = useState(false)
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null)
   const [selectedInboxAgentId, setSelectedInboxAgentId] = useState<string | null>(null)
+  const [selectedChatAgentId, setSelectedChatAgentId] = useState<string | null>(null)
   const [inboxLoadingAgentId, setInboxLoadingAgentId] = useState<string | null>(null)
   const [agentStates, setAgentStates] = useState<Record<string, AgentStateResponse>>({})
+  const [runtimeReadiness, setRuntimeReadiness] = useState<Record<string, AgentRuntimeReadinessResponse>>({})
+  const [sessionsByAgent, setSessionsByAgent] = useState<Record<string, ReadonlyArray<AgentSessionRecord>>>({})
+  const [eventsBySession, setEventsBySession] = useState<Record<string, ReadonlyArray<AgentSessionEventRecord>>>({})
+  const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
+  const [runtimeSelectionByAgent, setRuntimeSelectionByAgent] = useState<Record<string, string>>({})
+  const [runtimeLoadingAgentId, setRuntimeLoadingAgentId] = useState<string | null>(null)
   const [isNewAgentOpen, setIsNewAgentOpen] = useState(false)
+  const [runNowNotice, setRunNowNotice] = useState<string | null>(null)
   const [wizardError, setWizardError] = useState<string | null>(null)
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentRole, setNewAgentRole] = useState('implementation')
@@ -99,12 +114,138 @@ export function AgentsView() {
     }
   }
 
+  async function loadSessions(agentId: string) {
+    const sessions = await relayhqApi.listAgentSessions(agentId)
+    setSessionsByAgent(current => ({ ...current, [agentId]: sessions }))
+    return sessions
+  }
+
+  async function loadSessionEvents(sessionId: string) {
+    const events = await relayhqApi.getAgentSessionEvents(sessionId)
+    setEventsBySession(current => ({ ...current, [sessionId]: events }))
+    return events
+  }
+
+  async function sendSessionMessage(agentId: string) {
+    const sessions = sessionsByAgent[agentId] ?? await loadSessions(agentId)
+    const session = sessions[0]
+    const message = (messageDrafts[agentId] ?? '').trim()
+    if (!session || message.length === 0) return
+    setRunningAgentId(agentId)
+    try {
+      await relayhqApi.sendAgentSessionMessage(session.sessionId, message)
+      setMessageDrafts(current => ({ ...current, [agentId]: '' }))
+      await loadSessionEvents(session.sessionId)
+    } finally {
+      setRunningAgentId(null)
+    }
+  }
+
+  async function ensureChatSession(agentId: string) {
+    setRunNowNotice(null)
+    const [state, readiness, existingSessions] = await Promise.all([
+      agentStates[agentId] ? Promise.resolve(agentStates[agentId]) : relayhqApi.getAgentState(agentId),
+      verifyRuntime(agentId),
+      loadSessions(agentId),
+    ])
+
+    setAgentStates(current => ({ ...current, [agentId]: state }))
+
+    if (existingSessions[0]?.launchSurface === 'background' && existingSessions[0]?.status === 'running') {
+      await loadSessionEvents(existingSessions[0].sessionId)
+      return existingSessions[0]
+    }
+
+    if (readiness.verificationStatus !== 'ready') {
+      setRunNowNotice(`Agent ${agentId} is not runtime-ready yet. Verify or bind its runtime first.`)
+      return null
+    }
+
+    const nextTask = state.active ?? state.inbox[0] ?? null
+    if (!nextTask) {
+      setRunNowNotice(`Agent ${agentId} does not have an active or queued task to chat about. Assign a task first.`)
+      return null
+    }
+
+    setRunningAgentId(agentId)
+    try {
+      if (existingSessions[0]) {
+        await relayhqApi.resumeAgent(agentId, {
+          taskId: nextTask.id,
+          previousSessionId: existingSessions[0].sessionId,
+          surface: 'background',
+        })
+      } else {
+        await relayhqApi.runAgent(agentId, { taskId: nextTask.id, surface: 'background' })
+      }
+
+      await loadData()
+      await loadInbox(agentId)
+      const resumedSessions = await loadSessions(agentId)
+      if (resumedSessions[0]) {
+        await loadSessionEvents(resumedSessions[0].sessionId)
+        return resumedSessions[0]
+      }
+      return null
+    } finally {
+      setRunningAgentId(null)
+    }
+  }
+
+  async function openChat(agentId: string) {
+    setSelectedChatAgentId(agentId)
+    await ensureChatSession(agentId)
+  }
+
+  useEffect(() => {
+    if (!selectedChatAgentId) return
+
+    const intervalId = window.setInterval(() => {
+      void (async () => {
+        const sessions = await loadSessions(selectedChatAgentId)
+        if (sessions[0]) {
+          await loadSessionEvents(sessions[0].sessionId)
+        }
+      })()
+    }, 2000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [selectedChatAgentId])
+
+  async function verifyRuntime(agentId: string) {
+    setRuntimeLoadingAgentId(agentId)
+    try {
+      const readiness = await relayhqApi.getAgentRuntimeReadiness(agentId)
+      setRuntimeReadiness(current => ({ ...current, [agentId]: readiness }))
+      return readiness
+    } finally {
+      setRuntimeLoadingAgentId(current => current === agentId ? null : current)
+    }
+  }
+
+  function selectedRuntime(agentId: string, fallbackProvider?: string | null) {
+    return runtimeSelectionByAgent[agentId] ?? (fallbackProvider === 'claude' ? 'claude-code' : fallbackProvider === 'codex' ? 'codex' : 'opencode')
+  }
+
+  async function bindRuntime(agentId: string, runtime: string) {
+    setRuntimeLoadingAgentId(agentId)
+    try {
+      await relayhqApi.bindAgentRuntime(agentId, runtime)
+      await loadData()
+      await verifyRuntime(agentId)
+    } finally {
+      setRuntimeLoadingAgentId(current => current === agentId ? null : current)
+    }
+  }
+
   async function handleRunNow(agentId: string) {
     const state = agentStates[agentId] ?? await relayhqApi.getAgentState(agentId)
     setAgentStates(current => ({ ...current, [agentId]: state }))
     const nextTask = state.inbox[0] ?? state.active
     if (!nextTask) {
-      setSelectedInboxAgentId(agentId)
+      setRunNowNotice(`Agent ${agentId} does not have an active or queued task to run. Assign a task first.`)
       return
     }
 
@@ -115,9 +256,13 @@ export function AgentsView() {
 
     setRunningAgentId(agentId)
     try {
-      await relayhqApi.runAgent(agentId, { taskId: nextTask.id })
+      await relayhqApi.runAgent(agentId, { taskId: nextTask.id, surface: 'background' })
       await loadData()
       await loadInbox(agentId)
+      const sessions = await loadSessions(agentId)
+      if (sessions[0]) {
+        await loadSessionEvents(sessions[0].sessionId)
+      }
     } finally {
       setRunningAgentId(null)
     }
@@ -187,7 +332,47 @@ export function AgentsView() {
 
     setRunningAgentId(agentId)
     try {
-      await relayhqApi.runAgent(agentId, { taskId: task.id })
+      await relayhqApi.runAgent(agentId, { taskId: task.id, surface: 'background' })
+      await loadData()
+      const sessions = await loadSessions(agentId)
+      if (sessions[0]) {
+        await loadSessionEvents(sessions[0].sessionId)
+      }
+    } finally {
+      setRunningAgentId(null)
+    }
+  }
+
+  async function resumeLatestSession(agentId: string) {
+    const state = agentStates[agentId] ?? await relayhqApi.getAgentState(agentId)
+    setAgentStates(current => ({ ...current, [agentId]: state }))
+    const sessions = sessionsByAgent[agentId] ?? await loadSessions(agentId)
+    const previousSession = sessions.find(session => session.status === 'running' || session.status === 'failed' || session.status === 'completed') ?? null
+    const taskId = state.active?.id ?? state.inbox[0]?.id
+    if (!taskId) return
+
+    setRunningAgentId(agentId)
+    try {
+      await relayhqApi.resumeAgent(agentId, { taskId, previousSessionId: previousSession?.sessionId ?? null, surface: 'background' })
+      await loadData()
+      await loadInbox(agentId)
+      const sessions = await loadSessions(agentId)
+      if (sessions[0]) {
+        await loadSessionEvents(sessions[0].sessionId)
+      }
+    } finally {
+      setRunningAgentId(null)
+    }
+  }
+
+  async function stopLatestSession(agentId: string) {
+    const sessions = sessionsByAgent[agentId] ?? await loadSessions(agentId)
+    const runningSession = sessions.find(session => session.status === 'running')
+    if (!runningSession) return
+    setRunningAgentId(agentId)
+    try {
+      await relayhqApi.stopAgentSession(runningSession.sessionId)
+      await loadSessions(agentId)
       await loadData()
     } finally {
       setRunningAgentId(null)
@@ -243,6 +428,9 @@ export function AgentsView() {
           <p className="text-sm text-text-secondary">
             {activeAgents.length} active / {agents.length} total
           </p>
+          {runNowNotice && (
+            <p className="text-sm text-status-waiting">{runNowNotice}</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={startCreateAgent}>
@@ -257,6 +445,19 @@ export function AgentsView() {
             const task = getCurrentTask(agent.id)
             const inboxCount = getInboxCount(agent.id)
             const runModeLabel = agent.runMode ?? 'manual'
+            const readiness = runtimeReadiness[agent.id]
+            const sessions = sessionsByAgent[agent.id] ?? []
+            const latestSession = sessions[0] ?? null
+            const latestEvents = latestSession ? (eventsBySession[latestSession.sessionId] ?? []) : []
+            const canChatInApp = latestSession?.launchSurface === 'background' && latestSession.status === 'running'
+            const hasRunnableTask = inboxCount > 0 || task?.status === 'todo' || task?.status === 'in-progress'
+            const chatPlaceholder = !latestSession
+              ? (hasRunnableTask ? 'Open Chat will start or resume a background session for this task' : 'Assign a task to this agent before starting chat')
+              : latestSession.launchSurface !== 'background'
+                ? 'This session was launched outside the in-app chat surface'
+                : latestSession.status !== 'running'
+                  ? 'Resume the latest background session to continue chatting'
+                  : 'Send a message to the running session'
 
             return (
               <div key={agent.id} className="border border-border bg-surface p-4 shadow-card">
@@ -278,6 +479,12 @@ export function AgentsView() {
                   <div className="mt-4 space-y-2">
                     <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Current task</div>
                     <div className="text-sm font-medium text-text-primary">{task.title}</div>
+                    {task.dispatchStatus && (
+                      <div className="text-xs text-text-secondary">Dispatch: <span className="font-medium text-text-primary">{task.dispatchStatus}</span></div>
+                    )}
+                    {task.dispatchReason && (
+                      <div className="text-xs text-text-tertiary">{task.dispatchReason}</div>
+                    )}
                     <div className="flex items-center gap-3 text-xs text-text-secondary">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
                         <div className="h-full bg-status-active" style={{ width: `${task.progress}%` }} />
@@ -289,15 +496,52 @@ export function AgentsView() {
                   <div className="mt-4 text-sm text-text-tertiary">No current task.</div>
                 )}
 
+                <div className="mt-4 rounded-xl border border-border bg-surface-secondary p-3 text-xs text-text-secondary">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Runtime</span>
+                    <span className="font-medium text-text-primary">{readiness?.runtimeKind ?? agent.runtimeKind ?? runModeLabel}</span>
+                  </div>
+                  <RuntimeTruthBadges agent={agent} readiness={readiness} className="mt-3" />
+                  <RuntimeTruthMessage agent={agent} readiness={readiness} className="mt-3" />
+                  {readiness?.reason && <div className="mt-2 text-status-blocked">{readiness.reason}</div>}
+                  {latestSession && (
+                    <>
+                      <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+                        <span>Last session</span>
+                        <span className="font-medium text-text-primary">{latestSession.launchMode} · {latestSession.status}</span>
+                      </div>
+                      <div className="mt-2 max-h-28 overflow-y-auto rounded-none border border-border bg-surface px-2 py-2 text-[11px] text-text-secondary">
+                        {latestEvents.length > 0 ? latestEvents.slice(-4).map((event) => (
+                          <div key={event.id} className="mb-2 last:mb-0">
+                            <div className="uppercase tracking-[0.14em] text-text-tertiary">{event.type}</div>
+                            <div className="whitespace-pre-wrap break-words text-text-primary">{event.text ?? (event.code == null ? 'No details' : `Exit code ${event.code}`)}</div>
+                          </div>
+                        )) : 'No session events loaded.'}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          value={messageDrafts[agent.id] ?? ''}
+                          onChange={(event) => setMessageDrafts(current => ({ ...current, [agent.id]: event.target.value }))}
+                          placeholder={chatPlaceholder}
+                          disabled={!canChatInApp}
+                        />
+                        <Button type="button" size="sm" onClick={() => void sendSessionMessage(agent.id)} disabled={!canChatInApp || runningAgentId === agent.id || !(messageDrafts[agent.id] ?? '').trim()}>
+                          Send
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => void loadInbox(agent.id)} disabled={inboxLoadingAgentId === agent.id}>
-                    View Inbox
+                  <Button type="button" size="sm" onClick={() => void openChat(agent.id)}>
+                    <MessageSquare className="h-3.5 w-3.5" /> Chat
                   </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => startEdit(agent.id)}>
                     Edit Config
                   </Button>
-                  <Button type="button" size="sm" onClick={() => void handleRunNow(agent.id)} disabled={runningAgentId === agent.id}>
-                    {runningAgentId === agent.id ? 'Running…' : 'Run Now'}
+                  <Button type="button" size="sm" variant="outline" onClick={() => void stopLatestSession(agent.id)} disabled={runningAgentId === agent.id || !latestSession}>
+                    <Square className="h-3.5 w-3.5" /> Stop
                   </Button>
                 </div>
               </div>
@@ -436,65 +680,86 @@ export function AgentsView() {
         </Dialog>
       )}
 
-      {selectedInboxAgentId && (
-        <Dialog open>
-          <DialogOverlay onClick={() => setSelectedInboxAgentId(null)} />
-          <DialogContent>
-            <DialogPanel className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Agent Inbox</DialogTitle>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedInboxAgentId(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogHeader>
+      {selectedChatAgentId && (() => {
+        const agent = agents.find(entry => entry.id === selectedChatAgentId) ?? null
+        const sessions = sessionsByAgent[selectedChatAgentId] ?? []
+        const latestSession = sessions[0] ?? null
+        const events = latestSession ? (eventsBySession[latestSession.sessionId] ?? []) : []
+        const readiness = runtimeReadiness[selectedChatAgentId] ?? null
+        const draft = messageDrafts[selectedChatAgentId] ?? ''
+        const currentTask = getCurrentTask(selectedChatAgentId)
+        const hasRunnableTask = (agentStates[selectedChatAgentId]?.inbox.length ?? 0) > 0 || currentTask?.status === 'todo' || currentTask?.status === 'in-progress'
+        const chatPlaceholder = !latestSession
+          ? (hasRunnableTask ? 'No session yet. Chat will start one for the current task.' : 'No task is assigned to this agent yet.')
+          : latestSession.launchSurface !== 'background'
+            ? 'This session is detached from the in-app chat surface.'
+            : latestSession.status !== 'running'
+              ? 'Resume the latest session to continue chatting.'
+              : 'Send a follow-up instruction to the agent session'
 
-              {(() => {
-                const state = agentStates[selectedInboxAgentId]
-                if (!state) {
-                  return <div className="p-4 text-sm text-text-secondary">No inbox data loaded yet.</div>
-                }
+        return (
+          <Dialog open>
+            <DialogOverlay onClick={() => setSelectedChatAgentId(null)} />
+            <DialogContent>
+              <DialogPanel className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>{agent?.name ?? selectedChatAgentId} · Agent Chat</DialogTitle>
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedChatAgentId(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogHeader>
+                <DialogBody>
+                  <div className="grid gap-4 lg:min-h-[540px] lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-border bg-surface-secondary p-4 text-sm text-text-secondary">
+                        <div className="font-medium text-text-primary">{agent?.name ?? selectedChatAgentId}</div>
+                        {agent ? <RuntimeTruthBadges agent={agent} readiness={readiness} className="mt-3" /> : null}
+                        {agent ? <RuntimeTruthMessage agent={agent} readiness={readiness} className="mt-3" /> : null}
+                        {readiness?.reason && <div className="mt-2 text-status-blocked">{readiness.reason}</div>}
+                      </div>
 
-                return (
-                  <div className="flex flex-col gap-4 p-1">
-                    <div className="rounded-xl border border-border bg-surface-secondary p-4 text-sm text-text-secondary">
-                      <div className="font-medium text-text-primary">{state.agentId}</div>
-                      <div>Active: {state.active ? state.active.title : 'none'}</div>
-                      <div>Inbox: {state.inbox.length} task(s)</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => void stopLatestSession(selectedChatAgentId)} disabled={runningAgentId === selectedChatAgentId || !latestSession}>Stop</Button>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-surface-secondary p-4 text-sm text-text-secondary">
+                        <div className="font-medium text-text-primary">Latest session</div>
+                        {latestSession ? (
+                          <div className="mt-2 space-y-1">
+                            <div>Status: {latestSession.status}</div>
+                            <div>Surface: {latestSession.launchSurface}</div>
+                            <div>Launch: {latestSession.launchMode}</div>
+                            <div>Started: {new Date(latestSession.startTime).toLocaleString()}</div>
+                            {latestSession.launchSurface === 'visible-terminal' && <div className="text-status-waiting">This session is running in a detached terminal window. Follow-up messages are not available in the web chat surface.</div>}
+                          </div>
+                        ) : <div className="mt-2 text-text-tertiary">No session yet.</div>}
+                      </div>
                     </div>
 
-                    <div className="space-y-3">
-                      {state.inbox.map(task => (
-                        <div key={task.id} className="rounded-xl border border-border bg-surface-secondary p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-medium text-text-primary">{task.title}</div>
-                              <div className="text-xs text-text-tertiary">{task.status} · {task.priority}</div>
-                            </div>
-                            <Button type="button" size="sm" onClick={async () => {
-                              setRunningAgentId(state.agentId)
-                              try {
-                                await relayhqApi.runAgent(state.agentId, { taskId: task.id })
-                                await loadData()
-                                await loadInbox(state.agentId)
-                              } finally {
-                                setRunningAgentId(null)
-                              }
-                            }} disabled={runningAgentId === state.agentId}>
-                              {runningAgentId === state.agentId ? 'Running…' : '▶ Run'}
-                            </Button>
+                    <div className="flex min-h-[480px] min-w-0 flex-col rounded-xl border border-border bg-surface-secondary">
+                      <div className="border-b border-border px-4 py-3 text-sm font-medium text-text-primary">Transcript</div>
+                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                        {events.length > 0 ? events.map((event) => (
+                          <div key={event.id} className={clsx('rounded-lg border px-3 py-2 text-sm', event.type === 'user.message' ? 'border-brand/40 bg-brand-muted text-text-primary' : 'border-border bg-surface text-text-primary')}>
+                            <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-text-tertiary">{event.type} · {new Date(event.timestamp).toLocaleTimeString()}</div>
+                            <div className="whitespace-pre-wrap break-words">{event.text ?? (event.code == null ? 'No details' : `Exit code ${event.code}`)}</div>
                           </div>
-                        </div>
-                      ))}
-
-                      {state.inbox.length === 0 && <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-tertiary">No inbox tasks.</div>}
+                        )) : <div className="text-sm text-text-tertiary">No transcript events yet.</div>}
+                      </div>
+                      <div className="border-t border-border p-4">
+                        <div className="flex gap-2">
+                        <Input value={draft} onChange={(event) => setMessageDrafts(current => ({ ...current, [selectedChatAgentId]: event.target.value }))} placeholder={chatPlaceholder} disabled={!(latestSession?.launchSurface === 'background' && latestSession?.status === 'running')} />
+                        <Button type="button" onClick={() => void sendSessionMessage(selectedChatAgentId)} disabled={runningAgentId === selectedChatAgentId || draft.trim().length === 0 || !(latestSession?.launchSurface === 'background' && latestSession?.status === 'running')}>Send</Button>
+                      </div>
+                      </div>
                     </div>
                   </div>
-                )
-              })()}
-            </DialogPanel>
-          </DialogContent>
-        </Dialog>
-      )}
+                </DialogBody>
+              </DialogPanel>
+            </DialogContent>
+          </Dialog>
+        )
+      })()}
 
       <AgentSetupWizard open={isNewAgentOpen} onClose={() => setIsNewAgentOpen(false)} />
 

@@ -106,4 +106,100 @@ describe("POST /api/vault/tasks validation", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  test("auto-dispatches newly created assigned todo tasks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-autodispatch-"));
+    const dispatchPatches: Array<{ actorId: string; patch: Record<string, unknown> }> = [];
+
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      await seedBoard(root);
+
+      const response = await createVaultTaskFromBody({
+        title: "Verify create-time agent auto dispatch",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-claude-code",
+        objective: "Verify that creating an assigned todo task immediately runs dispatcher evaluation and records the background launch outcome for the assigned agent.",
+        acceptanceCriteria: ["Dispatcher evaluates the new task", "Launch result is written back as dispatch metadata"],
+        contextFiles: ["app/server/api/vault/tasks.post.ts"],
+      }, {
+        readCanonicalVaultReadModel: async () => ({ tasks: [], agents: [] }) as never,
+        autoDispatchAssignedTask: async () => ({
+          decision: { status: "ready", reason: "runtime ready" },
+          launched: true,
+          launch: { sessionId: "session-1" },
+        }) as never,
+        patchTaskLifecycle: async ({ actorId, patch }) => {
+          dispatchPatches.push({ actorId, patch: patch as Record<string, unknown> });
+          return { ok: true } as never;
+        },
+      });
+
+      expect(response.taskId).toStartWith("task-");
+      expect(response.autoDispatch).toMatchObject({
+        launched: true,
+        decision: { status: "ready", reason: "runtime ready" },
+      });
+      expect(dispatchPatches).toHaveLength(1);
+      expect(dispatchPatches[0]).toMatchObject({
+        actorId: "agent-claude-code",
+        patch: {
+          dispatch_status: "started",
+          dispatch_reason: "Background session started automatically.",
+        },
+      });
+      expect(typeof dispatchPatches[0]?.patch.last_dispatch_attempt_at).toBe("string");
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("releases the web lock when create-time dispatch is blocked", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-blocked-dispatch-"));
+    const dispatchPatches: Array<{ actorId: string; patch: Record<string, unknown>; releaseLock?: boolean }> = [];
+
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      await seedBoard(root);
+
+      await createVaultTaskFromBody({
+        title: "Blocked create-time dispatch should not keep task locked",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-claude-code",
+        objective: "Verify that when create-time dispatcher evaluation is blocked, RelayHQ records the reason without leaving the todo task locked by the web actor.",
+        acceptanceCriteria: ["Blocked reason is recorded", "Task remains claimable by the assigned agent afterwards"],
+        contextFiles: ["app/server/api/vault/tasks.post.ts"],
+      }, {
+        readCanonicalVaultReadModel: async () => ({ tasks: [], agents: [] }) as never,
+        autoDispatchAssignedTask: async () => ({
+          decision: { status: "blocked", reason: "Agent already has an active session (running)." },
+          launched: false,
+        }) as never,
+        patchTaskLifecycle: async ({ actorId, patch, releaseLock }) => {
+          dispatchPatches.push({ actorId, patch: patch as Record<string, unknown>, releaseLock });
+          return {} as never;
+        },
+      });
+
+      expect(dispatchPatches).toHaveLength(1);
+      expect(dispatchPatches[0]).toMatchObject({
+        actorId: "@relayhq-web",
+        releaseLock: true,
+        patch: {
+          dispatch_status: "blocked",
+          dispatch_reason: "Agent already has an active session (running).",
+        },
+      });
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

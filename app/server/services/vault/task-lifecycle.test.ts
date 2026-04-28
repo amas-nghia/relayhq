@@ -169,6 +169,25 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.lock_expires_at).toBeNull();
   });
 
+  test("releases the lock for assignment-only human patches when requested", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ assignee: null }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "human-user",
+      vaultRoot,
+      now,
+      releaseLock: true,
+      patch: { assignee: "agent-backend-dev" },
+    });
+
+    expect(result.frontmatter.assignee).toBe("agent-backend-dev");
+    expect(result.frontmatter.locked_by).toBeNull();
+    expect(result.frontmatter.locked_at).toBeNull();
+    expect(result.frontmatter.lock_expires_at).toBeNull();
+  });
+
   test("clears completed_at when moving a task to blocked", async () => {
     const vaultRoot = await createVaultRoot(createTask({ status: "done", column: "done", completed_at: "2026-04-15T09:30:00Z" }));
     const now = new Date("2026-04-15T10:00:00Z");

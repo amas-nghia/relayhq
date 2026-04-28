@@ -16,8 +16,8 @@ describe("protocol pack helper", () => {
     });
 
     expect(content).toContain("## RelayHQ - Agent Protocol");
-    expect(content).toContain("GET http://127.0.0.1:44210/api/agent/state?agentId=claude-code");
-    expect(content).toContain("POST http://127.0.0.1:44210/api/vault/tasks/{taskId}/claim");
+    expect(content).toContain('relayhq_inbox(agentId="claude-code")');
+    expect(content).toContain('relayhq_start(agentId="claude-code", taskId="task-xxx")');
   });
 
   test("installs the claude-code pack idempotently", async () => {

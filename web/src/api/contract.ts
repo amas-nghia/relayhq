@@ -1,4 +1,4 @@
-export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
+export type TaskStatus = 'todo' | 'in-progress' | 'failed' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low'
 export type ApprovalOutcome = 'approved' | 'rejected' | 'pending'
 
@@ -121,6 +121,9 @@ export interface ReadModelTask {
   readonly executionNotes: string | null
   readonly progress: number
   readonly history: ReadonlyArray<ReadModelTaskHistoryEntry>
+  readonly dispatchStatus: string | null
+  readonly dispatchReason: string | null
+  readonly lastDispatchAttemptAt: string | null
   readonly approvalNeeded: boolean
   readonly approvalRequestedBy: string | null
   readonly approvalReason: string | null
@@ -233,9 +236,16 @@ export interface ReadModelAgent {
   readonly model: string
   readonly monthlyBudgetUsd: number | null
   readonly aliases: ReadonlyArray<string>
+  readonly runtimeKind: string | null
   readonly runCommand: string | null
+  readonly commandTemplate: string | null
   readonly runMode: string | null
   readonly webhookUrl: string | null
+  readonly workingDirectoryStrategy: string | null
+  readonly supportsResume: boolean
+  readonly supportsStreaming: boolean
+  readonly bootstrapStrategy: string | null
+  readonly verificationStatus: string | null
   readonly capabilities: ReadonlyArray<string>
   readonly taskTypesAccepted: ReadonlyArray<string>
   readonly approvalRequiredFor: ReadonlyArray<string>

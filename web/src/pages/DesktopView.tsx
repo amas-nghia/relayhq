@@ -3,10 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
 import { KanbanSquare, List, Bot, ClipboardCheck, FileText, Activity, Settings, FolderOpen, Check, AlertCircle, Copy, Eye, EyeOff, Play } from 'lucide-react';
 import { OnboardingWizard } from '../components/layout/OnboardingWizard';
-import { relayhqApi, type AgentActivityEvent, type AnalyticsDashboardResponse, type RelayHQApiKeyEntry } from '../api/client';
+import { relayhqApi, type AgentActivityEvent, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AnalyticsDashboardResponse, type RelayHQApiKeyEntry } from '../api/client';
 import { useAppStore } from '../store/appStore';
 import { Button } from '../components/ui/button';
 import { DetailPanel } from '../components/task/DetailPanel';
+import { Input } from '../components/ui/input';
+import { Select } from '../components/ui/select';
+import { AgentSetupWizard } from '../components/layout/AgentSetupWizard';
+import { RuntimeTruthBadges, RuntimeTruthMessage } from '../components/agent/RuntimeTruth';
 
 const BoardView      = lazy(async () => ({ default: (await import('./BoardView')).BoardView }));
 const TasksView      = lazy(async () => ({ default: (await import('./TasksView')).TasksView }));
@@ -44,7 +48,9 @@ interface AgentSprite {
   role?: string | null;
   provider?: string | null;
   model?: string | null;
+  runtimeKind?: string | null;
   runMode?: string | null;
+  verificationStatus?: string | null;
   aliases?: ReadonlyArray<string>;
   capabilities?: ReadonlyArray<string>;
   skillFile?: string | null;
@@ -89,6 +95,11 @@ const DESKTOP_ICON_STATE_KEY = 'relayhq-desktop-icon-positions';
 const DESKTOP_TOPBAR_HEIGHT = 44;
 const DESKTOP_FULLSCREEN_TOP = DESKTOP_TOPBAR_HEIGHT;
 const DESKTOP_ANIMATION_FRAME_MS = 1000 / 20;
+const RUNTIME_OPTIONS = [
+  { id: 'opencode', label: 'OpenCode' },
+  { id: 'claude-code', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex' },
+] as const;
 
 function eventIcon(eventType: string) {
   if (eventType === 'session_start') return <Play className="h-3.5 w-3.5 text-brand" />;
@@ -680,7 +691,7 @@ function DesktopAgent({ agent, onDragStart, onDragEnd, onClick }: {
           onClick();
         }}
         className="flex h-full w-full flex-col items-center justify-start gap-1 select-none bg-transparent px-0 py-1 text-left outline-none"
-        title={`Open ${agent.name} details`}
+        title={`Open ${agent.name} chat`}
       >
         <span className="max-w-full rounded-none bg-surface-sidebar px-1.5 py-0.5 text-[10px] font-display uppercase tracking-wider text-brand-bright text-glow">
           {agent.name}
@@ -705,7 +716,7 @@ function DesktopAgent({ agent, onDragStart, onDragEnd, onClick }: {
   );
 }
 
-function AgentDetailWindow({ agent, windowState, onClose, onMinimize, onToggleMaximize, onDragEnd, activity, analytics, loading, error }: {
+function AgentDetailWindow({ agent, windowState, onClose, onMinimize, onToggleMaximize, onDragEnd, activity, analytics, loading, error, runtimeReadiness, sessions, sessionEvents, runtimeSelection, onRuntimeSelectionChange, onBindOpenCode, onVerifyRuntime, onLaunchFresh, onResumeLatest, onStopLatest, messageDraft, onMessageDraftChange, onSendMessage, actionBusy }: {
   agent: AgentSprite | null;
   windowState: AgentWindowState | null;
   onClose: () => void;
@@ -716,12 +727,34 @@ function AgentDetailWindow({ agent, windowState, onClose, onMinimize, onToggleMa
   analytics: AnalyticsDashboardResponse | null;
   loading: boolean;
   error: string | null;
+  runtimeReadiness: AgentRuntimeReadinessResponse | null;
+  sessions: ReadonlyArray<AgentSessionRecord>;
+  sessionEvents: ReadonlyArray<AgentSessionEventRecord>;
+  runtimeSelection: string;
+  onRuntimeSelectionChange: (value: string) => void;
+  onBindOpenCode: () => void;
+  onVerifyRuntime: () => void;
+  onLaunchFresh: () => void;
+  onResumeLatest: () => void;
+  onStopLatest: () => void;
+  messageDraft: string;
+  onMessageDraftChange: (value: string) => void;
+  onSendMessage: () => void;
+  actionBusy: boolean;
 }) {
   if (!agent || !windowState) return null;
   if (windowState.minimized) return null;
 
   const imageSrc = agent.spriteAsset ?? agent.portraitAsset ?? null;
   const scorecard = analytics?.agents.scorecards.find(entry => entry.agentId === agent.id) ?? null;
+  const canChatInApp = sessions[0]?.launchSurface === 'background' && sessions[0]?.status === 'running'
+  const chatPlaceholder = !sessions[0]
+    ? 'No active session yet. Assign a task and launch chat to start one.'
+    : sessions[0].launchSurface !== 'background'
+      ? 'This session is detached from the in-app chat surface.'
+      : sessions[0].status !== 'running'
+        ? 'Resume the latest background session to continue chatting.'
+        : 'Send a message to the running session'
 
   return (
     <Rnd
@@ -798,6 +831,42 @@ function AgentDetailWindow({ agent, windowState, onClose, onMinimize, onToggleMa
                     <span key={cap} className="rounded-full border border-border bg-surface-secondary px-2 py-1 text-sm text-text-primary">{cap}</span>
                   )) : <span className="text-text-primary">—</span>}
                 </div>
+              </div>
+
+              <div className="rounded-none border border-border bg-surface-secondary p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Runtime control</div>
+                  <div className="text-[11px] text-text-secondary">{runtimeReadiness?.verificationStatus ?? 'unknown'}</div>
+                </div>
+                <div className="mt-2 text-sm text-text-secondary">
+                  {runtimeReadiness?.reason ?? `runtime=${runtimeReadiness?.runtimeKind ?? agent.runMode ?? 'unknown'}`}
+                </div>
+                <RuntimeTruthBadges agent={agent} readiness={runtimeReadiness} className="mt-3" />
+                <RuntimeTruthMessage agent={agent} readiness={runtimeReadiness} className="mt-3" />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={onStopLatest} disabled={actionBusy || !sessions[0]}>Stop</Button>
+                </div>
+                {sessions[0] && (
+                  <div className="mt-3 border-t border-border pt-3 text-xs text-text-secondary">
+                    <div>Latest session: <span className="text-text-primary">{sessions[0].launchMode} · {sessions[0].status}</span></div>
+                    <div className="mt-2 max-h-64 overflow-y-auto rounded-none border border-border bg-surface px-2 py-2">
+                      {sessionEvents.length > 0 ? sessionEvents.slice(-4).map((event) => (
+                        <div key={event.id} className="mb-2 last:mb-0">
+                          <div className="uppercase tracking-[0.14em] text-text-tertiary">{event.type}</div>
+                          <div className="whitespace-pre-wrap break-words text-text-primary">{event.text ?? (event.code == null ? 'No details' : `Exit code ${event.code}`)}</div>
+                        </div>
+                        )) : 'No session events loaded.'}
+                    </div>
+                    <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-tertiary">In-app chat</div>
+                    <div className="mt-2 text-xs text-text-secondary">
+                      {canChatInApp ? 'Chat is live for this background session.' : 'Chat is available only while a background session is running.'}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <Input value={messageDraft} onChange={(event) => onMessageDraftChange(event.target.value)} placeholder={chatPlaceholder} disabled={!canChatInApp} />
+                      <Button type="button" size="sm" onClick={onSendMessage} disabled={!canChatInApp || actionBusy || messageDraft.trim().length === 0}>Send</Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-none border border-border bg-surface-secondary p-3">
@@ -941,6 +1010,7 @@ let zTop = 10;
 export function DesktopView() {
   const startRealtime = useAppStore(state => state.startRealtime);
   const stopRealtime  = useAppStore(state => state.stopRealtime);
+  const loadData = useAppStore(state => state.loadData);
   const storeAgents = useAppStore(state => state.agents);
   const storeTasks = useAppStore(state => state.tasks);
   const navigate = useNavigate();
@@ -964,6 +1034,7 @@ export function DesktopView() {
     }
   });
   const [agentWindow, setAgentWindow] = useState<AgentWindowState | null>(null);
+  const [isAgentSetupWizardOpen, setIsAgentSetupWizardOpen] = useState(false);
 
   const agents = useMemo<AgentSprite[]>(() => {
     return storeAgents.map((agent, index) => {
@@ -981,7 +1052,9 @@ export function DesktopView() {
         role: agent.role,
         provider: agent.provider,
         model: agent.model,
+        runtimeKind: agent.runtimeKind,
         runMode: agent.runMode,
+        verificationStatus: agent.verificationStatus,
         aliases: agent.aliases,
         capabilities: agent.capabilities,
         skillFile: agent.skillFile,
@@ -1274,6 +1347,12 @@ export function DesktopView() {
   const selectedAgent = agentWindow ? agents.find(agent => agent.id === agentWindow.agentId) ?? null : null;
   const [selectedAgentActivity, setSelectedAgentActivity] = useState<ReadonlyArray<AgentActivityEvent>>([]);
   const [selectedAgentAnalytics, setSelectedAgentAnalytics] = useState<AnalyticsDashboardResponse | null>(null);
+  const [selectedAgentRuntimeReadiness, setSelectedAgentRuntimeReadiness] = useState<AgentRuntimeReadinessResponse | null>(null);
+  const [selectedAgentSessions, setSelectedAgentSessions] = useState<ReadonlyArray<AgentSessionRecord>>([]);
+  const [selectedAgentSessionEvents, setSelectedAgentSessionEvents] = useState<ReadonlyArray<AgentSessionEventRecord>>([]);
+  const [selectedAgentRuntimeId, setSelectedAgentRuntimeId] = useState('opencode');
+  const [selectedAgentMessageDraft, setSelectedAgentMessageDraft] = useState('');
+  const [selectedAgentActionBusy, setSelectedAgentActionBusy] = useState(false);
   const [selectedAgentLoading, setSelectedAgentLoading] = useState(false);
   const [selectedAgentError, setSelectedAgentError] = useState<string | null>(null);
 
@@ -1281,6 +1360,11 @@ export function DesktopView() {
     if (!selectedAgent) {
       setSelectedAgentActivity([]);
       setSelectedAgentAnalytics(null);
+      setSelectedAgentRuntimeReadiness(null);
+      setSelectedAgentSessions([]);
+      setSelectedAgentSessionEvents([]);
+      setSelectedAgentRuntimeId('opencode');
+      setSelectedAgentMessageDraft('');
       setSelectedAgentLoading(false);
       setSelectedAgentError(null);
       return;
@@ -1293,11 +1377,23 @@ export function DesktopView() {
     void Promise.all([
       relayhqApi.getAgentActivity(selectedAgent.id),
       relayhqApi.getAnalyticsSummary(),
+      relayhqApi.getAgentRuntimeReadiness(selectedAgent.id),
+      relayhqApi.listAgentSessions(selectedAgent.id),
     ])
-      .then(([activity, analytics]) => {
+      .then(async ([activity, analytics, runtimeReadiness, sessions]) => {
         if (cancelled) return;
         setSelectedAgentActivity(activity);
         setSelectedAgentAnalytics(analytics);
+        setSelectedAgentRuntimeReadiness(runtimeReadiness);
+        setSelectedAgentRuntimeId(runtimeReadiness.runtimeKind ?? (selectedAgent?.provider === 'claude' ? 'claude-code' : selectedAgent?.provider === 'codex' ? 'codex' : 'opencode'));
+        setSelectedAgentSessions(sessions);
+        if (sessions[0]) {
+          const events = await relayhqApi.getAgentSessionEvents(sessions[0].sessionId)
+          if (cancelled) return;
+          setSelectedAgentSessionEvents(events)
+        } else {
+          setSelectedAgentSessionEvents([])
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -1356,6 +1452,174 @@ export function DesktopView() {
       return { agentId, x, y, w: width, h: height, zIndex: zTop, minimized: false, maximized: false };
     });
   }, []);
+
+  const refreshSelectedAgentSessions = useCallback(async (agentId: string) => {
+    const [readiness, sessions] = await Promise.all([
+      relayhqApi.getAgentRuntimeReadiness(agentId),
+      relayhqApi.listAgentSessions(agentId),
+    ])
+    setSelectedAgentRuntimeReadiness(readiness)
+    setSelectedAgentSessions(sessions)
+    if (sessions[0]) {
+      const events = await relayhqApi.getAgentSessionEvents(sessions[0].sessionId)
+      setSelectedAgentSessionEvents(events)
+    } else {
+      setSelectedAgentSessionEvents([])
+    }
+  }, [])
+
+  const ensureAgentChatSession = useCallback(async (agentId: string) => {
+    setSelectedAgentError(null)
+
+    const [readiness, existingSessions] = await Promise.all([
+      relayhqApi.getAgentRuntimeReadiness(agentId),
+      relayhqApi.listAgentSessions(agentId),
+    ])
+
+    setSelectedAgentRuntimeReadiness(readiness)
+    setSelectedAgentSessions(existingSessions)
+
+    if (existingSessions[0]) {
+      const events = await relayhqApi.getAgentSessionEvents(existingSessions[0].sessionId)
+      setSelectedAgentSessionEvents(events)
+    } else {
+      setSelectedAgentSessionEvents([])
+    }
+
+    if (existingSessions[0]?.launchSurface === 'background' && existingSessions[0]?.status === 'running') {
+      return
+    }
+
+    if (readiness.verificationStatus !== 'ready') {
+      return
+    }
+
+    const nextTask = storeTasks.find(entry => entry.assigneeId === agentId && entry.status === 'in-progress')
+      ?? storeTasks.find(entry => entry.assigneeId === agentId && entry.status === 'todo')
+      ?? null
+
+    if (!nextTask) {
+      return
+    }
+
+    setSelectedAgentActionBusy(true)
+    try {
+      if (existingSessions[0]) {
+        await relayhqApi.resumeAgent(agentId, {
+          taskId: nextTask.id,
+          previousSessionId: existingSessions[0].sessionId,
+          surface: 'background',
+        })
+      } else {
+        await relayhqApi.runAgent(agentId, {
+          taskId: nextTask.id,
+          mode: 'fresh',
+          surface: 'background',
+        })
+      }
+
+      await loadData()
+      await refreshSelectedAgentSessions(agentId)
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [loadData, refreshSelectedAgentSessions, storeTasks])
+
+  const openAgentChat = useCallback((agentId: string) => {
+    openAgentWindow(agentId)
+    void ensureAgentChatSession(agentId).catch((error: unknown) => {
+      setSelectedAgentError(error instanceof Error ? error.message : 'Failed to open agent chat.')
+    })
+  }, [ensureAgentChatSession, openAgentWindow])
+
+  useEffect(() => {
+    if (!selectedAgent?.id) return;
+
+    const intervalId = window.setInterval(() => {
+      void refreshSelectedAgentSessions(selectedAgent.id);
+    }, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [refreshSelectedAgentSessions, selectedAgent?.id]);
+
+  const bindSelectedAgentOpenCode = useCallback(async () => {
+    if (!selectedAgent) return
+    setSelectedAgentActionBusy(true)
+    try {
+      await relayhqApi.bindAgentRuntime(selectedAgent.id, selectedAgentRuntimeId)
+      await refreshSelectedAgentSessions(selectedAgent.id)
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent])
+
+  const verifySelectedAgentRuntime = useCallback(async () => {
+    if (!selectedAgent) return
+    setSelectedAgentActionBusy(true)
+    try {
+      await refreshSelectedAgentSessions(selectedAgent.id)
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent])
+
+  const launchSelectedAgentFresh = useCallback(async () => {
+    if (!selectedAgent) return
+    const task = storeTasks.find(entry => entry.assigneeId === selectedAgent.id && entry.status === 'todo') ?? storeTasks.find(entry => entry.assigneeId === selectedAgent.id && entry.status === 'in-progress')
+    if (!task) return
+    setSelectedAgentActionBusy(true)
+    try {
+      await relayhqApi.runAgent(selectedAgent.id, { taskId: task.id, mode: 'fresh', surface: 'background' })
+      await refreshSelectedAgentSessions(selectedAgent.id)
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent, storeTasks])
+
+  const resumeSelectedAgent = useCallback(async () => {
+    if (!selectedAgent) return
+    const task = storeTasks.find(entry => entry.assigneeId === selectedAgent.id && entry.status === 'in-progress') ?? storeTasks.find(entry => entry.assigneeId === selectedAgent.id && entry.status === 'todo')
+    if (!task) return
+    const previousSession = selectedAgentSessions[0] ?? null
+    setSelectedAgentActionBusy(true)
+    try {
+      await relayhqApi.resumeAgent(selectedAgent.id, { taskId: task.id, previousSessionId: previousSession?.sessionId ?? null, surface: 'background' })
+      await refreshSelectedAgentSessions(selectedAgent.id)
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent, selectedAgentSessions, storeTasks])
+
+  const stopSelectedAgent = useCallback(async () => {
+    if (!selectedAgentSessions[0]) return
+    setSelectedAgentActionBusy(true)
+    try {
+      await relayhqApi.stopAgentSession(selectedAgentSessions[0].sessionId)
+      if (selectedAgent) {
+        await refreshSelectedAgentSessions(selectedAgent.id)
+      }
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent, selectedAgentSessions])
+
+  const sendSelectedAgentMessage = useCallback(async () => {
+    if (!selectedAgentSessions[0]) return
+    const message = selectedAgentMessageDraft.trim()
+    if (message.length === 0) return
+    setSelectedAgentActionBusy(true)
+    try {
+      await relayhqApi.sendAgentSessionMessage(selectedAgentSessions[0].sessionId, message)
+      setSelectedAgentMessageDraft('')
+      if (selectedAgent) {
+        await refreshSelectedAgentSessions(selectedAgent.id)
+      }
+    } finally {
+      setSelectedAgentActionBusy(false)
+    }
+  }, [refreshSelectedAgentSessions, selectedAgent, selectedAgentMessageDraft, selectedAgentSessions])
 
   const minimizeAgentWindow = useCallback(() => {
     setAgentWindow(current => (current ? { ...current, minimized: true } : current));
@@ -1429,6 +1693,15 @@ export function DesktopView() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3 pl-4 text-brand-bright text-glow">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-3 text-[9px] tracking-[0.18em]"
+            onClick={() => setIsAgentSetupWizardOpen(true)}
+          >
+            NEW AGENT
+          </Button>
           <span>STATUS NOMINAL</span>
           <span>{currentTime}</span>
           <Button
@@ -1457,7 +1730,7 @@ export function DesktopView() {
             <DesktopAgent
               agent={agent}
               onDragStart={startDraggingAgent}
-              onClick={() => openAgentWindow(agent.id)}
+              onClick={() => openAgentChat(agent.id)}
               onDragEnd={moveAgent as (id: string, x: number, y: number) => void}
             />
           </Fragment>
@@ -1490,10 +1763,25 @@ export function DesktopView() {
         analytics={selectedAgentAnalytics}
         loading={selectedAgentLoading}
         error={selectedAgentError}
+        runtimeReadiness={selectedAgentRuntimeReadiness}
+        sessions={selectedAgentSessions}
+        sessionEvents={selectedAgentSessionEvents}
+        runtimeSelection={selectedAgentRuntimeId}
+        onRuntimeSelectionChange={setSelectedAgentRuntimeId}
+        onBindOpenCode={() => void bindSelectedAgentOpenCode()}
+        onVerifyRuntime={() => void verifySelectedAgentRuntime()}
+        onLaunchFresh={() => void launchSelectedAgentFresh()}
+        onResumeLatest={() => void resumeSelectedAgent()}
+        onStopLatest={() => void stopSelectedAgent()}
+        messageDraft={selectedAgentMessageDraft}
+        onMessageDraftChange={setSelectedAgentMessageDraft}
+        onSendMessage={() => void sendSelectedAgentMessage()}
+        actionBusy={selectedAgentActionBusy}
       />
 
       {/* Vault setup — shows automatically when vault not configured */}
       <OnboardingWizard />
+      <AgentSetupWizard open={isAgentSetupWizardOpen} onClose={() => setIsAgentSetupWizardOpen(false)} />
     </div>
   );
 }

@@ -46,9 +46,16 @@ export interface ReadModelAgent {
   readonly fallbackModels: ReadonlyArray<string>;
   readonly monthlyBudgetUsd: number | null;
   readonly aliases: ReadonlyArray<string>;
+  readonly runtimeKind: string | null;
   readonly runCommand: string | null;
+  readonly commandTemplate: string | null;
   readonly runMode: string | null;
   readonly webhookUrl: string | null;
+  readonly workingDirectoryStrategy: string | null;
+  readonly supportsResume: boolean;
+  readonly supportsStreaming: boolean;
+  readonly bootstrapStrategy: string | null;
+  readonly verificationStatus: string | null;
   readonly capabilities: ReadonlyArray<string>;
   readonly taskTypesAccepted: ReadonlyArray<string>;
   readonly approvalRequiredFor: ReadonlyArray<string>;
@@ -177,6 +184,9 @@ export interface ReadModelTask {
   readonly history: ReadonlyArray<ReadModelTaskHistoryEntry>;
   readonly nextRunAt?: string | null;
   readonly cronSchedule?: string | null;
+  readonly dispatchStatus: string | null;
+  readonly dispatchReason: string | null;
+  readonly lastDispatchAttemptAt: string | null;
   readonly approvalNeeded: boolean;
   readonly approvalRequestedBy: string | null;
   readonly approvalReason: string | null;
@@ -585,9 +595,16 @@ function buildAgentModel(document: VaultDocument<AgentFrontmatter>): ReadModelAg
     fallbackModels: [...(document.frontmatter.fallback_models ?? [])].sort(),
     monthlyBudgetUsd: document.frontmatter.monthly_budget_usd ?? null,
     aliases: [...(document.frontmatter.aliases ?? [])].sort(),
+    runtimeKind: document.frontmatter.runtime_kind ?? null,
     runCommand: document.frontmatter.run_command ?? null,
+    commandTemplate: document.frontmatter.command_template ?? null,
     runMode: document.frontmatter.run_mode ?? null,
     webhookUrl: document.frontmatter.webhook_url ?? null,
+    workingDirectoryStrategy: document.frontmatter.working_directory_strategy ?? null,
+    supportsResume: document.frontmatter.supports_resume ?? false,
+    supportsStreaming: document.frontmatter.supports_streaming ?? false,
+    bootstrapStrategy: document.frontmatter.bootstrap_strategy ?? null,
+    verificationStatus: document.frontmatter.verification_status ?? null,
     capabilities: sortStrings(document.frontmatter.capabilities),
     taskTypesAccepted: sortStrings(document.frontmatter.task_types_accepted),
     approvalRequiredFor: sortStrings(document.frontmatter.approval_required_for),
@@ -634,6 +651,9 @@ function buildTaskModel(document: VaultDocument<TaskFrontmatter>, approvals: Rea
     })),
     nextRunAt: document.frontmatter.next_run_at ?? null,
     cronSchedule: document.frontmatter.cron_schedule ?? null,
+    dispatchStatus: document.frontmatter.dispatch_status ?? null,
+    dispatchReason: document.frontmatter.dispatch_reason ?? null,
+    lastDispatchAttemptAt: document.frontmatter.last_dispatch_attempt_at ?? null,
     approvalNeeded: document.frontmatter.approval_needed,
     approvalRequestedBy: document.frontmatter.approval_requested_by,
     approvalReason: document.frontmatter.approval_reason,

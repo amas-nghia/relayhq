@@ -1,4 +1,4 @@
-export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
+export type TaskStatus = 'todo' | 'in-progress' | 'failed' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type AgentState = 'idle' | 'active' | 'waiting' | 'stale'
 
@@ -17,9 +17,16 @@ export interface Agent {
   spriteAsset?: string | null
   monthlyBudgetUsd?: number | null
   aliases?: ReadonlyArray<string>
+  runtimeKind?: string | null
   runCommand?: string | null
+  commandTemplate?: string | null
   runMode?: string | null
   webhookUrl?: string | null
+  workingDirectoryStrategy?: string | null
+  supportsResume?: boolean
+  supportsStreaming?: boolean
+  bootstrapStrategy?: string | null
+  verificationStatus?: string | null
   capabilities?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string
@@ -82,6 +89,9 @@ export interface Task {
   executionStartedAt?: string
   executionNotes?: string
   history?: Array<{ at: string; actor: string; action: string; fromStatus?: TaskStatus; toStatus?: TaskStatus }>
+  dispatchStatus?: string | null
+  dispatchReason?: string | null
+  lastDispatchAttemptAt?: string | null
   approvalNeeded?: boolean
   approvalOutcome?: 'approved' | 'rejected' | 'pending'
   approvalRequestedBy?: string

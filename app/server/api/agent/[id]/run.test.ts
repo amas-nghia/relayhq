@@ -73,14 +73,24 @@ function createReadModel(): VaultReadModel {
       role: "implementation",
       roles: ["implementation"],
       provider: "claude",
-      apiKeyRef: null,
-      model: "claude-sonnet-4-6",
-      fallbackModels: [],
-      monthlyBudgetUsd: null,
-      aliases: ["claude"],
-      runCommand: null,
-      runMode: "manual",
-      capabilities: [],
+        apiKeyRef: null,
+        portraitAsset: null,
+        spriteAsset: null,
+        model: "claude-sonnet-4-6",
+        fallbackModels: [],
+        monthlyBudgetUsd: null,
+        aliases: ["claude"],
+        runtimeKind: "claude-code",
+        runCommand: null,
+        commandTemplate: "claude -p \"{prompt}\"",
+        runMode: "manual",
+        webhookUrl: null,
+        workingDirectoryStrategy: "project-root",
+        supportsResume: true,
+        supportsStreaming: true,
+        bootstrapStrategy: "instruction-file",
+        verificationStatus: "unknown",
+        capabilities: [],
       taskTypesAccepted: [],
       approvalRequiredFor: [],
       cannotDo: [],
@@ -104,23 +114,54 @@ describe("POST /api/agent/[id]/run", () => {
       resolveRoot: () => "/tmp/relayhq-vault",
       readModelReader: async () => createReadModel(),
       workspaceIdReader: () => null,
-      startTaskAutorun: async () => ({ runnerId: "runner-1", command: "claude:chat" }),
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: ["-p"] }),
     });
 
     expect(response).toEqual({
       agentId: "claude-code",
       taskId: "task-001",
+      sessionId: "runner-1",
       runnerId: "runner-1",
-      command: "claude:chat",
+      runtimeKind: "claude-code",
+      launchSurface: "background",
+      launchMode: "fresh",
+      command: "claude",
+      args: ["-p"],
     });
   });
+
+  test("passes resume launch mode through to the launch service", async () => {
+    const response = await runAgentTask("claude-code", {
+      taskId: "task-001",
+      mode: "resume",
+      previousSessionId: "runner-0",
+    }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => createReadModel(),
+      workspaceIdReader: () => null,
+      launchAgentSession: async (request) => ({
+        sessionId: request.previousSessionId ?? "runner-2",
+        runnerId: "runner-2",
+        agentId: request.agentId,
+        taskId: request.taskId,
+        runtimeKind: "claude-code",
+        launchSurface: request.surface ?? "background",
+        launchMode: request.mode ?? "fresh",
+        command: "claude",
+        args: ["-p"],
+      }),
+    })
+
+    expect(response.launchMode).toBe("resume")
+    expect(response.sessionId).toBe("runner-0")
+  })
 
   test("rejects tasks assigned to another agent", async () => {
     await expect(runAgentTask("claude-code", { taskId: "task-001" }, {
       resolveRoot: () => "/tmp/relayhq-vault",
       readModelReader: async () => ({ ...createReadModel(), tasks: [{ ...createReadModel().tasks[0], assignee: "other-agent" }] }),
       workspaceIdReader: () => null,
-      startTaskAutorun: async () => ({ runnerId: "runner-1", command: "claude:chat" }),
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
     })).rejects.toMatchObject({ statusCode: 409 });
   });
 });

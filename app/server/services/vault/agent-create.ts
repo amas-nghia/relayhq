@@ -18,12 +18,21 @@ export interface CreateAgentInput {
   readonly roles?: ReadonlyArray<string>;
   readonly provider: string;
   readonly apiKeyRef?: string | null;
+  readonly portraitAsset?: string | null;
+  readonly spriteAsset?: string | null;
   readonly model: string;
   readonly monthlyBudgetUsd?: number | null;
   readonly aliases?: ReadonlyArray<string>;
+  readonly runtimeKind?: string | null;
   readonly runCommand?: string | null;
+  readonly commandTemplate?: string | null;
   readonly runMode?: string | null;
   readonly webhookUrl?: string | null;
+  readonly workingDirectoryStrategy?: string | null;
+  readonly supportsResume?: boolean;
+  readonly supportsStreaming?: boolean;
+  readonly bootstrapStrategy?: string | null;
+  readonly verificationStatus?: string | null;
   readonly capabilities?: ReadonlyArray<string>;
   readonly taskTypesAccepted?: ReadonlyArray<string>;
   readonly approvalRequiredFor?: ReadonlyArray<string>;
@@ -112,9 +121,16 @@ function serializeAgentDocument(frontmatter: AgentFrontmatter, body: string): st
     `model: ${serializeValue(frontmatter.model)}`,
     ...(frontmatter.monthly_budget_usd === undefined ? [] : [`monthly_budget_usd: ${serializeValue(frontmatter.monthly_budget_usd)}`]),
     ...(frontmatter.aliases === undefined ? [] : [`aliases: ${serializeValue(frontmatter.aliases)}`]),
+    ...(frontmatter.runtime_kind === undefined ? [] : [`runtime_kind: ${serializeValue(frontmatter.runtime_kind)}`]),
     ...(frontmatter.run_command === undefined ? [] : [`run_command: ${serializeValue(frontmatter.run_command)}`]),
+    ...(frontmatter.command_template === undefined ? [] : [`command_template: ${serializeValue(frontmatter.command_template)}`]),
     ...(frontmatter.run_mode === undefined ? [] : [`run_mode: ${serializeValue(frontmatter.run_mode)}`]),
     ...(frontmatter.webhook_url === undefined ? [] : [`webhook_url: ${serializeValue(frontmatter.webhook_url)}`]),
+    ...(frontmatter.working_directory_strategy === undefined ? [] : [`working_directory_strategy: ${serializeValue(frontmatter.working_directory_strategy)}`]),
+    ...(frontmatter.supports_resume === undefined ? [] : [`supports_resume: ${serializeValue(frontmatter.supports_resume)}`]),
+    ...(frontmatter.supports_streaming === undefined ? [] : [`supports_streaming: ${serializeValue(frontmatter.supports_streaming)}`]),
+    ...(frontmatter.bootstrap_strategy === undefined ? [] : [`bootstrap_strategy: ${serializeValue(frontmatter.bootstrap_strategy)}`]),
+    ...(frontmatter.verification_status === undefined ? [] : [`verification_status: ${serializeValue(frontmatter.verification_status)}`]),
     `capabilities: ${serializeValue(frontmatter.capabilities)}`,
     `task_types_accepted: ${serializeValue(frontmatter.task_types_accepted)}`,
     `approval_required_for: ${serializeValue(frontmatter.approval_required_for)}`,
@@ -166,9 +182,16 @@ function buildAgentFrontmatter(input: {
   readonly model: string;
   readonly monthlyBudgetUsd: number | null;
   readonly aliases: ReadonlyArray<string>;
+  readonly runtimeKind: string | null;
   readonly runCommand: string | null;
+  readonly commandTemplate: string | null;
   readonly runMode: string | null;
   readonly webhookUrl: string | null;
+  readonly workingDirectoryStrategy: string | null;
+  readonly supportsResume: boolean;
+  readonly supportsStreaming: boolean;
+  readonly bootstrapStrategy: string | null;
+  readonly verificationStatus: string | null;
   readonly workspaceId: string;
   readonly now: Date;
   readonly capabilities: ReadonlyArray<string>;
@@ -195,9 +218,16 @@ function buildAgentFrontmatter(input: {
     model: input.model,
     ...(input.monthlyBudgetUsd === null ? {} : { monthly_budget_usd: input.monthlyBudgetUsd }),
     ...(input.aliases === undefined || input.aliases.length === 0 ? {} : { aliases: [...new Set(input.aliases.map((entry) => entry.trim()).filter((entry) => entry.length > 0))] }),
+    ...(input.runtimeKind === null || input.runtimeKind === undefined ? {} : { runtime_kind: input.runtimeKind as AgentFrontmatter["runtime_kind"] }),
     ...(input.runCommand === null || input.runCommand === undefined ? {} : { run_command: input.runCommand }),
+    ...(input.commandTemplate === null || input.commandTemplate === undefined ? {} : { command_template: input.commandTemplate }),
     ...(input.runMode === null || input.runMode === undefined ? {} : { run_mode: input.runMode as AgentFrontmatter["run_mode"] }),
     ...(input.webhookUrl === null || input.webhookUrl === undefined ? {} : { webhook_url: input.webhookUrl }),
+    ...(input.workingDirectoryStrategy === null || input.workingDirectoryStrategy === undefined ? {} : { working_directory_strategy: input.workingDirectoryStrategy as AgentFrontmatter["working_directory_strategy"] }),
+    ...(input.supportsResume ? { supports_resume: true } : {}),
+    ...(input.supportsStreaming ? { supports_streaming: true } : {}),
+    ...(input.bootstrapStrategy === null || input.bootstrapStrategy === undefined ? {} : { bootstrap_strategy: input.bootstrapStrategy as AgentFrontmatter["bootstrap_strategy"] }),
+    ...(input.verificationStatus === null || input.verificationStatus === undefined ? {} : { verification_status: input.verificationStatus as AgentFrontmatter["verification_status"] }),
     capabilities: input.capabilities,
     task_types_accepted: input.taskTypesAccepted,
     approval_required_for: input.approvalRequiredFor,
@@ -250,9 +280,16 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
     model,
     monthlyBudgetUsd: input.monthlyBudgetUsd ?? null,
     aliases: input.aliases ?? [],
+    runtimeKind: input.runtimeKind ?? null,
     runCommand: input.runCommand ?? null,
+    commandTemplate: input.commandTemplate ?? null,
     runMode: input.runMode ?? null,
     webhookUrl: input.webhookUrl ?? null,
+    workingDirectoryStrategy: input.workingDirectoryStrategy ?? null,
+    supportsResume: input.supportsResume ?? false,
+    supportsStreaming: input.supportsStreaming ?? false,
+    bootstrapStrategy: input.bootstrapStrategy ?? null,
+    verificationStatus: input.verificationStatus ?? null,
     workspaceId,
     now,
     capabilities,

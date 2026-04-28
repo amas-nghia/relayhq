@@ -3,24 +3,22 @@ import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../../models/read-model";
 import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
-import { startTaskAutorun } from "../../../services/agents/autorun";
+import { launchAgentSession, type LaunchAgentSessionResult } from "../../../services/agents/launch";
 
 export interface AgentRunRequestBody {
   readonly taskId: string;
+  readonly mode?: 'fresh' | 'resume';
+  readonly surface?: 'background' | 'visible-terminal';
+  readonly previousSessionId?: string | null;
 }
 
-export interface AgentRunResponse {
-  readonly agentId: string;
-  readonly taskId: string;
-  readonly runnerId: string;
-  readonly command: string;
-}
+export interface AgentRunResponse extends LaunchAgentSessionResult {}
 
 interface RunAgentDependencies {
   readonly resolveRoot?: () => string;
   readonly readModelReader?: typeof readCanonicalVaultReadModel;
   readonly workspaceIdReader?: typeof readConfiguredWorkspaceId;
-  readonly startTaskAutorun?: typeof startTaskAutorun;
+  readonly launchAgentSession?: typeof launchAgentSession;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -47,7 +45,7 @@ export async function runAgentTask(
   const resolveRoot = dependencies.resolveRoot ?? resolveVaultWorkspaceRoot;
   const readModelReader = dependencies.readModelReader ?? readCanonicalVaultReadModel;
   const workspaceIdReader = dependencies.workspaceIdReader ?? readConfiguredWorkspaceId;
-  const runTaskAutorun = dependencies.startTaskAutorun ?? startTaskAutorun;
+  const runLaunchAgentSession = dependencies.launchAgentSession ?? launchAgentSession;
   const vaultRoot = resolveRoot();
   const readModel = await readModelReader(vaultRoot);
   const workspaceId = normalizeConfiguredWorkspaceId(workspaceIdReader(), readModel.workspaces);
@@ -69,12 +67,14 @@ export async function runAgentTask(
     throw createError({ statusCode: 409, statusMessage: `Task ${task.id} is not assigned to agent ${agent.id}.` });
   }
 
-  const runner = await runTaskAutorun(task.id);
-  return {
+  return await runLaunchAgentSession({
     agentId: agent.id,
     taskId: task.id,
-    ...runner,
-  };
+    mode: body.mode,
+    surface: body.surface,
+    previousSessionId: body.previousSessionId ?? null,
+    vaultRoot,
+  });
 }
 
 export default defineEventHandler(async (event) => {
@@ -87,5 +87,8 @@ export default defineEventHandler(async (event) => {
 
   return await runAgentTask(agentId, {
     taskId: typeof body.taskId === "string" ? body.taskId : "",
+    ...(body.mode === "resume" ? { mode: "resume" as const } : body.mode === "fresh" ? { mode: "fresh" as const } : {}),
+    ...(body.surface === "visible-terminal" ? { surface: "visible-terminal" as const } : body.surface === "background" ? { surface: "background" as const } : {}),
+    ...(typeof body.previousSessionId === "string" ? { previousSessionId: body.previousSessionId } : {}),
   });
 });

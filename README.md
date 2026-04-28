@@ -5,9 +5,7 @@
 <h1 align="center">RelayHQ</h1>
 
 <p align="center">
-  <strong>Open-source task board for human + AI agent teams.</strong><br/>
-  Humans create tasks. Agents claim, work, and report back. Humans review and approve.<br/>
-  Everything is Markdown files in a Git repo — no database, no cloud account, no lock-in.
+  <strong>Open-source coordination layer for human + AI agent teams.</strong>
 </p>
 
 <p align="center">
@@ -21,6 +19,65 @@
   <a href="#quick-start">Quick Start</a> ·
   <a href="#connecting-your-agent">Connect Agent</a>
 </p>
+
+---
+
+AI agents can write code, run tests, and ship features — but they still need someone to decide *what* to work on, in *what order*, and to say *yes* before anything goes to production.
+
+RelayHQ is the coordination layer that sits between you and your agents. It decides which agent gets which task, prevents two agents from claiming the same work, routes by capability, holds approval gates, and keeps a full audit trail — all in plain Markdown files committed to your Git repo.
+
+You don't manage agents directly. You manage the task queue. RelayHQ handles the rest.
+
+```
+You create task + define acceptance criteria + assign to agent (or leave for pool)
+       ↓
+RelayHQ routes to the right agent — locks it so no other agent can claim
+       ↓
+Agent works → sends heartbeats → RelayHQ auto-reclaims if agent goes silent
+       ↓
+Needs sign-off? → agent pauses and waits — nothing proceeds without approval
+       ↓
+You review in the UI → approve or send back with notes
+       ↓
+Done. Written to vault. Committed to Git. Full audit trail.
+```
+
+Works with Claude Code, Cursor, OpenCode, Codex, Antigravity — or any agent that can call an HTTP API.
+
+---
+
+## Is RelayHQ right for you?
+
+- You use Claude Code (or Cursor, OpenCode, Codex) for real work and want to track what it's doing
+- You run multiple AI agents on the same project and need them not to step on each other
+- You want agents to ask for human approval before touching risky things (migrations, prod configs)
+- You want a full audit log of everything agents did — in plain Markdown, committed to Git
+
+**Not the right fit if:** you want fully autonomous agents with no human oversight.
+
+---
+
+## How it works
+
+Every task is a Markdown file:
+
+```markdown
+---
+id: task-001
+title: Implement login endpoint
+status: in-progress
+assignee: claude-code
+priority: high
+progress: 40
+---
+
+Implement JWT-based `/api/auth/login`.
+Acceptance: returns 200 with token on valid credentials.
+```
+
+The API server reads and writes these files. The web UI shows the board. Agents interact via MCP tools or HTTP — same API, same files.
+
+**RelayHQ coordinates work. It does not execute work.**
 
 ---
 
@@ -53,7 +110,7 @@ cd web && bun install && bun run dev   # Web UI    → http://localhost:44211
 
 ### Claude Code / Cursor / Antigravity (MCP)
 
-Add to `~/.claude/settings.json` (or equivalent):
+**Step 1** — Add to `~/.claude/settings.json` (or equivalent):
 
 ```json
 {
@@ -72,6 +129,16 @@ Add to `~/.claude/settings.json` (or equivalent):
 
 > The onboarding wizard generates this snippet with your vault path pre-filled.
 
+**Step 2** — Install the protocol skill into your project:
+
+```bash
+npx relayhq setup claude-code   # appends to CLAUDE.md
+npx relayhq setup cursor        # writes .cursor/rules/relayhq.mdc
+npx relayhq setup antigravity   # writes .antigravity/instructions/relayhq.md
+```
+
+The skill file tells the agent exactly how to behave: claim before starting, send heartbeats every 5–10 min, move to "review" when done — never "done" directly. Without it the agent has the tools but no rules for using them correctly.
+
 Restart your agent. Five tools are now available: `relayhq_inbox`, `relayhq_start`, `relayhq_progress`, `relayhq_done`, `relayhq_blocked`.
 
 ### OpenCode / Codex / any CLI agent
@@ -80,6 +147,8 @@ Restart your agent. Five tools are now available: `relayhq_inbox`, `relayhq_star
 npx relayhq setup opencode   # creates .opencode/agents/relayhq.md
 npx relayhq setup codex      # creates .codex/instructions/relayhq.md
 ```
+
+The setup command writes the full protocol as an instruction file — HTTP API endpoints, request shapes, and the same behavioral rules (heartbeat cadence, review-not-done, approval gates).
 
 See [docs/connect.md](docs/connect.md) for all supported runtimes.
 
