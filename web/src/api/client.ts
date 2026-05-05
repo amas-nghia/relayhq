@@ -472,9 +472,22 @@ export interface RelayHQSkillRecord {
   readonly name: string
   readonly version: string
   readonly description: string
+  readonly requires: ReadonlyArray<string>
   readonly sourcePath: string
   readonly taskTypes: ReadonlyArray<string>
   readonly appliesToTags: ReadonlyArray<string>
+  readonly content: string
+}
+
+export interface RelayHQSkillSavePayload {
+  readonly name: string
+  readonly version: string
+  readonly description: string
+  readonly requires: ReadonlyArray<string>
+  readonly taskTypes: ReadonlyArray<string>
+  readonly appliesToTags: ReadonlyArray<string>
+  readonly content: string
+  readonly sourcePath?: string | null
 }
 
 export interface AgentAvatarUploadResponse {
@@ -670,6 +683,10 @@ export const relayhqApi = {
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getApiKeys: () => request<RelayHQApiKeysResponse>('/api/settings/api-keys'),
   listSkills: () => request<{ skills: ReadonlyArray<RelayHQSkillRecord>; skillDir: string }>('/api/settings/skills'),
+  saveSkill: (payload: RelayHQSkillSavePayload) => request<{ skill: RelayHQSkillRecord; skillDir: string }>('/api/settings/skills', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
   listVaultFiles: () => request<ReadonlyArray<RelayHQVaultFileEntry>>('/api/settings/vault-files'),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
   getWebhookSettings: () => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks'),

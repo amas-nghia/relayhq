@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import { useAppStore } from '../store/appStore';
 import { Search, Plus, Filter, Bot, Check, Clock, AlertTriangle, Circle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -153,7 +153,7 @@ function getPriorityBadgeClass(priority: TaskPriority) {
   }
 }
 
-export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) => void } = {}) {
+export const TasksView = memo(function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) => void } = {}) {
   const tasks = useAppStore(state => state.tasks);
   const agents = useAppStore(state => state.agents);
   const projects = useAppStore(state => state.projects);
@@ -586,4 +586,4 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
       </div>
     </div>
   );
-}
+})

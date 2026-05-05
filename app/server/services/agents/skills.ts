@@ -1,6 +1,6 @@
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 export interface InstalledSkill {
   readonly name: string;
@@ -25,8 +25,28 @@ export interface SkillMatchRequest {
   readonly agentSkillFiles?: ReadonlyArray<string>;
 }
 
+export interface SaveInstalledSkillInput {
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly requires?: ReadonlyArray<string>;
+  readonly taskTypes?: ReadonlyArray<string>;
+  readonly appliesToTags?: ReadonlyArray<string>;
+  readonly content?: string;
+  readonly sourcePath?: string | null;
+}
+
 function normalizeName(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "skill";
 }
 
 function normalizeVersionPart(value: string): number {
@@ -123,6 +143,43 @@ function asStringArray(value: string | ReadonlyArray<string> | undefined): Reado
   return Array.isArray(value) ? value.map((entry) => entry.trim()).filter((entry) => entry.length > 0) : [];
 }
 
+function normalizeStringList(values: ReadonlyArray<string> | undefined): ReadonlyArray<string> {
+  return [...new Set((values ?? []).map((entry) => entry.trim()).filter((entry) => entry.length > 0))].sort();
+}
+
+function stringifyArray(values: ReadonlyArray<string>): string {
+  return JSON.stringify(values);
+}
+
+function serializeInstalledSkill(input: Omit<SaveInstalledSkillInput, "sourcePath">): string {
+  const requires = normalizeStringList(input.requires);
+  const taskTypes = normalizeStringList(input.taskTypes);
+  const appliesToTags = normalizeStringList(input.appliesToTags);
+  const body = (input.content ?? "").trim();
+
+  return [
+    "---",
+    `name: ${JSON.stringify(input.name.trim())}`,
+    `version: ${JSON.stringify(input.version.trim())}`,
+    `description: ${JSON.stringify(input.description.trim())}`,
+    `requires: ${stringifyArray(requires)}`,
+    `task_types: ${stringifyArray(taskTypes)}`,
+    `applies_to_tags: ${stringifyArray(appliesToTags)}`,
+    "---",
+    body,
+    "",
+  ].join("\n");
+}
+
+function assertSkillFilePath(sourcePath: string, skillDir: string): string {
+  const resolvedDir = resolve(skillDir);
+  const resolvedPath = resolve(sourcePath);
+  if (!resolvedPath.startsWith(`${resolvedDir}/`) && resolvedPath !== resolvedDir) {
+    throw new Error("Skill path must stay within the RelayHQ skill directory.");
+  }
+  return resolvedPath;
+}
+
 function isSkillMatch(task: SkillMatchTask | null | undefined, skill: InstalledSkill): boolean {
   if (task === undefined || task === null) return false;
   const typeMatch = skill.taskTypes.includes(task.type);
@@ -200,6 +257,50 @@ export async function loadInstalledSkills(skillDir: string = getRelayHQSkillDir(
   } catch {
     return [];
   }
+}
+
+export async function saveInstalledSkill(
+  input: SaveInstalledSkillInput,
+  skillDir: string = getRelayHQSkillDir(),
+): Promise<InstalledSkill> {
+  const name = input.name.trim();
+  const version = input.version.trim();
+  const description = input.description.trim();
+
+  if (name.length === 0) throw new Error("Skill name is required.");
+  if (version.length === 0) throw new Error("Skill version is required.");
+  if (description.length === 0) throw new Error("Skill description is required.");
+
+  await mkdir(skillDir, { recursive: true });
+
+  const previousPath = input.sourcePath ? assertSkillFilePath(input.sourcePath, skillDir) : null;
+  const targetPath = previousPath ?? resolve(join(skillDir, `${slugify(name)}@${version}.md`));
+
+  await writeFile(targetPath, serializeInstalledSkill({
+    name,
+    version,
+    description,
+    requires: input.requires,
+    taskTypes: input.taskTypes,
+    appliesToTags: input.appliesToTags,
+    content: input.content,
+  }), "utf8");
+  const content = await readFile(targetPath, "utf8");
+  const parsed = parseSkillFrontmatter(content);
+  if (parsed === null) {
+    throw new Error("Saved skill file could not be parsed.");
+  }
+
+  return {
+    name,
+    version,
+    description,
+    requires: asStringArray(parsed.frontmatter.requires),
+    taskTypes: asStringArray(parsed.frontmatter.task_types),
+    appliesToTags: asStringArray(parsed.frontmatter.applies_to_tags),
+    content: parsed.body.trim(),
+    sourcePath: targetPath,
+  };
 }
 
 export function matchInstalledSkills(request: SkillMatchRequest): ReadonlyArray<InstalledSkill> {

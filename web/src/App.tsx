@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './components/layout/Shell';
+import { NewScheduledTaskModal } from './components/task/NewScheduledTaskModal';
+import { NewTaskModal } from './components/task/NewTaskModal';
 import { Toaster } from './components/ui/toaster';
 import { applyTheme, readStoredTheme } from './lib/theme';
 
@@ -44,6 +46,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <NewTaskModal />
+      <NewScheduledTaskModal />
     </BrowserRouter>
   );
 }

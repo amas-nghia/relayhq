@@ -9,9 +9,11 @@ export default defineEventHandler(async () => {
       name: skill.name,
       version: skill.version,
       description: skill.description,
+      requires: skill.requires,
       sourcePath: skill.sourcePath,
       taskTypes: skill.taskTypes,
       appliesToTags: skill.appliesToTags,
+      content: skill.content,
     })),
     skillDir: getRelayHQSkillDir(),
   };

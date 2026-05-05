@@ -1,104 +1,61 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, Clock3, ExternalLink, ListFilter, Play, Plus, Repeat2, Search } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Clock3, Play, Plus, Repeat2, Search } from 'lucide-react'
 
 import { relayhqApi } from '../api/client'
-import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
-import { Card } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Select } from '../components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { getTaskDispatchSummary } from '../lib/taskPresentation'
 import { cn } from '../lib/utils'
 import { useAppStore } from '../store/appStore'
 import type { Task } from '../types'
 
-type SchedulerTab = 'agenda' | 'queue' | 'recurring' | 'calendar'
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ScheduleView = 'upcoming' | 'blocked'
 type RangePreset = 'today' | 'this-week' | 'next-7-days' | 'all'
 type ScheduleType = 'all' | 'one-time' | 'recurring'
 
 type SchedulerFilters = {
-  projectId: string
   assigneeId: string
-  status: string
   scheduleType: ScheduleType
-  dispatchState: string
   rangePreset: RangePreset
 }
 
-const TAB_LABELS: Record<SchedulerTab, string> = {
-  agenda: 'Agenda',
-  queue: 'Queue',
-  recurring: 'Recurring',
-  calendar: 'Calendar',
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const RANGE_LABELS: Record<RangePreset, string> = {
   today: 'Today',
-  'this-week': 'This Week',
-  'next-7-days': 'Next 7 Days',
+  'this-week': 'This week',
+  'next-7-days': 'Next 7 days',
   all: 'All',
 }
 
-const DISPATCH_BADGE_CLASS: Record<string, string> = {
-  ready: 'border-status-done/25 bg-status-done/10 text-status-done',
-  queued: 'border-status-active/25 bg-status-active/10 text-status-active',
-  checking: 'border-status-waiting/25 bg-status-waiting/10 text-status-waiting',
-  started: 'border-status-active/25 bg-status-active/10 text-status-active',
-  blocked: 'border-status-blocked/25 bg-status-blocked/10 text-status-blocked',
-  failed: 'border-status-blocked/25 bg-status-blocked/10 text-status-blocked',
+// ─── Formatters ───────────────────────────────────────────────────────────────
+
+const DAY_FORMATTER = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+const TIME_FORMATTER = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+
+function isValidTimestamp(value?: string | null): value is string {
+  return Boolean(value) && !Number.isNaN(new Date(value!).getTime())
 }
 
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  scheduled: 'border-border bg-surface-secondary text-text-secondary',
-  todo: 'border-border bg-surface-secondary text-text-secondary',
-  blocked: 'border-status-blocked/25 bg-status-blocked/10 text-status-blocked',
-  'in-progress': 'border-status-active/25 bg-status-active/10 text-status-active',
-  review: 'border-status-waiting/25 bg-status-waiting/10 text-status-waiting',
-  'waiting-approval': 'border-status-waiting/25 bg-status-waiting/10 text-status-waiting',
-}
-
-const DAY_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-})
-
-const TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
-function isValidTimestamp(value?: string | null) {
-  if (!value) return false
-  return !Number.isNaN(new Date(value).getTime())
-}
-
-function formatRunTime(value?: string | null) {
-  if (!value) return 'No run time'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return TIME_FORMATTER.format(date)
+function formatTime(value?: string | null) {
+  if (!value || !isValidTimestamp(value)) return '—'
+  return TIME_FORMATTER.format(new Date(value))
 }
 
 function formatTimestamp(value?: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return `${DAY_FORMATTER.format(date)} ${TIME_FORMATTER.format(date)}`
+  if (!value || !isValidTimestamp(value)) return '—'
+  const d = new Date(value)
+  return `${DAY_FORMATTER.format(d)} ${TIME_FORMATTER.format(d)}`
 }
 
 function toDateTimeLocalValue(value?: string | null) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  const hours = `${date.getHours()}`.padStart(2, '0')
-  const minutes = `${date.getMinutes()}`.padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}`
+  if (!value || !isValidTimestamp(value)) return ''
+  const d = new Date(value)
+  const pad = (n: number) => `${n}`.padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function buildTomorrowNineLocalValue() {
@@ -108,33 +65,46 @@ function buildTomorrowNineLocalValue() {
   return toDateTimeLocalValue(next.toISOString())
 }
 
-function formatAgendaGroupLabel(value?: string | null) {
+function formatGroupLabel(value?: string | null) {
   if (!value) return 'Unscheduled'
-
   const runAt = new Date(value)
   if (Number.isNaN(runAt.getTime())) return value
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const runDay = new Date(runAt)
-  runDay.setHours(0, 0, 0, 0)
-
-  const offsetDays = Math.round((runDay.getTime() - today.getTime()) / 86400000)
-  const formattedDay = DAY_FORMATTER.format(runAt)
-
-  if (offsetDays < 0) return `Overdue · ${formattedDay}`
-  if (offsetDays === 0) return `Today · ${formattedDay}`
-  if (offsetDays === 1) return `Tomorrow · ${formattedDay}`
-  return formattedDay
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const runDay = new Date(runAt); runDay.setHours(0, 0, 0, 0)
+  const offset = Math.round((runDay.getTime() - today.getTime()) / 86_400_000)
+  const label = DAY_FORMATTER.format(runAt)
+  if (offset < 0) return `Overdue · ${label}`
+  if (offset === 0) return `Today · ${label}`
+  if (offset === 1) return `Tomorrow · ${label}`
+  return label
 }
 
-function getQueueReason(task: Task) {
-  if (task.status === 'waiting-approval' || (task.approvalNeeded && task.approvalOutcome !== 'approved')) {
-    return task.approvalReason ?? 'Approval required before this scheduled task can run.'
-  }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  return task.blockedReason ?? task.dispatchReason ?? 'Waiting for scheduler handoff.'
+function getScheduleType(task: Task): Exclude<ScheduleType, 'all'> {
+  return task.cronSchedule ? 'recurring' : 'one-time'
+}
+
+function isTaskInRange(task: Task, range: RangePreset) {
+  if (range === 'all') return true
+  if (!task.nextRunAt) return false
+  const runAt = new Date(task.nextRunAt)
+  if (Number.isNaN(runAt.getTime())) return false
+  const now = new Date()
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
+  if (range === 'today') {
+    const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1)
+    return runAt >= todayStart && runAt < todayEnd
+  }
+  if (range === 'this-week') {
+    const weekStart = new Date(todayStart)
+    const day = weekStart.getDay()
+    weekStart.setDate(weekStart.getDate() + (day === 0 ? -6 : 1 - day))
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7)
+    return runAt >= weekStart && runAt < weekEnd
+  }
+  const next7 = new Date(todayStart); next7.setDate(next7.getDate() + 7)
+  return runAt >= todayStart && runAt < next7
 }
 
 function normalizeDispatchState(task: Task) {
@@ -148,213 +118,325 @@ function normalizeDispatchState(task: Task) {
   return 'queued'
 }
 
-function getScheduleType(task: Task): Exclude<ScheduleType, 'all'> {
-  return task.cronSchedule ? 'recurring' : 'one-time'
+function getBlockReason(task: Task) {
+  if (task.status === 'waiting-approval') return task.approvalReason ?? 'Approval required before this task can run.'
+  return task.blockedReason ?? task.dispatchReason ?? 'Waiting for scheduler handoff.'
 }
 
-function isTaskInRange(task: Task, rangePreset: RangePreset) {
-  if (rangePreset === 'all') return true
-  if (!task.nextRunAt) return false
-
-  const runAt = new Date(task.nextRunAt)
-  if (Number.isNaN(runAt.getTime())) return false
-
-  const now = new Date()
-  const startOfToday = new Date(now)
-  startOfToday.setHours(0, 0, 0, 0)
-
-  if (rangePreset === 'today') {
-    const endOfToday = new Date(startOfToday)
-    endOfToday.setDate(endOfToday.getDate() + 1)
-    return runAt >= startOfToday && runAt < endOfToday
-  }
-
-  if (rangePreset === 'this-week') {
-    const startOfWeek = new Date(startOfToday)
-    const day = startOfWeek.getDay()
-    const mondayOffset = day === 0 ? -6 : 1 - day
-    startOfWeek.setDate(startOfWeek.getDate() + mondayOffset)
-    const endOfWeek = new Date(startOfWeek)
-    endOfWeek.setDate(endOfWeek.getDate() + 7)
-    return runAt >= startOfWeek && runAt < endOfWeek
-  }
-
-  const nextSevenDays = new Date(startOfToday)
-  nextSevenDays.setDate(nextSevenDays.getDate() + 7)
-  return runAt >= startOfToday && runAt < nextSevenDays
-}
-
-function matchesSchedulerFilters(task: Task, filters: SchedulerFilters) {
-  if (filters.projectId && task.projectId !== filters.projectId) return false
+function matchesFilters(task: Task, filters: SchedulerFilters, selectedProjectId: string | null) {
+  if (selectedProjectId && task.projectId !== selectedProjectId) return false
   if (filters.assigneeId && (task.assigneeId ?? '') !== filters.assigneeId) return false
-  if (filters.status && task.status !== filters.status) return false
   if (filters.scheduleType !== 'all' && getScheduleType(task) !== filters.scheduleType) return false
-  if (filters.dispatchState && normalizeDispatchState(task) !== filters.dispatchState) return false
   if (!isTaskInRange(task, filters.rangePreset)) return false
   return true
 }
 
-function SchedulerTaskRow({
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function TaskRow({
   task,
   isSelected,
   projectName,
   agentName,
   onSelect,
-  variant = 'agenda',
 }: {
   key?: string
   task: Task
   isSelected: boolean
   projectName: string
   agentName: string
-  onSelect: (taskId: string) => void
-  variant?: 'agenda' | 'queue'
+  onSelect: (id: string) => void
 }) {
-  const scheduleType = getScheduleType(task)
+  const isRecurring = Boolean(task.cronSchedule)
   const dispatchState = normalizeDispatchState(task)
-  const queueReason = getQueueReason(task)
+  const hasIssue = dispatchState === 'blocked' || dispatchState === 'failed'
 
   return (
     <button
       type="button"
       onClick={() => onSelect(task.id)}
       className={cn(
-        'flex w-full flex-col gap-3 border-b border-border px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-brand-muted/20',
-        isSelected && 'bg-brand-muted/25',
+        'flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors border-l-2 hover:bg-surface-secondary/40',
+        isSelected ? 'border-l-brand bg-surface-secondary/50' : 'border-l-transparent',
       )}
     >
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="min-w-[72px] border-r border-border pr-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-            {formatRunTime(task.nextRunAt)}
-          </div>
-          <div className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold uppercase tracking-[0.08em] text-text-primary">{task.title}</div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
-              <span>Project {projectName}</span>
-              <span>Agent {agentName}</span>
-              <span>Next {formatTimestamp(task.nextRunAt)}</span>
-              {task.cronSchedule && <span>Cron {task.cronSchedule}</span>}
-            </div>
-            {variant === 'queue' ? <div className="text-sm text-text-secondary">{queueReason}</div> : null}
+      {/* Time column */}
+      <div className="w-12 flex-none text-right">
+        <span className={cn('font-mono text-xs font-medium', hasIssue ? 'text-status-blocked' : 'text-text-secondary')}>
+          {formatTime(task.nextRunAt)}
+        </span>
+      </div>
+
+      <div className="mt-px h-3 w-px flex-none bg-border" />
+
+      {/* Content */}
+      <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-text-primary">{task.title}</div>
+          <div className="mt-0.5 truncate text-xs text-text-tertiary">
+            {projectName} · {agentName}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 xl:max-w-[280px] xl:justify-end">
-          <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
-            {scheduleType === 'recurring' ? <Repeat2 className="mr-1 h-3 w-3" /> : <Clock3 className="mr-1 h-3 w-3" />}
-            {scheduleType === 'recurring' ? 'Recurring' : 'One-Time'}
-          </Badge>
-          <Badge variant="secondary" className={STATUS_BADGE_CLASS[task.status] ?? 'border-border bg-surface-secondary text-text-secondary'}>
-            {task.status}
-          </Badge>
-          <Badge variant="secondary" className={DISPATCH_BADGE_CLASS[dispatchState] ?? 'border-border bg-surface-secondary text-text-secondary'}>
-            {dispatchState}
-          </Badge>
+        <div className="flex flex-none items-center gap-1.5 pt-0.5">
+          {isRecurring && <Repeat2 className="h-3 w-3 text-brand/50" />}
+          {hasIssue && (
+            <span className="rounded-full bg-status-blocked/15 px-1.5 py-0.5 text-[10px] text-status-blocked">
+              {dispatchState}
+            </span>
+          )}
         </div>
       </div>
     </button>
   )
 }
 
-function SchedulerSectionHeading({ title, count }: { title: string; count: number }) {
+function BlockedTaskRow({
+  task,
+  isSelected,
+  projectName,
+  agentName,
+  onSelect,
+}: {
+  key?: string
+  task: Task
+  isSelected: boolean
+  projectName: string
+  agentName: string
+  onSelect: (id: string) => void
+}) {
+  const dispatchState = normalizeDispatchState(task)
+  const reason = getBlockReason(task)
+  const isWaiting = task.status === 'waiting-approval'
+
   return (
-    <div className="flex items-center justify-between border-b border-accent px-4 py-3">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">{title}</div>
+    <button
+      type="button"
+      onClick={() => onSelect(task.id)}
+      className={cn(
+        'flex w-full flex-col gap-2 border-b border-border px-4 py-3 text-left transition-colors border-l-2 hover:bg-surface-secondary/40',
+        isSelected ? 'border-l-brand bg-surface-secondary/50' : 'border-l-transparent',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-text-primary">{task.title}</div>
+          <div className="mt-0.5 text-xs text-text-tertiary">{projectName} · {agentName}</div>
+        </div>
+        <span className={cn(
+          'flex-none rounded-full border px-2 py-0.5 text-[10px]',
+          isWaiting
+            ? 'border-status-waiting/30 bg-status-waiting/10 text-status-waiting'
+            : 'border-status-blocked/30 bg-status-blocked/10 text-status-blocked',
+        )}>
+          {isWaiting ? 'awaiting approval' : dispatchState}
+        </span>
       </div>
-      <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-text-tertiary">{count}</Badge>
+      <p className="text-xs text-text-secondary">{reason}</p>
+    </button>
+  )
+}
+
+function DetailPanel({
+  task,
+  projectName,
+  agentName,
+  hasAssignee,
+  rescheduleInput,
+  onRescheduleInputChange,
+  schedulerAction,
+  schedulerError,
+  onRunNow,
+  onReschedule,
+}: {
+  task: Task
+  projectName: string
+  agentName: string
+  hasAssignee: boolean
+  rescheduleInput: string
+  onRescheduleInputChange: (value: string) => void
+  schedulerAction: 'run-now' | 'reschedule' | null
+  schedulerError: string | null
+  onRunNow: () => void
+  onReschedule: () => void
+}) {
+  const scheduleType = getScheduleType(task)
+  const dispatchSummary = getTaskDispatchSummary(task)
+
+  return (
+    <div className="space-y-0 divide-y divide-border">
+      {/* Task summary */}
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-sm font-semibold text-text-primary leading-snug">{task.title}</h2>
+          {scheduleType === 'recurring' && <Repeat2 className="mt-0.5 h-3.5 w-3.5 flex-none text-brand/60" />}
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-text-tertiary">Next run</span>
+            <span className="font-medium text-text-primary text-right">{formatTimestamp(task.nextRunAt)}</span>
+          </div>
+          {task.cronSchedule && (
+            <div className="flex justify-between gap-3">
+              <span className="text-text-tertiary">Recurrence</span>
+              <span className="font-mono text-xs text-text-secondary text-right">{task.cronSchedule}</span>
+            </div>
+          )}
+          <div className="flex justify-between gap-3">
+            <span className="text-text-tertiary">Project</span>
+            <span className="text-text-primary text-right truncate">{projectName}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-text-tertiary">Agent</span>
+            <span className="text-text-primary text-right truncate">{agentName}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-text-tertiary">Status</span>
+            <span className="text-text-primary text-right">{task.status}</span>
+          </div>
+        </div>
+
+        {dispatchSummary && (
+          <div className="rounded border border-border bg-surface-secondary px-3 py-2 text-xs text-text-secondary">
+            <span className="font-medium text-text-primary">{dispatchSummary.label}: </span>
+            {dispatchSummary.message}
+          </div>
+        )}
+      </div>
+
+      {/* Reschedule */}
+      <div className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-text-tertiary">Reschedule</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onReschedule}
+            disabled={schedulerAction !== null}
+          >
+            {schedulerAction === 'reschedule' ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+        <Input
+          type="datetime-local"
+          value={rescheduleInput}
+          onChange={e => onRescheduleInputChange(e.target.value)}
+          aria-label="New run time"
+        />
+        <div className="grid grid-cols-3 gap-1.5">
+          {([
+            ['In 1h', () => onRescheduleInputChange(toDateTimeLocalValue(new Date(Date.now() + 60 * 60 * 1000).toISOString()))],
+            ['In 4h', () => onRescheduleInputChange(toDateTimeLocalValue(new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()))],
+            ['Tomorrow 9am', () => onRescheduleInputChange(buildTomorrowNineLocalValue())],
+          ] as [string, () => void][]).map(([label, handler]) => (
+            <Button key={label} type="button" variant="ghost" size="sm" onClick={handler} className="text-xs">
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Run Now */}
+      <div className="p-4 space-y-3">
+        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-text-tertiary">Run Now</span>
+        <p className="text-xs text-text-secondary">Clear the scheduled hold and launch this task immediately.</p>
+        <Button
+          type="button"
+          className="w-full justify-center"
+          onClick={onRunNow}
+          disabled={schedulerAction !== null || !hasAssignee}
+        >
+          <Play className="h-3.5 w-3.5" />
+          {schedulerAction === 'run-now' ? 'Launching…' : hasAssignee ? `Run with ${agentName}` : 'Assign agent first'}
+        </Button>
+      </div>
+
+      {/* Error */}
+      {schedulerError && (
+        <div className="mx-4 mb-4 rounded border border-status-blocked/25 bg-status-blocked/10 px-3 py-2 text-sm text-status-blocked">
+          {schedulerError}
+        </div>
+      )}
     </div>
   )
 }
+
+// ─── Main view ────────────────────────────────────────────────────────────────
 
 export function SchedulerView() {
   const tasks = useAppStore(state => state.tasks)
   const projects = useAppStore(state => state.projects)
   const agents = useAppStore(state => state.agents)
-  const openNewTaskModal = useAppStore(state => state.openNewTaskModal)
+  const selectedProjectId = useAppStore(state => state.selectedProjectId)
+  const openNewScheduledTaskModal = useAppStore(state => state.openNewScheduledTaskModal)
   const fetchReadModel = useAppStore(state => state.fetchReadModel)
 
+  const [view, setView] = useState<ScheduleView>('upcoming')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<SchedulerTab>('agenda')
   const [rescheduleInput, setRescheduleInput] = useState('')
   const [schedulerAction, setSchedulerAction] = useState<'run-now' | 'reschedule' | null>(null)
   const [schedulerError, setSchedulerError] = useState<string | null>(null)
   const [filters, setFilters] = useState<SchedulerFilters>({
-    projectId: '',
     assigneeId: '',
-    status: '',
     scheduleType: 'all',
-    dispatchState: '',
     rangePreset: 'next-7-days',
   })
 
   const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local', [])
-  const projectNames = useMemo(() => new Map(projects.map(project => [project.id, project.name])), [projects])
-  const agentNames = useMemo(() => new Map(agents.map(agent => [agent.id, agent.name])), [agents])
+  const projectNames = useMemo(() => new Map(projects.map(p => [p.id, p.name])), [projects])
+  const agentNames = useMemo(() => new Map(agents.map(a => [a.id, a.name])), [agents])
 
   const scheduledTasks = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase()
-
+    const q = searchQuery.trim().toLowerCase()
     return tasks
-      .filter(task => task.status === 'scheduled' || Boolean(task.nextRunAt) || Boolean(task.cronSchedule))
-      .filter(task => (normalizedQuery.length === 0 ? true : task.title.toLowerCase().includes(normalizedQuery)))
-      .filter(task => matchesSchedulerFilters(task, filters))
-      .sort((left, right) => {
-        const leftHasRunAt = isValidTimestamp(left.nextRunAt)
-        const rightHasRunAt = isValidTimestamp(right.nextRunAt)
-
-        if (leftHasRunAt && rightHasRunAt) {
-          return new Date(left.nextRunAt as string).getTime() - new Date(right.nextRunAt as string).getTime() || left.title.localeCompare(right.title)
-        }
-
-        if (leftHasRunAt) return -1
-        if (rightHasRunAt) return 1
-        return left.title.localeCompare(right.title)
+      .filter(t => t.status === 'scheduled' || Boolean(t.nextRunAt) || Boolean(t.cronSchedule))
+      .filter(t => !q || t.title.toLowerCase().includes(q))
+      .filter(t => matchesFilters(t, filters, selectedProjectId))
+      .sort((a, b) => {
+        const aHas = isValidTimestamp(a.nextRunAt)
+        const bHas = isValidTimestamp(b.nextRunAt)
+        if (aHas && bHas) return new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime()
+        if (aHas) return -1
+        if (bHas) return 1
+        return a.title.localeCompare(b.title)
       })
-  }, [filters, searchQuery, tasks])
+  }, [filters, searchQuery, selectedProjectId, tasks])
 
   const agendaGroups = useMemo(() => {
     const groups = new Map<string, Task[]>()
-
-    for (const task of scheduledTasks) {
-      const key = formatAgendaGroupLabel(task.nextRunAt)
-      const current = groups.get(key)
-      if (current) {
-        current.push(task)
-      } else {
-        groups.set(key, [task])
-      }
+    for (const t of scheduledTasks) {
+      const key = formatGroupLabel(t.nextRunAt)
+      const curr = groups.get(key)
+      if (curr) curr.push(t)
+      else groups.set(key, [t])
     }
-
     return [...groups.entries()]
   }, [scheduledTasks])
 
-  const queueBuckets = useMemo(() => {
-    return {
-      queued: scheduledTasks.filter(task => normalizeDispatchState(task) === 'queued' && task.status !== 'in-progress'),
-      blocked: scheduledTasks.filter(task => normalizeDispatchState(task) === 'blocked' && task.status !== 'in-progress'),
-      failed: scheduledTasks.filter(task => normalizeDispatchState(task) === 'failed' && task.status !== 'in-progress'),
-    }
-  }, [scheduledTasks])
+  const needsAttentionTasks = useMemo(
+    () =>
+      scheduledTasks.filter(t => {
+        const dispatch = normalizeDispatchState(t)
+        return dispatch === 'blocked' || dispatch === 'failed' || t.status === 'waiting-approval'
+      }),
+    [scheduledTasks],
+  )
 
-  const recurringTasks = useMemo(() => scheduledTasks.filter(task => Boolean(task.cronSchedule)), [scheduledTasks])
-
+  // Auto-select first task
   useEffect(() => {
-    if (scheduledTasks.length === 0) {
-      setSelectedTaskId(null)
-      return
-    }
-
-    if (!selectedTaskId || !scheduledTasks.some(task => task.id === selectedTaskId)) {
+    if (scheduledTasks.length === 0) { setSelectedTaskId(null); return }
+    if (!selectedTaskId || !scheduledTasks.some(t => t.id === selectedTaskId)) {
       setSelectedTaskId(scheduledTasks[0]?.id ?? null)
     }
   }, [scheduledTasks, selectedTaskId])
 
-  const selectedTask = scheduledTasks.find(task => task.id === selectedTaskId) ?? null
-  const selectedProjectName = selectedTask ? projects.find(project => project.id === selectedTask.projectId)?.name ?? selectedTask.projectId : 'No task selected'
-  const selectedAgentName = selectedTask ? agents.find(agent => agent.id === selectedTask.assigneeId)?.name ?? selectedTask.assigneeId ?? 'Unassigned' : 'Select a scheduled task'
-  const selectedDispatchSummary = selectedTask ? getTaskDispatchSummary(selectedTask) : null
+  const selectedTask = scheduledTasks.find(t => t.id === selectedTaskId) ?? null
+  const selectedProjectName = selectedTask ? (projectNames.get(selectedTask.projectId) ?? selectedTask.projectId) : ''
+  const selectedAgentName = selectedTask
+    ? (agentNames.get(selectedTask.assigneeId ?? '') ?? selectedTask.assigneeId ?? 'Unassigned')
+    : 'Unassigned'
   const selectedTaskHasAssignee = Boolean(selectedTask?.assigneeId && selectedTask.assigneeId !== 'unassigned')
 
   useEffect(() => {
@@ -365,27 +447,20 @@ export function SchedulerView() {
   async function handleRunNow() {
     if (!selectedTask) return
     if (!selectedTask.assigneeId || selectedTask.assigneeId === 'unassigned') {
-      setSchedulerError('Assign an agent before launching a scheduled task.')
+      setSchedulerError('Assign an agent before launching this task.')
       return
     }
-
     setSchedulerAction('run-now')
     setSchedulerError(null)
     try {
       await relayhqApi.patchTask(selectedTask.id, {
         actorId: 'relayhq-web',
-        patch: {
-          status: 'todo',
-          column: 'todo',
-          next_run_at: null,
-          blocked_reason: null,
-          blocked_since: null,
-        },
+        patch: { status: 'todo', column: 'todo', next_run_at: null, blocked_reason: null, blocked_since: null },
       })
       await relayhqApi.runAgent(selectedTask.assigneeId, { taskId: selectedTask.id, surface: 'background' })
       await fetchReadModel()
     } catch (error) {
-      setSchedulerError(error instanceof Error ? error.message : 'Unable to launch the scheduled task.')
+      setSchedulerError(error instanceof Error ? error.message : 'Unable to launch task.')
     } finally {
       setSchedulerAction(null)
     }
@@ -393,24 +468,18 @@ export function SchedulerView() {
 
   async function handleReschedule() {
     if (!selectedTask) return
-    if (rescheduleInput.trim().length === 0) {
-      setSchedulerError('Choose a new run time before rescheduling.')
-      return
-    }
-
+    if (!rescheduleInput.trim()) { setSchedulerError('Choose a new run time.'); return }
     const nextRunAt = new Date(rescheduleInput)
-    if (Number.isNaN(nextRunAt.getTime())) {
-      setSchedulerError('Enter a valid run time.')
-      return
-    }
-
+    if (Number.isNaN(nextRunAt.getTime())) { setSchedulerError('Enter a valid run time.'); return }
     setSchedulerAction('reschedule')
     setSchedulerError(null)
     try {
       await relayhqApi.scheduleTask(selectedTask.id, {
         actorId: 'relayhq-web',
         nextRunAt: nextRunAt.toISOString(),
-        reason: selectedTask.cronSchedule ? 'Recurring schedule adjusted from Scheduler.' : 'Scheduled task moved from Scheduler.',
+        reason: selectedTask.cronSchedule
+          ? 'Recurring schedule adjusted from Scheduler.'
+          : 'Scheduled task moved from Scheduler.',
       })
       await fetchReadModel()
     } catch (error) {
@@ -420,410 +489,211 @@ export function SchedulerView() {
     }
   }
 
+  const displayedTasks = view === 'upcoming' ? null : needsAttentionTasks
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden">
-      <div className="grid shrink-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-        <Card className="border-accent bg-surface-secondary p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                  <CalendarClock className="h-4 w-4 text-brand" />
-                  Planning Surface
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold uppercase tracking-[0.08em] text-text-primary">Scheduler</h1>
-                  <p className="text-sm text-text-secondary">Operational timeline for future work, recurrence, and launch readiness.</p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-[auto_auto] xl:min-w-[440px] xl:grid-cols-[auto_minmax(0,1fr)_auto]">
-                <div className="flex items-center gap-2 border border-accent bg-surface p-1">
-                  {(['today', 'this-week'] as const).map(range => (
-                    <Button
-                      key={range}
-                      type="button"
-                      variant={filters.rangePreset === range ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setFilters(current => ({ ...current, rangePreset: range }))}
-                    >
-                      {RANGE_LABELS[range]}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="relative min-w-0">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search scheduled tasks"
-                    className="pl-9"
-                  />
-                </div>
-
-                <Button type="button" onClick={openNewTaskModal} className="justify-center">
-                  <Plus className="h-4 w-4" />
-                  Create Task
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-xs uppercase tracking-[0.16em] text-text-tertiary">
-              <span>Timezone: {timezone}</span>
-              <span>{scheduledTasks.length} visible scheduled tasks</span>
-            </div>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {/* ── Header ── */}
+      <div className="flex flex-none flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-base font-semibold text-text-primary">Schedule</h1>
+          <p className="text-xs text-text-tertiary">
+            {scheduledTasks.length} task{scheduledTasks.length !== 1 ? 's' : ''} · {timezone}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Range selector */}
+          <div className="flex rounded border border-border bg-surface-secondary p-0.5 gap-0.5">
+            {(['today', 'this-week', 'next-7-days', 'all'] as const).map(range => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setFilters(c => ({ ...c, rangePreset: range }))}
+                className={cn(
+                  'rounded px-2.5 py-1 text-xs transition-colors',
+                  filters.rangePreset === range
+                    ? 'bg-surface text-text-primary shadow-sm'
+                    : 'text-text-tertiary hover:text-text-secondary',
+                )}
+              >
+                {RANGE_LABELS[range]}
+              </button>
+            ))}
           </div>
-        </Card>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search…"
+              className="h-8 w-40 pl-8 text-sm"
+            />
+          </div>
+
+          <Button type="button" size="sm" onClick={openNewScheduledTaskModal}>
+            <Plus className="h-3.5 w-3.5" /> New Scheduled Task
+          </Button>
+        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)_320px]">
-        <Card className="min-h-0 overflow-hidden">
-          <SchedulerSectionHeading title="Filters" count={scheduledTasks.length} />
-          <div className="space-y-4 p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-              <ListFilter className="h-4 w-4" />
-              Scope
-            </div>
+      {/* ── Filter strip ── */}
+      <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border bg-surface-secondary/30 px-4 py-2">
+        <Select
+          value={filters.assigneeId}
+          onChange={e => setFilters(c => ({ ...c, assigneeId: e.target.value }))}
+          className="h-10 min-w-40 text-sm"
+        >
+          <option value="">All agents</option>
+          {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </Select>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Project</label>
-              <Select value={filters.projectId} onChange={(event) => setFilters(current => ({ ...current, projectId: event.target.value }))}>
-                <option value="">All projects</option>
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-              </Select>
-            </div>
+        <div className="flex gap-1">
+          {(['all', 'one-time', 'recurring'] as const).map(type => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setFilters(c => ({ ...c, scheduleType: type }))}
+              className={cn(
+                'inline-flex h-10 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors',
+                filters.scheduleType === type
+                  ? 'border-brand/30 bg-brand/10 text-brand'
+                  : 'border-border text-text-tertiary hover:text-text-secondary',
+              )}
+            >
+              {type === 'all' ? 'All' : type === 'one-time' ? 'One-time' : (
+                <span className="flex items-center gap-1">
+                  <Repeat2 className="h-3.5 w-3.5" /> Recurring
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Agent</label>
-              <Select value={filters.assigneeId} onChange={(event) => setFilters(current => ({ ...current, assigneeId: event.target.value }))}>
-                <option value="">All agents</option>
-                {agents.map(agent => (
-                  <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-              </Select>
-            </div>
+        {(filters.assigneeId || filters.scheduleType !== 'all') && (
+          <button
+            type="button"
+            onClick={() => setFilters(c => ({ ...c, assigneeId: '', scheduleType: 'all' }))}
+            className="text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Status</label>
-              <Select value={filters.status} onChange={(event) => setFilters(current => ({ ...current, status: event.target.value }))}>
-                <option value="">All states</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="todo">Todo</option>
-                <option value="blocked">Blocked</option>
-                <option value="in-progress">In progress</option>
-                <option value="review">Review</option>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Type</label>
-              <Select value={filters.scheduleType} onChange={(event) => setFilters(current => ({ ...current, scheduleType: event.target.value as ScheduleType }))}>
-                <option value="all">All types</option>
-                <option value="one-time">One-time</option>
-                <option value="recurring">Recurring</option>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Dispatch</label>
-              <Select value={filters.dispatchState} onChange={(event) => setFilters(current => ({ ...current, dispatchState: event.target.value }))}>
-                <option value="">All states</option>
-                <option value="queued">Queued</option>
-                <option value="ready">Ready</option>
-                <option value="blocked">Blocked</option>
-                <option value="failed">Failed</option>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Range</label>
-              <Select value={filters.rangePreset} onChange={(event) => setFilters(current => ({ ...current, rangePreset: event.target.value as RangePreset }))}>
-                <option value="today">Today</option>
-                <option value="this-week">This week</option>
-                <option value="next-7-days">Next 7 days</option>
-                <option value="all">All</option>
-              </Select>
-            </div>
+      {/* ── Body ── */}
+      <div className="flex min-h-0 flex-1">
+        {/* Left: Task list */}
+        <div className="flex min-w-0 flex-1 flex-col border-r border-border">
+          {/* View switcher */}
+          <div className="flex flex-none border-b border-border px-4">
+            <button
+              type="button"
+              onClick={() => setView('upcoming')}
+              className={cn(
+                'mr-5 border-b-2 py-2.5 text-sm transition-colors',
+                view === 'upcoming'
+                  ? 'border-brand font-medium text-text-primary'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary',
+              )}
+            >
+              Upcoming
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('blocked')}
+              className={cn(
+                'flex items-center gap-1.5 border-b-2 py-2.5 text-sm transition-colors',
+                view === 'blocked'
+                  ? 'border-brand font-medium text-text-primary'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary',
+              )}
+            >
+              Needs Attention
+              {needsAttentionTasks.length > 0 && (
+                <span className="rounded-full bg-status-blocked/15 px-1.5 py-0.5 text-[10px] text-status-blocked">
+                  {needsAttentionTasks.length}
+                </span>
+              )}
+            </button>
           </div>
-        </Card>
 
-        <Card className="flex min-h-0 flex-col overflow-hidden">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SchedulerTab)} className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-border px-4 py-3">
-              <TabsList className="w-full justify-start overflow-x-auto">
-                {(['agenda', 'queue', 'recurring', 'calendar'] as const).map(tab => (
-                  <TabsTrigger key={tab} value={tab}>{TAB_LABELS[tab]}</TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-
-            <TabsContent value="agenda" className="mt-0 min-h-0 flex-1 overflow-y-auto">
-              {agendaGroups.length === 0 ? (
-                <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center text-sm text-text-tertiary">
-                  No scheduled work matches the current filters.
-                </div>
-              ) : (
-                <div className="min-h-full divide-y divide-border">
-                  {agendaGroups.map(([label, groupTasks]) => (
-                    <section key={label}>
-                      <SchedulerSectionHeading title={label} count={groupTasks.length} />
-                      <div>
-                        {groupTasks.map(task => {
-                          const projectName = projects.find(project => project.id === task.projectId)?.name ?? task.projectId
-                          const agentName = agentNames.get(task.assigneeId ?? '') ?? task.assigneeId ?? 'Unassigned'
-
-                          return (
-                            <SchedulerTaskRow
-                              key={task.id}
-                              task={task}
-                              isSelected={task.id === selectedTaskId}
-                              projectName={projectName}
-                              agentName={agentName}
-                              onSelect={setSelectedTaskId}
-                            />
-                          )
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="queue" className="mt-0 min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="grid gap-4 xl:grid-cols-3">
-                {([
-                  ['Queued', queueBuckets.queued, 'Tasks waiting for dispatch slot or readiness confirmation.'],
-                  ['Blocked', queueBuckets.blocked, 'Tasks that cannot launch yet and need operator attention.'],
-                  ['Failed', queueBuckets.failed, 'Tasks whose recent dispatch attempt did not complete cleanly.'],
-                ] as const).map(([title, bucketTasks, description]) => (
-                  <Card key={title} className="overflow-hidden border-border bg-surface-secondary">
-                    <SchedulerSectionHeading title={title} count={bucketTasks.length} />
-                    <div className="space-y-3 p-4">
-                      <p className="text-sm text-text-secondary">{description}</p>
-                      {bucketTasks.length === 0 ? (
-                        <div className="border border-dashed border-border px-3 py-6 text-sm text-text-tertiary">No tasks in this bucket.</div>
-                      ) : (
-                        <div className="overflow-hidden border border-border bg-surface">
-                          {bucketTasks.map(task => (
-                            <SchedulerTaskRow
-                              key={task.id}
-                              task={task}
-                              isSelected={task.id === selectedTaskId}
-                              projectName={projectNames.get(task.projectId) ?? task.projectId}
-                              agentName={agentNames.get(task.assigneeId ?? '') ?? task.assigneeId ?? 'Unassigned'}
-                              onSelect={setSelectedTaskId}
-                              variant="queue"
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="recurring" className="mt-0 min-h-0 flex-1 overflow-y-auto">
-              <div className="border-b border-accent px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">Recurring Control</div>
-                    <p className="mt-1 text-sm text-text-secondary">Inspect recurring rules, confirm next-run timing, and open a schedule before it lands back in the queue.</p>
-                  </div>
-                  <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
-                    <Repeat2 className="mr-1 h-3 w-3" />
-                    {recurringTasks.length} rules
-                  </Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)] border-b border-accent px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                <span>Task</span>
-                <span>Project</span>
-                <span>Rule</span>
-                <span>Next Run</span>
-                <span>State</span>
-              </div>
-              {recurringTasks.length === 0 ? (
-                <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-text-tertiary">
-                  No recurring schedules match the current filters.
-                </div>
-              ) : (
-                recurringTasks.map(task => {
-                  const projectName = projects.find(project => project.id === task.projectId)?.name ?? task.projectId
-                  return (
-                    <button
-                      key={task.id}
-                      type="button"
-                      onClick={() => setSelectedTaskId(task.id)}
-                      className={cn(
-                        'grid w-full grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)] gap-3 border-b border-border px-4 py-4 text-left text-sm transition-colors hover:bg-brand-muted/20',
-                        selectedTaskId === task.id && 'bg-brand-muted/25',
-                      )}
-                    >
-                      <span className="truncate font-semibold uppercase tracking-[0.08em] text-text-primary">{task.title}</span>
-                      <span className="truncate text-text-secondary">{projectName}</span>
-                      <span className="truncate text-text-secondary">{task.cronSchedule}</span>
-                      <span className="text-text-secondary">{formatTimestamp(task.nextRunAt)}</span>
-                      <span className="truncate text-text-secondary">{normalizeDispatchState(task)}</span>
+          {/* Task list content */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {view === 'upcoming' ? (
+              agendaGroups.length === 0 ? (
+                <div className="flex min-h-40 items-center justify-center">
+                  <div className="text-center">
+                    <Clock3 className="mx-auto mb-2 h-6 w-6 text-text-tertiary" />
+                    <p className="text-sm text-text-tertiary">No scheduled tasks in this range.</p>
+                    <button type="button" onClick={openNewScheduledTaskModal} className="mt-2 text-xs text-brand hover:underline">
+                      Create a scheduled task
                     </button>
-                  )
-                })
-              )}
-            </TabsContent>
-
-            <TabsContent value="calendar" className="mt-0 min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="flex h-full min-h-[320px] flex-col justify-between border border-dashed border-border bg-surface-secondary/50 p-5">
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">Phase 2 Surface</div>
-                  <h2 className="text-lg font-semibold uppercase tracking-[0.08em] text-text-primary">Calendar View Reserved</h2>
-                  <p className="max-w-2xl text-sm text-text-secondary">
-                    Week and day timeline interactions land later. Phase 1 keeps the route, shell, and operator framing in place without shipping consumer-style calendar behavior prematurely.
-                  </p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Card className="border-border bg-surface p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Week View</div>
-                    <div className="mt-2 text-sm text-text-secondary">Primary planning grid for scheduled task density.</div>
-                  </Card>
-                  <Card className="border-border bg-surface p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Day View</div>
-                    <div className="mt-2 text-sm text-text-secondary">Tight operator timeline for rescheduling and launch checks.</div>
-                  </Card>
-                  <Card className="border-border bg-surface p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Drag / Move</div>
-                    <div className="mt-2 text-sm text-text-secondary">Reserved for later schedule editing workflows.</div>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </Card>
-
-        <Card className="min-h-0 overflow-hidden">
-          <SchedulerSectionHeading title="Detail" count={selectedTask ? 1 : 0} />
-          {selectedTask ? (
-            <div className="flex h-full flex-col gap-4 p-4">
-              <div className="space-y-2 border-b border-border pb-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">Selected Task</div>
-                <h2 className="text-lg font-semibold uppercase tracking-[0.08em] text-text-primary">{selectedTask.title}</h2>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className={STATUS_BADGE_CLASS[selectedTask.status] ?? 'border-border bg-surface-secondary text-text-secondary'}>
-                    {selectedTask.status}
-                  </Badge>
-                  <Badge variant="secondary" className={DISPATCH_BADGE_CLASS[normalizeDispatchState(selectedTask)] ?? 'border-border bg-surface-secondary text-text-secondary'}>
-                    {normalizeDispatchState(selectedTask)}
-                  </Badge>
-                  {selectedTask.cronSchedule ? (
-                    <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
-                      <Repeat2 className="mr-1 h-3 w-3" />
-                      recurring
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
-                  <span className="text-text-secondary">Next run</span>
-                  <span className="text-right font-medium text-text-primary">{formatTimestamp(selectedTask.nextRunAt)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
-                  <span className="text-text-secondary">Recurrence</span>
-                  <span className="text-right font-medium text-text-primary">{selectedTask.cronSchedule ?? 'One-time run'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
-                  <span className="text-text-secondary">Project</span>
-                  <span className="text-right font-medium text-text-primary">{selectedProjectName}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
-                  <span className="text-text-secondary">Agent</span>
-                  <span className="text-right font-medium text-text-primary">{selectedAgentName}</span>
-                </div>
-                <div className="flex items-start justify-between gap-3 border-b border-border pb-2">
-                  <span className="text-text-secondary">Dispatch note</span>
-                  <span className="max-w-[180px] text-right font-medium text-text-primary">
-                    {selectedDispatchSummary?.message ?? selectedTask.blockedReason ?? selectedTask.dispatchReason ?? 'Ready for operator action.'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-text-secondary">Last dispatch attempt</span>
-                  <span className="text-right font-medium text-text-primary">{formatTimestamp(selectedTask.lastDispatchAttemptAt)}</span>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-accent/30 bg-surface-secondary p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Reschedule</div>
-                    <p className="mt-1 text-sm text-text-secondary">Move the next execution without leaving Scheduler.</p>
                   </div>
-                  <Button type="button" variant="secondary" onClick={() => void handleReschedule()} disabled={schedulerAction !== null}>
-                    {schedulerAction === 'reschedule' ? 'Saving…' : 'Save'}
-                  </Button>
                 </div>
-                <div className="mt-3 space-y-3">
-                  <Input
-                    type="datetime-local"
-                    value={rescheduleInput}
-                    onChange={(event) => setRescheduleInput(event.target.value)}
-                    aria-label="Reschedule next run"
+              ) : (
+                agendaGroups.map(([label, groupTasks]) => (
+                  <section key={label}>
+                    <div className="flex items-center justify-between border-b border-border bg-surface-secondary/40 px-4 py-2">
+                      <span className="text-xs font-medium text-text-secondary">{label}</span>
+                      <span className="text-xs text-text-tertiary">{groupTasks.length}</span>
+                    </div>
+                    {groupTasks.map(task => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isSelected={task.id === selectedTaskId}
+                        projectName={projectNames.get(task.projectId) ?? task.projectId}
+                        agentName={agentNames.get(task.assigneeId ?? '') ?? task.assigneeId ?? 'Unassigned'}
+                        onSelect={setSelectedTaskId}
+                      />
+                    ))}
+                  </section>
+                ))
+              )
+            ) : (
+              displayedTasks!.length === 0 ? (
+                <div className="flex min-h-40 items-center justify-center">
+                  <p className="text-sm text-text-tertiary">All scheduled tasks look healthy.</p>
+                </div>
+              ) : (
+                displayedTasks!.map(task => (
+                  <BlockedTaskRow
+                    key={task.id}
+                    task={task}
+                    isSelected={task.id === selectedTaskId}
+                    projectName={projectNames.get(task.projectId) ?? task.projectId}
+                    agentName={agentNames.get(task.assigneeId ?? '') ?? task.assigneeId ?? 'Unassigned'}
+                    onSelect={setSelectedTaskId}
                   />
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setRescheduleInput(toDateTimeLocalValue(new Date(Date.now() + 60 * 60 * 1000).toISOString()))}>
-                      In 1h
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setRescheduleInput(toDateTimeLocalValue(new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()))}>
-                      In 4h
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setRescheduleInput(buildTomorrowNineLocalValue())}>
-                      Tomorrow 9am
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                ))
+              )
+            )}
+          </div>
+        </div>
 
-              <div className="rounded-lg border border-accent/30 bg-surface-secondary p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Run Now</div>
-                    <p className="mt-1 text-sm text-text-secondary">Clear the schedule hold and launch the assigned agent immediately.</p>
-                  </div>
-                  <Button type="button" onClick={() => void handleRunNow()} disabled={schedulerAction !== null || !selectedTaskHasAssignee}>
-                    <Play className="h-4 w-4" />
-                    {schedulerAction === 'run-now' ? 'Launching…' : 'Run Now'}
-                  </Button>
-                </div>
-                <div className="mt-3 text-xs uppercase tracking-[0.14em] text-text-tertiary">
-                  {selectedTaskHasAssignee ? `Launch target: ${selectedAgentName}` : 'Assign an agent before using run now.'}
-                </div>
-              </div>
-
-              {schedulerError ? (
-                <div className="rounded-lg border border-status-blocked/25 bg-status-blocked/10 px-3 py-2 text-sm text-status-blocked">
-                  {schedulerError}
-                </div>
-              ) : null}
-
-              <div className="mt-auto grid gap-2 pt-2">
-                <Link
-                  to={`/tasks/${selectedTask.id}`}
-                  className="lcd-button inline-flex h-10 items-center justify-center gap-2 rounded-none border border-accent bg-transparent px-4 text-sm font-medium uppercase tracking-[0.14em] text-accent transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:border-brand-bright hover:bg-transparent hover:text-brand-bright hover:shadow-[0_0_12px_rgba(255,215,0,0.4)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-brand-bright"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open Task
-                </Link>
-              </div>
-            </div>
+        {/* Right: Detail panel */}
+        <div className="w-80 flex-none overflow-y-auto">
+          {selectedTask ? (
+            <DetailPanel
+              task={selectedTask}
+              projectName={selectedProjectName}
+              agentName={selectedAgentName}
+              hasAssignee={selectedTaskHasAssignee}
+              rescheduleInput={rescheduleInput}
+              onRescheduleInputChange={setRescheduleInput}
+              schedulerAction={schedulerAction}
+              schedulerError={schedulerError}
+              onRunNow={() => void handleRunNow()}
+              onReschedule={() => void handleReschedule()}
+            />
           ) : (
-            <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center text-sm text-text-tertiary">
-              Select a scheduled task to inspect run timing, recurrence, and dispatch readiness.
+            <div className="flex min-h-40 items-center justify-center px-6 text-center">
+              <p className="text-sm text-text-tertiary">Select a task to view details and reschedule options.</p>
             </div>
           )}
-        </Card>
+        </div>
       </div>
     </div>
   )

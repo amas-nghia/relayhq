@@ -93,7 +93,6 @@ export function NewTaskModal() {
   const [acceptanceCriteria, setAcceptanceCriteria] = useState('');
   const [contextFiles, setContextFiles] = useState('');
   const [constraints, setConstraints] = useState('');
-  const [cronSchedule, setCronSchedule] = useState('');
   const [projectId, setProjectId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [routingMode, setRoutingMode] = useState<'manual' | 'capability'>('manual')
@@ -179,7 +178,6 @@ export function NewTaskModal() {
       boardId: selectedProject?.boardId,
       ...(routingMode === 'manual' ? { assigneeId } : {}),
       ...(routingMode === 'capability' ? { requiredCapability } : {}),
-      ...(cronSchedule.trim().length > 0 ? { cronSchedule: cronSchedule.trim() } : {}),
       priority,
     });
 
@@ -203,7 +201,6 @@ export function NewTaskModal() {
     setAcceptanceCriteria('');
     setContextFiles('');
     setConstraints('');
-    setCronSchedule('');
     setPriority('medium');
     setSelectedTemplateId('')
     setSaveTemplateOnCreate(false)
@@ -312,16 +309,6 @@ export function NewTaskModal() {
               rows={4}
               placeholder="Describe what this task should achieve in enough detail for an agent or teammate to start immediately."
             />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-text-primary">Cron schedule</label>
-            <Input
-              value={cronSchedule}
-              onChange={e => setCronSchedule(e.target.value)}
-              placeholder="0 9 * * 1-5"
-            />
-            <p className="text-xs text-text-tertiary">Optional 5-field cron expression. Recurring tasks are created as scheduled and re-spawned after completion.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

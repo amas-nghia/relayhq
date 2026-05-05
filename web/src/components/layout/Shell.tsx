@@ -1,7 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { AlertStrip } from '../ui/AlertStrip';
-import { NewTaskModal } from '../task/NewTaskModal';
 import { OnboardingWizard } from './OnboardingWizard';
 import { useAppStore } from '../../store/appStore';
 import clsx from 'clsx';
@@ -51,7 +50,6 @@ export function Shell() {
         </div>
 
         <OnboardingWizard />
-        <NewTaskModal />
       </div>
     </SidebarProvider>
   );

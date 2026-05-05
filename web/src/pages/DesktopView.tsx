@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, Fragment, Suspense, lazy, useMemo, type CSSProperties, type ComponentType, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
-import { KanbanSquare, List, Bot, ClipboardCheck, FileText, Activity, Settings, FolderOpen, FolderKanban, Check, AlertCircle, Copy, Eye, EyeOff, Play, CalendarClock, AlertTriangle, MessageSquare, Plus, Trash2 } from 'lucide-react';
+import { KanbanSquare, Bot, ClipboardCheck, FileText, Activity, Settings, FolderOpen, FolderKanban, Check, AlertCircle, Copy, Eye, EyeOff, Play, CalendarClock, AlertTriangle, MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { OnboardingWizard } from '../components/layout/OnboardingWizard';
 import { relayhqApi, type AgentActivityEvent, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AnalyticsDashboardResponse, type RelayHQApiKeyEntry, type RelayHQTaskRoutingConfig } from '../api/client';
 import type { ActiveAgentSession } from '../api/contract';
@@ -15,17 +15,18 @@ import { AgentSpriteFrame } from '../components/agent/AgentSpriteFrame';
 import { AgentPixelAvatar } from '../components/agent/AgentPixelAvatar';
 import { Select } from '../components/ui/select';
 import { AgentSetupWizard } from '../components/layout/AgentSetupWizard';
+import { NewProjectDialog } from '../components/project/NewProjectDialog';
 import { RuntimeTruthBadges, RuntimeTruthMessage } from '../components/agent/RuntimeTruth';
 import { DesktopAgentScene, type DesktopAgentSceneEntity } from '../components/live-world/DesktopAgentScene';
 import type { Agent, Project, Task } from '../types';
 import { resolveDesktopProjectSelection, withDesktopProject, withoutDesktopProject } from './desktopProjectUrl';
 
 const BoardView      = lazy(async () => ({ default: (await import('./BoardView')).BoardView }));
-const TasksView      = lazy(async () => ({ default: (await import('./TasksView')).TasksView }));
 const AgentsView     = lazy(async () => ({ default: (await import('./AgentsView')).AgentsView }));
 const ApprovalsView  = lazy(async () => ({ default: (await import('./ApprovalsView')).ApprovalsView }));
 const AuditView      = lazy(async () => ({ default: (await import('./AuditView')).AuditView }));
 const DocsView       = lazy(async () => ({ default: (await import('./DocsView')).DocsView }));
+const SkillsView     = lazy(async () => ({ default: (await import('./SkillsView')).SkillsView }));
 const SchedulerView  = lazy(async () => ({ default: (await import('./SchedulerView')).SchedulerView }));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ interface ProjectDesktopState {
   coordinatorWindow: AgentWindowState | null;
 }
 
-type WindowContentId = 'projects' | 'board' | 'tasks' | 'agents' | 'approvals' | 'docs' | 'audit' | 'settings' | 'schedule' | 'task-detail';
+type WindowContentId = 'projects' | 'board' | 'agents' | 'approvals' | 'docs' | 'skills' | 'audit' | 'settings' | 'schedule' | 'task-detail';
 type DesktopIconId = WindowContentId | 'coordinator-action';
 
 interface AgentSprite {
@@ -89,11 +90,11 @@ interface AgentSprite {
 const DESKTOP_ICONS: { id: WindowContentId; label: string; Icon: ComponentType<{ className?: string }> }[] = [
   { id: 'projects',  label: 'Projects',  Icon: FolderKanban   },
   { id: 'board',     label: 'Board',     Icon: KanbanSquare   },
-  { id: 'tasks',     label: 'Tasks',     Icon: List           },
   { id: 'agents',    label: 'Agents',    Icon: Bot            },
   { id: 'schedule',  label: 'Schedule',  Icon: CalendarClock  },
   { id: 'approvals', label: 'Approvals', Icon: ClipboardCheck },
   { id: 'docs',      label: 'Docs',      Icon: FileText       },
+  { id: 'skills',    label: 'Skills',    Icon: MessageSquare  },
   { id: 'audit',     label: 'Audit',     Icon: Activity       },
   { id: 'settings',  label: 'Settings',  Icon: Settings       },
 ];
@@ -322,6 +323,13 @@ function positionForIndex(index: number) {
   };
 }
 
+function snapDesktopIconPosition(x: number, y: number) {
+  return {
+    x: Math.round(x / DESKTOP_ICON_GRID) * DESKTOP_ICON_GRID,
+    y: Math.round(y / DESKTOP_ICON_GRID) * DESKTOP_ICON_GRID,
+  };
+}
+
 function positionForAgentIndex(index: number) {
   const viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
   const viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
@@ -386,18 +394,23 @@ const PROVIDERS = [
 function SettingsPanel() {
   const settings  = useAppStore(state => state.settings);
   const loadData  = useAppStore(state => state.loadData);
+  const projects  = useAppStore(state => state.projects);
 
   const [tab, setTab] = useState<'vault' | 'agent' | 'routing'>('vault');
 
   // ── vault tab state ──
   const [vaultRoot,    setVaultRoot]    = useState(settings?.vaultRoot ?? settings?.resolvedRoot ?? '');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(settings?.activeWorkspaceId ?? '');
+  const [workspaceName, setWorkspaceName] = useState('My Workspace');
   const [maxConcurrentRuntimeInstances, setMaxConcurrentRuntimeInstances] = useState(String(settings?.maxConcurrentRuntimeInstances ?? 1));
   const [theme, setThemeState] = useState<AppTheme>(() => readStoredTheme());
   const [browsePath,   setBrowsePath]   = useState<string | null>(null);
   const [browseParent, setBrowseParent] = useState<string | null>(null);
   const [dirs,         setDirs]         = useState<string[]>([]);
   const [vaultStatus,  setVaultStatus]  = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [vaultInitStatus, setVaultInitStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [vaultError,   setVaultError]   = useState<string | null>(null);
+  const [vaultInitError, setVaultInitError] = useState<string | null>(null);
   const [taskRoutingRows, setTaskRoutingRows] = useState<RoutingAliasRow[]>([])
 
   // ── agent tab state ──
@@ -418,9 +431,10 @@ function SettingsPanel() {
 
   useEffect(() => {
     setVaultRoot(settings?.vaultRoot ?? settings?.resolvedRoot ?? '')
+    setSelectedWorkspaceId(settings?.activeWorkspaceId ?? '')
     setMaxConcurrentRuntimeInstances(String(settings?.maxConcurrentRuntimeInstances ?? 1))
     setTaskRoutingRows(routingConfigToRows(settings?.taskRouting))
-  }, [settings?.maxConcurrentRuntimeInstances, settings?.resolvedRoot, settings?.taskRouting, settings?.vaultRoot])
+  }, [settings?.activeWorkspaceId, settings?.maxConcurrentRuntimeInstances, settings?.resolvedRoot, settings?.taskRouting, settings?.vaultRoot])
 
   useEffect(() => {
     relayhqApi.getApiKeys().then(res => {
@@ -444,7 +458,7 @@ function SettingsPanel() {
     try {
       await relayhqApi.saveSettings({
         vaultRoot,
-        workspaceId: null,
+        workspaceId: selectedWorkspaceId || null,
         maxConcurrentRuntimeInstances: Number.parseInt(maxConcurrentRuntimeInstances, 10) || 1,
         taskRouting: rowsToRoutingConfig(taskRoutingRows),
       });
@@ -472,6 +486,20 @@ function SettingsPanel() {
   const applySelectedTheme = (nextTheme: AppTheme) => {
     setThemeState(nextTheme)
     setTheme(nextTheme)
+  }
+
+  const initializeVault = async () => {
+    setVaultInitStatus('saving')
+    setVaultInitError(null)
+    try {
+      await relayhqApi.initVault({ vaultRoot, workspaceName })
+      await loadData()
+      setVaultInitStatus('saved')
+      setTimeout(() => setVaultInitStatus('idle'), 2000)
+    } catch (error) {
+      setVaultInitError(error instanceof Error ? error.message : 'Failed to initialize vault')
+      setVaultInitStatus('error')
+    }
   }
 
   return (
@@ -537,6 +565,34 @@ function SettingsPanel() {
               )}
 
               <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,220px)_1fr]">
+                <label className="flex flex-col gap-1 text-[10px] font-display uppercase tracking-widest text-text-tertiary md:col-span-2">
+                  New workspace name
+                  <Input
+                    value={workspaceName}
+                    onChange={event => setWorkspaceName(event.target.value)}
+                    placeholder="My Workspace"
+                    className="mt-1"
+                  />
+                  <span className="text-[10px] font-body normal-case tracking-normal text-text-secondary">
+                    Used when initializing a brand new vault workspace at the selected path.
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] font-display uppercase tracking-widest text-text-tertiary md:col-span-2">
+                  Active workspace
+                  <Select
+                    value={selectedWorkspaceId}
+                    onChange={event => setSelectedWorkspaceId(event.target.value)}
+                    className="h-auto rounded-none border-border bg-surface-secondary px-3 py-2 text-[11px] text-text-primary"
+                  >
+                    <option value="">All workspaces</option>
+                    {(settings?.availableWorkspaces ?? []).map(workspace => (
+                      <option key={workspace.id} value={workspace.id}>{workspace.name} ({workspace.id})</option>
+                    ))}
+                  </Select>
+                  <span className="text-[10px] font-body normal-case tracking-normal text-text-secondary">
+                    Choose one workspace to filter the board, or leave it on all workspaces.
+                  </span>
+                </label>
                 <label className="flex flex-col gap-1 text-[10px] font-display uppercase tracking-widest text-text-tertiary">
                   Runtime slots
                   <input
@@ -611,12 +667,25 @@ function SettingsPanel() {
               <div className="border border-status-blocked/40 bg-status-blocked/5 px-3 py-2 text-[10px] text-status-blocked font-display">{vaultError}</div>
             )}
 
-            <button onClick={() => void saveVault()} disabled={vaultStatus === 'saving' || !vaultRoot.trim()}
-              className="lcd-button self-start flex items-center gap-2 px-4 py-2 border border-brand bg-brand-muted text-brand text-[10px] font-display uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed">
-              {vaultStatus === 'saving' && <span className="animate-pulse">···</span>}
-              {vaultStatus === 'saved' && <Check className="h-3.5 w-3.5" />}
-              {vaultStatus === 'saved' ? 'Saved' : vaultStatus === 'saving' ? 'Saving' : 'Save'}
-            </button>
+            {vaultInitError && (
+              <div className="border border-status-blocked/40 bg-status-blocked/5 px-3 py-2 text-[10px] text-status-blocked font-display">{vaultInitError}</div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <button onClick={() => void saveVault()} disabled={vaultStatus === 'saving' || !vaultRoot.trim()}
+                className="lcd-button self-start flex items-center gap-2 px-4 py-2 border border-brand bg-brand-muted text-brand text-[10px] font-display uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed">
+                {vaultStatus === 'saving' && <span className="animate-pulse">···</span>}
+                {vaultStatus === 'saved' && <Check className="h-3.5 w-3.5" />}
+                {vaultStatus === 'saved' ? 'Saved' : vaultStatus === 'saving' ? 'Saving' : 'Save Vault Settings'}
+              </button>
+              <button onClick={() => void initializeVault()} disabled={vaultInitStatus === 'saving' || !vaultRoot.trim() || workspaceName.trim().length === 0}
+                className="lcd-button self-start flex items-center gap-2 px-4 py-2 border border-border bg-surface text-text-secondary text-[10px] font-display uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:text-text-primary">
+                {vaultInitStatus === 'saving' && <span className="animate-pulse">···</span>}
+                {vaultInitStatus === 'saved' && <Check className="h-3.5 w-3.5" />}
+                {vaultInitStatus === 'saved' ? 'Initialized' : vaultInitStatus === 'saving' ? 'Initializing' : 'Init New Vault'}
+              </button>
+            </div>
+
           </>
         )}
 
@@ -818,11 +887,11 @@ interface ProjectSceneRow {
 
 const PAGE_MAP: Record<Exclude<StaticWindowContentId, 'projects'>, ComponentType<{ onTaskSelect?: (taskId: string) => void }>> = {
   board:     BoardView,
-  tasks:     TasksView,
   agents:    AgentsView,
   schedule:  SchedulerView,
   approvals: ApprovalsView,
   docs:      DocsView,
+  skills:    SkillsView,
   audit:     AuditView,
   settings:  SettingsPanel,
 };
@@ -1824,12 +1893,16 @@ export function DesktopView() {
   const [desktopIconPositions, setDesktopIconPositions] = useState<Partial<Record<DesktopIconId, { x: number; y: number }>>>(() => {
     if (typeof window === 'undefined') return {}
     try {
-      return JSON.parse(window.localStorage.getItem(DESKTOP_ICON_STATE_KEY) ?? '{}') as Partial<Record<DesktopIconId, { x: number; y: number }>>
+      const stored = JSON.parse(window.localStorage.getItem(DESKTOP_ICON_STATE_KEY) ?? '{}') as Partial<Record<DesktopIconId, { x: number; y: number }>>
+      return Object.fromEntries(
+        Object.entries(stored).map(([id, position]) => [id, snapDesktopIconPosition(position.x, position.y)]),
+      ) as Partial<Record<DesktopIconId, { x: number; y: number }>>
     } catch {
       return {}
     }
   });
   const [isAgentSetupWizardOpen, setIsAgentSetupWizardOpen] = useState(false);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isCoordinatorWizardOpen, setIsCoordinatorWizardOpen] = useState(false);
   const [isCoordinatorSetupOpen, setIsCoordinatorSetupOpen] = useState(false);
   const [pendingCoordinatorAgentId, setPendingCoordinatorAgentId] = useState('');
@@ -2527,9 +2600,10 @@ export function DesktopView() {
   }, []);
 
   const moveDesktopIcon = useCallback<(id: DesktopIconId, x: number, y: number) => void>((id, x, y) => {
+    const snapped = snapDesktopIconPosition(x, y)
     setDesktopIconPositions(prev => ({
       ...prev,
-      [id]: { x, y },
+      [id]: snapped,
     }))
   }, [])
 
@@ -3099,6 +3173,10 @@ export function DesktopView() {
           <Select
             value={activeDesktopProject?.id ?? ''}
             onChange={(event) => {
+              if (event.target.value === '__add-project__') {
+                setIsNewProjectOpen(true)
+                return
+              }
               if (event.target.value) updateDesktopProject(event.target.value);
             }}
             className="h-8 min-w-56 bg-surface text-[10px] tracking-[0.14em] text-brand-bright"
@@ -3106,6 +3184,7 @@ export function DesktopView() {
             {projects.map(project => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
+            <option value="__add-project__">+ Add Project</option>
           </Select>
         </div>
       </div>
@@ -3180,6 +3259,14 @@ export function DesktopView() {
 
       {/* Vault setup — shows automatically when vault not configured */}
       <OnboardingWizard />
+      <NewProjectDialog
+        open={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        onCreated={async (projectId) => {
+          await loadData()
+          updateDesktopProject(projectId)
+        }}
+      />
       <AgentSetupWizard open={isAgentSetupWizardOpen} onClose={() => setIsAgentSetupWizardOpen(false)} />
     </div>
   );

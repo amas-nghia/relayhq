@@ -2,6 +2,7 @@ import { createError, defineEventHandler, readBody } from "h3";
 
 import { buildPrefixedId, scaffoldVault } from "../../../../cli/scaffold";
 
+import { DEFAULT_TASK_ROUTING_CONFIG } from "../../services/settings/task-routing";
 import { saveVaultRootSetting, type SettingsSaveResponse } from "../settings.post";
 
 const DEFAULT_WORKSPACE_NAME = "My Workspace";
@@ -84,7 +85,7 @@ export async function initializeVault(
     });
   }
 
-  const settingsResult: SettingsSaveResponse = await saveVaultRootSetting(request.vaultRoot, workspaceId, 1, options);
+  const settingsResult: SettingsSaveResponse = await saveVaultRootSetting(request.vaultRoot, workspaceId, 1, DEFAULT_TASK_ROUTING_CONFIG, options);
 
   return {
     created: scaffoldResult.created,

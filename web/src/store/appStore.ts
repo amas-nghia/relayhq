@@ -25,6 +25,7 @@ interface AppState {
   selectedTaskId: string | null
   isDetailPanelOpen: boolean
   isNewTaskModalOpen: boolean
+  isNewScheduledTaskModalOpen: boolean
   selectedProjectId: string | null
   isLoading: boolean
   error: string | null
@@ -37,6 +38,8 @@ interface AppState {
   closeTaskDetail: () => void
   openNewTaskModal: () => void
   closeNewTaskModal: () => void
+  openNewScheduledTaskModal: () => void
+  closeNewScheduledTaskModal: () => void
   loadData: (options?: { force?: boolean }) => Promise<void>
   fetchReadModel: () => Promise<void>
   startRealtime: () => void
@@ -335,6 +338,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedTaskId: null,
   isDetailPanelOpen: false,
   isNewTaskModalOpen: false,
+  isNewScheduledTaskModalOpen: false,
   selectedProjectId: loadSelectedProjectId(),
   isLoading: false,
   error: null,
@@ -348,8 +352,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   openTaskDetail: (taskId) => set({ selectedTaskId: taskId, isDetailPanelOpen: true }),
   closeTaskDetail: () => set({ selectedTaskId: null, isDetailPanelOpen: false }),
-  openNewTaskModal: () => set({ isNewTaskModalOpen: true }),
+  openNewTaskModal: () => set({ isNewTaskModalOpen: true, isNewScheduledTaskModalOpen: false }),
   closeNewTaskModal: () => set({ isNewTaskModalOpen: false }),
+  openNewScheduledTaskModal: () => set({ isNewScheduledTaskModalOpen: true, isNewTaskModalOpen: false }),
+  closeNewScheduledTaskModal: () => set({ isNewScheduledTaskModalOpen: false }),
 
   fetchReadModel: async () => {
     await get().loadData()
