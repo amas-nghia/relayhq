@@ -91,11 +91,12 @@ The API server reads and writes these files. The web UI shows the board. Agents 
 
 ## Quick start
 
-**Requires Node.js 18+**
+**Requires [Bun](https://bun.sh) and [PM2](https://pm2.keymetrics.io)**
 
 ```bash
-npx relayhq init my-workspace
-npx relayhq start my-workspace
+git clone https://github.com/amas-nghia/relayhq.git
+cd relayhq
+pm2 start ecosystem.config.cjs
 ```
 
 Open [http://localhost:44211](http://localhost:44211) — a 3-step wizard walks you through vault setup and agent connection.
