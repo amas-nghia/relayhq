@@ -27,7 +27,7 @@
 <p align="center">
   <video src="docs/assets/demo.webm" width="720" controls playsinline muted></video>
   <br/>
-  <sub>▶ Watch the local demo recording</sub>
+  <sub><a href="docs/assets/demo.webm">▶ Watch the local demo recording</a></sub>
 </p>
 
 ---
