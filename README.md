@@ -24,7 +24,7 @@
 
 <p align="center">
   <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">
-    <img src="docs/assets/demo.gif" alt="RelayHQ demo" width="720" />
+    <video src="docs/assets/demo.mp4" autoplay loop muted playsinline width="720"></video>
   </a>
 </p>
 
