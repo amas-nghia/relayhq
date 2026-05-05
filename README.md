@@ -5,7 +5,7 @@
 <h1 align="center">RelayHQ</h1>
 
 <p align="center">
-  <strong>Kanban board cho đội human + AI agent. Git là database của bạn.</strong>
+  <strong>Kanban for human + AI agent teams. Git is your database.</strong>
 </p>
 
 <p align="center">
@@ -29,36 +29,36 @@
     <img src="docs/assets/demo.gif" alt="Watch the RelayHQ demo" width="720" />
   </a>
   <br/>
-  <sub>▶ Click để xem demo</sub>
+  <sub>▶ Click to watch demo</sub>
 </p>
 
 ---
 
-## Vấn đề
+## The problem
 
-Bạn đang chạy Claude Code, Cursor, hay OpenCode. Agent làm việc — nhưng bạn không biết **nó đang làm gì**, **có dẫm lên agent khác không**, và **ai approve trước khi nó đụng vào production**.
+You're running Claude Code, Cursor, or OpenCode. Agents are doing work — but you have no idea **what they're actually doing**, **whether two of them are stepping on each other**, or **who approved anything before it touched production**.
 
-RelayHQ giải quyết đúng cái đó. Không hơn, không kém.
-
----
-
-## RelayHQ làm gì
-
-**🎯 Phân công việc tự động** — Tạo task, RelayHQ tự route đến agent phù hợp dựa trên capability. Không cần tay assign từng cái.
-
-**🔒 Không bao giờ có 2 agent làm cùng 1 việc** — Task bị lock ngay khi agent claim. Nếu agent im lặng quá 10 phút không heartbeat, lock tự hết hạn và task trả về pool.
-
-**✋ Approval gate** — Agent không thể tự chuyển sang `done`. Xong việc thì chờ bạn review — approve hoặc gửi lại kèm feedback. Không gì tiếp tục nếu chưa có người OK.
-
-**📋 Audit trail đầy đủ** — Mọi action đều được ghi lại. Ai làm gì, lúc nào, kết quả là gì — tất cả trong plain Markdown, commit vào Git.
-
-**📁 Vault-first** — Không database. Không cloud. Mọi task là một file Markdown trong repo của bạn. Đọc được bằng mắt thường, versionable, và vẫn còn đó nếu bạn ngừng dùng RelayHQ.
+RelayHQ fixes exactly that.
 
 ---
 
-## Bắt đầu
+## What RelayHQ does
 
-**Yêu cầu:** [Bun](https://bun.sh) · [PM2](https://pm2.keymetrics.io) · [Node.js 18+](https://nodejs.org)
+**🎯 Automatic task routing** — Create a task, RelayHQ routes it to the right agent based on capability. No manual assignment needed.
+
+**🔒 No two agents ever work on the same thing** — Tasks are locked the moment an agent claims them. If an agent goes silent for 10 minutes without a heartbeat, the lock expires and the task returns to the pool automatically.
+
+**✋ Human approval gates** — Agents cannot mark tasks as done themselves. When work is finished, the task moves to review and waits — nothing proceeds until a human approves or sends it back with notes.
+
+**📋 Full audit trail** — Every action is recorded. Who did what, when, and with what result — all in plain Markdown, committed to Git.
+
+**📁 Vault-first, no database** — Every task is a Markdown file in your repo. Readable by humans, versionable by Git, and fully accessible even without RelayHQ.
+
+---
+
+## Get started
+
+**Requires:** [Bun](https://bun.sh) · [PM2](https://pm2.keymetrics.io) · [Node.js 18+](https://nodejs.org)
 
 ```bash
 git clone https://github.com/amas-nghia/relayhq.git
@@ -66,42 +66,42 @@ cd relayhq
 pm2 start ecosystem.config.cjs
 ```
 
-Mở **[http://localhost:44211](http://localhost:44211)** — onboarding wizard 3 bước hướng dẫn setup xong trong 5 phút.
+Open **[http://localhost:44211](http://localhost:44211)** — a 3-step wizard gets you set up in under 5 minutes.
 
-Xem hướng dẫn chi tiết → [Getting Started](https://amas.gitbook.io/relayhq/getting-started)
-
----
-
-## Kết nối agent của bạn
-
-| Agent | Cách kết nối |
-|-------|-------------|
-| **Claude Code** | MCP server — [hướng dẫn](docs/connect.md#claude-code) |
-| **Cursor** | MCP server — [hướng dẫn](docs/connect.md#cursor) |
-| **OpenCode** | MCP server — [hướng dẫn](docs/connect.md#opencode) |
-| **Codex CLI** | MCP server — [hướng dẫn](docs/connect.md#codex-cli) |
-| **Bất kỳ tool nào** | HTTP API trực tiếp — [hướng dẫn](docs/connect.md#any-tool) |
+Full guide → [Getting Started](https://amas.gitbook.io/relayhq/getting-started)
 
 ---
 
-## Trạng thái dự án
+## Connect your agent
 
-> ⚠️ **Work in progress** — Core đã chạy được và đang được dùng thực tế, nhưng vẫn còn nhiều thứ đang phát triển. Mọi feedback, bug report, và góp ý đều rất được chào đón.
-
-Xem những gì đã xong và sắp tới → [Roadmap](docs/roadmap.md)
+| Agent | How to connect |
+|-------|---------------|
+| **Claude Code** | MCP server — [guide](docs/connect.md#claude-code) |
+| **Cursor** | MCP server — [guide](docs/connect.md#cursor) |
+| **OpenCode** | MCP server — [guide](docs/connect.md#opencode) |
+| **Codex CLI** | MCP server — [guide](docs/connect.md#codex-cli) |
+| **Any other tool** | HTTP API directly — [guide](docs/connect.md#any-tool) |
 
 ---
 
-## Góp ý & đóng góp
+## Project status
 
-Dự án đang ở giai đoạn sớm và cần feedback thật từ người dùng thật.
+> ⚠️ **Work in progress** — The core is working and being used in real projects, but rough edges exist. All feedback, bug reports, and suggestions are very welcome.
 
-- **Thấy bug?** → [Mở issue](https://github.com/amas-nghia/relayhq/issues)
-- **Có ý tưởng?** → [Thảo luận](https://github.com/amas-nghia/relayhq/discussions)
-- **Muốn contribute?** → [Xem roadmap](docs/roadmap.md) rồi mở PR
+See what's done and what's coming → [Roadmap](docs/roadmap.md)
+
+---
+
+## Feedback & contributing
+
+This project is early and needs real feedback from real users.
+
+- **Found a bug?** → [Open an issue](https://github.com/amas-nghia/relayhq/issues)
+- **Have an idea?** → [Start a discussion](https://github.com/amas-nghia/relayhq/discussions)
+- **Want to contribute?** → Check the [roadmap](docs/roadmap.md) and open a PR
 
 ---
 
 ## License
 
-MIT — dùng, sửa, fork thoải mái. Xem [LICENSE](LICENSE).
+MIT — use it, fork it, build on it. See [LICENSE](LICENSE).
