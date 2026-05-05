@@ -25,11 +25,9 @@
 ---
 
 <p align="center">
-  <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">
-    <img src="docs/assets/demo.gif" alt="Watch the RelayHQ demo" width="720" />
-  </a>
+  <video src="docs/assets/demo.webm" width="720" controls playsinline muted></video>
   <br/>
-  <sub>▶ Click to watch demo</sub>
+  <sub>▶ Watch the local demo recording or <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">open the Loom version</a></sub>
 </p>
 
 ---
