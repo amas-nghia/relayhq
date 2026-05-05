@@ -25,9 +25,9 @@
 ---
 
 <p align="center">
-  <video src="docs/assets/demo.webm" width="720" controls playsinline muted></video>
+  <video src="https://github.com/user-attachments/assets/3671aae1-8b93-4198-9bdf-78dfec08137e" width="720" controls playsinline muted></video>
   <br/>
-  <sub><a href="docs/assets/demo.webm">▶ Watch the local demo recording</a></sub>
+  <sub><a href="https://github.com/user-attachments/assets/3671aae1-8b93-4198-9bdf-78dfec08137e">▶ Watch the demo recording</a></sub>
 </p>
 
 ---
