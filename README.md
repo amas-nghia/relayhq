@@ -24,7 +24,7 @@
 
 <p align="center">
   <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">
-    <img src="https://cdn.loom.com/sessions/thumbnails/496c1d58c33a435f826ad8f620191eab-with-play.gif" alt="RelayHQ demo" width="720" />
+    <img src="https://cdn.loom.com/sessions/thumbnails/496c1d58c33a435f826ad8f620191eab-00001.jpg" alt="RelayHQ demo" width="720" />
   </a>
 </p>
 
