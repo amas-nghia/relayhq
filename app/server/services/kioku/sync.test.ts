@@ -117,7 +117,7 @@ function createReadModel(): VaultReadModel {
     auditNotes: [],
     docs: [],
     agents: [],
-  };
+  } as unknown as VaultReadModel;
 }
 
 const storages: Array<ReturnType<typeof createKiokuStorage>> = [];
@@ -175,6 +175,7 @@ describe("Kioku sync", () => {
       boards: [],
       columns: [],
       tasks: [],
+      issues: [],
       approvals: [],
       auditNotes: [],
       docs: [],

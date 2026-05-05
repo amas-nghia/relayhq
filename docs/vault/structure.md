@@ -1,71 +1,56 @@
 # Vault Structure
 
-RelayHQ uses a **vault-first** repository as the shared source of truth for coordination data.
+The vault is the source of truth. Everything is a file.
 
-## Principles
-- one object per file
-- Markdown for human readability
-- YAML frontmatter for machine-readable metadata
-- Git for history, review, and merge control
-- shared state in the vault, private overlays outside shared commits
+## Directory layout
 
-## Recommended layout
-
-```text
+```
 vault/
-├─ shared/
-│  ├─ workspaces/
-│  ├─ projects/
-│  ├─ boards/
-│  ├─ columns/
-│  ├─ agents/
-│  ├─ runs/
-│  ├─ audit/
-│  └─ threads/
-├─ users/
-│  └─ <user>/
-│     ├─ provider.md
-│     ├─ prefs.md
-│     └─ scratch/
-└─ system/
-   ├─ schemas/
-   └─ templates/
+├── shared/                         # Committed to Git. Team source of truth.
+│   ├── workspaces/                 # ws-{id}.md
+│   ├── projects/                   # project-{id}.md
+│   ├── boards/                     # board-{id}.md
+│   ├── columns/                    # col-{id}.md
+│   ├── tasks/                      # task-{id}.md
+│   ├── agents/                     # agent-{id}.md
+│   ├── docs/                       # doc-{id}.md
+│   ├── audit/                      # audit-{id}.md
+│   ├── coordinator-threads/        # coordinator-thread-{project_id}.md
+│   └── threads/                    # agent-session-{session_id}.jsonl
+└── users/                          # Per-user private files. Must be gitignored.
+    └── {username}/
+        ├── provider.md             # API provider preferences
+        └── prefs.md                # Personal preferences
 ```
 
 ## Shared vs private
 
-### Shared vault
-Committed to Git and visible to the team.
+**Shared** (`vault/shared/`) is committed to Git and is the canonical record for the whole team. It contains tasks, projects, boards, agents, audit notes, and session transcripts.
 
-Examples:
-- projects
-- tasks
-- assignments
-- approvals
-- audit notes
-- agent definitions
-- run logs
+**Private** (`vault/users/`) is per-user and must never be committed. It holds provider credentials references, personal routing preferences, and scratch files. Add `vault/users/` to `.gitignore`.
 
-### Private overlay
-Per-user settings and secrets references.
+## Rules
 
-Examples:
-- provider choice
-- model defaults
-- routing preferences
-- local preferences
-- scratch notes
+- One object per file
+- YAML frontmatter for machine-readable fields, Markdown body for human-readable content
+- Never write vault files directly from application code — all writes go through the API
+- Secrets never appear in vault files — use `api_key_ref: env:VAR_NAME` references only
+- `vault/users/**` must not appear in shared commits
 
-## Git and security rules
-- private overlays must be gitignored
-- secrets never live in shared files
-- provider keys are references only, never raw values
-- schema validation should run before commit/push
+## Session transcript files
 
-## Conflict rule
-If multiple agents may edit the same task, the vault protocol must support locking, heartbeats, and stale detection.
+Agent session events are streamed to `.jsonl` files:
 
-## Source of truth rule
-RelayHQ reads the vault to build current board and project state.
+```
+vault/shared/threads/agent-session-{session_id}.jsonl
+```
 
-The vault is not a cache; it is the canonical record.
+Each line is a JSON object with an `event` type and payload. These are written by the launch pipeline and read by the analytics system. Do not write or modify them manually.
+
+## Vault root location
+
+By default, the API server locates the vault relative to the repo root. Override with the `RELAYHQ_VAULT_ROOT` env var to point at an external vault (e.g., an Obsidian vault on another path).
+
+```bash
+RELAYHQ_VAULT_ROOT=/home/user/Documents/MyVault bun run dev
+```

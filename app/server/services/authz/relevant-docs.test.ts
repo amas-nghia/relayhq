@@ -58,7 +58,7 @@ function createReadModel(): VaultReadModel {
       { id: "doc-plan", type: "doc", docType: "plan", workspaceId: "ws-demo", projectId: "project-demo", title: "Rollout plan", status: "draft", visibility: "project", accessRoles: ["all"], sensitive: false, createdAt: "2026", updatedAt: "2026", tags: [], body: "Plan body", sourcePath: "vault/shared/docs/doc-plan.md" },
     ],
     agents: [],
-  };
+  } as unknown as VaultReadModel;
 }
 
 describe("relevant docs selector", () => {

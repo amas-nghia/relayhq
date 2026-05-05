@@ -19,7 +19,6 @@ function runtimeDisplayName(runtimeKind: string | null | undefined, runMode: str
   if (runtimeKind === 'claude-code') return 'Claude Code'
   if (runtimeKind === 'codex') return 'Codex'
   if (runtimeKind && runtimeKind.trim().length > 0) return runtimeKind
-  if (runMode === 'manual') return 'Manual launch'
   return 'Unbound runtime'
 }
 
@@ -59,7 +58,6 @@ function supportBadge(tier: RuntimeSupportTier) {
 }
 
 function readinessBadge(readiness: AgentRuntimeReadinessResponse | null | undefined, runMode: string | null | undefined) {
-  if (runMode === 'manual') return { label: 'Manual launch', variant: 'secondary' as const }
   if (readiness?.verificationStatus === 'ready') return { label: 'Ready', variant: 'success' as const }
   if (readiness?.verificationStatus === 'failed') return { label: 'Not ready', variant: 'danger' as const }
   return { label: 'Unverified', variant: 'secondary' as const }

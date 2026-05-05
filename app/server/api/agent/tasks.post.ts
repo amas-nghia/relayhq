@@ -163,6 +163,7 @@ export async function createAgentTasks(
       objective: proposal.objective,
       acceptanceCriteria: proposal.acceptanceCriteria,
       contextFiles: proposal.contextFiles,
+      tags: proposal.objective ? ["planned"] : undefined,
     });
     if (issues.length > 0) {
       errors.push({ title: proposal.title, error: formatTaskInputIssues(issues) });

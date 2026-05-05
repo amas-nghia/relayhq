@@ -11,9 +11,14 @@ export interface AgentInstallResponse {
   readonly content: string;
 }
 
-function readString(queryValue: string | string[] | undefined): string | undefined {
+function readString(queryValue: unknown): string | undefined {
   if (typeof queryValue === "string" && queryValue.trim().length > 0) {
     return queryValue.trim();
+  }
+
+  if (Array.isArray(queryValue)) {
+    const first = queryValue.find((value): value is string => typeof value === "string" && value.trim().length > 0);
+    return first?.trim();
   }
 
   return undefined;

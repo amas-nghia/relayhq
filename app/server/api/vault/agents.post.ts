@@ -1,5 +1,5 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createError, defineEventHandler, readBody } from "h3";
 
 import type { AgentFrontmatter } from "../../../shared/vault/schema";
@@ -43,10 +43,19 @@ export async function registerVaultAgent(
     throw createError({ statusCode: 422, statusMessage: "No workspace is available for agent creation." });
   }
 
+  const projectId = typeof body.projectId === "string" && body.projectId.trim().length > 0 ? body.projectId.trim() : null;
+  if (projectId && !readModel.projects.find((p) => p.id === projectId)) {
+    throw createError({ statusCode: 422, statusMessage: `Project ${projectId} was not found.` });
+  }
+
   const id = slugify(String(body.name));
   const aliases = normalizeStringArray(body.aliases);
+  const capabilities = normalizeStringArray(body.capabilities);
+  const taskTypesAccepted = normalizeStringArray(body.taskTypesAccepted);
   const sharedRoot = resolveSharedVaultPath(vaultRoot);
-  const filePath = join(sharedRoot, "agents", `${id}.md`);
+  const filePath = projectId
+    ? join(sharedRoot, "projects", projectId, "agents", `${id}.md`)
+    : join(sharedRoot, "agents", `${id}.md`);
   try {
     await access(filePath);
     throw createError({ statusCode: 409, statusMessage: `Agent ${id} already exists.` });
@@ -56,7 +65,7 @@ export async function registerVaultAgent(
     }
   }
 
-  await mkdir(join(sharedRoot, "agents"), { recursive: true });
+  await mkdir(dirname(filePath), { recursive: true });
   const timestamp = (options.now ?? new Date()).toISOString();
   const frontmatter: AgentFrontmatter = {
     id,
@@ -82,15 +91,16 @@ export async function registerVaultAgent(
     ...(typeof body.supportsStreaming === "boolean" ? { supports_streaming: body.supportsStreaming } : {}),
     ...(typeof body.bootstrapStrategy === "string" && body.bootstrapStrategy.trim().length > 0 ? { bootstrap_strategy: body.bootstrapStrategy.trim() as AgentFrontmatter["bootstrap_strategy"] } : {}),
     ...(typeof body.verificationStatus === "string" && body.verificationStatus.trim().length > 0 ? { verification_status: body.verificationStatus.trim() as AgentFrontmatter["verification_status"] } : {}),
-    capabilities: [],
-    task_types_accepted: [],
+    capabilities,
+    task_types_accepted: taskTypesAccepted,
     approval_required_for: [],
     cannot_do: [],
     accessible_by: [],
-    skill_file: `skills/${String(body.role).trim()}.md`,
+    skill_file: typeof body.skillFile === "string" && body.skillFile.trim().length > 0 ? body.skillFile.trim() : `skills/${String(body.role).trim()}.md`,
     ...(Array.isArray(body.skillFiles) && body.skillFiles.length > 0 ? { skill_files: body.skillFiles.map((value: unknown) => String(value).trim()).filter((value: string) => value.length > 0) } : {}),
     status: "available",
     workspace_id: workspaceId,
+    ...(projectId ? { project_id: projectId } : {}),
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -121,8 +131,8 @@ export async function registerVaultAgent(
     ...(frontmatter.supports_streaming === undefined ? [] : [`supports_streaming: ${JSON.stringify(frontmatter.supports_streaming)}`]),
     ...(frontmatter.bootstrap_strategy === undefined ? [] : [`bootstrap_strategy: ${JSON.stringify(frontmatter.bootstrap_strategy)}`]),
     ...(frontmatter.verification_status === undefined ? [] : [`verification_status: ${JSON.stringify(frontmatter.verification_status)}`]),
-    "capabilities: []",
-    "task_types_accepted: []",
+    `capabilities: ${JSON.stringify(frontmatter.capabilities)}`,
+    `task_types_accepted: ${JSON.stringify(frontmatter.task_types_accepted)}`,
     "approval_required_for: []",
     "cannot_do: []",
     "accessible_by: []",
@@ -130,18 +140,22 @@ export async function registerVaultAgent(
     ...(frontmatter.skill_files === undefined ? [] : [`skill_files: ${JSON.stringify(frontmatter.skill_files)}`]),
     'status: "available"',
     `workspace_id: ${JSON.stringify(workspaceId)}`,
+    ...(projectId ? [`project_id: ${JSON.stringify(projectId)}`] : []),
     `created_at: ${timestamp}`,
     `updated_at: ${timestamp}`,
     "---",
     "",
-    `# ${frontmatter.name}`,
+    ...(typeof body.body === "string" && body.body.trim().length > 0 ? [body.body.trim()] : [`# ${frontmatter.name}`]),
     "",
   ];
 
   await writeFile(filePath, `${markdownLines.join("\n")}`, { flag: "wx" });
+  const sourcePath = projectId
+    ? join("vault", "shared", "projects", projectId, "agents", `${id}.md`)
+    : join("vault", "shared", "agents", `${id}.md`);
   return {
     agent: frontmatter,
-    sourcePath: join("vault", "shared", "agents", `${id}.md`),
+    sourcePath,
   };
 }
 

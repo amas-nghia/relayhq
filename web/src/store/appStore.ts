@@ -2,8 +2,9 @@ import { create } from 'zustand'
 
 import { getRelayHQApiBaseUrl, relayhqApi } from '../api/client'
 import type { RelayHQSettingsResponse } from '../api/client'
-import type { ActiveAgentSession, ReadModelColumn, ReadModelAuditNote, VaultReadModel } from '../api/contract'
+import type { ActiveAgentSession, ReadModelColumn, ReadModelAuditNote, ReadModelCoordinatorThread, VaultReadModel } from '../api/contract'
 import type { Agent, AuditLog, Project, Task } from '../types'
+import { loadSelectedProjectId, persistSelectedProjectId, resolvePersistedSelectedProjectId } from './selectedProjectState'
 let realtimeSource: EventSource | null = null
 let realtimeRefreshTimeoutId: number | null = null
 let realtimeRefreshQueued = false
@@ -16,6 +17,7 @@ interface AppState {
   projects: Project[]
   columns: ReadonlyArray<ReadModelColumn>
   auditNotes: ReadonlyArray<ReadModelAuditNote>
+  coordinatorThreads: ReadonlyArray<ReadModelCoordinatorThread>
   settings: RelayHQSettingsResponse | null
   showOnboarding: boolean
   auditLogs: AuditLog[]
@@ -35,7 +37,7 @@ interface AppState {
   closeTaskDetail: () => void
   openNewTaskModal: () => void
   closeNewTaskModal: () => void
-  loadData: () => Promise<void>
+  loadData: (options?: { force?: boolean }) => Promise<void>
   fetchReadModel: () => Promise<void>
   startRealtime: () => void
   stopRealtime: () => void
@@ -53,6 +55,7 @@ interface AppState {
     acceptanceCriteria?: string[]
     constraints?: string[]
     contextFiles?: string[]
+    templateId?: string
     cronSchedule?: string
   }) => Promise<void>
   approveTask: (taskId: string) => Promise<void>
@@ -109,8 +112,14 @@ function relativeTime(value: string | null | undefined): string {
   return `${days}d ago`
 }
 
+function isInternalCoordinatorTask(task: VaultReadModel['tasks'][number]) {
+  return task.tags.includes('project-coordinator')
+}
+
 function mapTasks(model: VaultReadModel): Task[] {
-  return model.tasks.map((task) => ({
+  return model.tasks
+    .filter((task) => !isInternalCoordinatorTask(task))
+    .map((task) => ({
     id: task.id,
     title: task.title,
     description: task.body,
@@ -125,6 +134,8 @@ function mapTasks(model: VaultReadModel): Task[] {
     assigneeId: task.assignee || undefined,
     progress: task.progress,
     executionStartedAt: task.executionStartedAt ?? undefined,
+    activeSessionId: task.activeSessionId ?? null,
+    activeSessionStatus: task.activeSessionStatus ?? null,
     executionNotes: task.executionNotes ?? undefined,
     history: task.history.map((entry) => ({
       at: entry.at,
@@ -171,12 +182,14 @@ function mapProjects(model: VaultReadModel): Project[] {
     id: project.id,
     name: project.name,
     boardId: project.boardIds[0],
+    coordinatorAgentId: project.coordinatorAgentId,
     lastActive: model.tasks.some((task) => task.projectId === project.id && task.status !== 'done' && task.status !== 'cancelled'),
     codebaseRoot: project.codebases[0]?.path ?? null,
     description: project.description ?? null,
     budget: project.budget ?? null,
     deadline: project.deadline ?? null,
     status: project.status ?? null,
+    scene: project.scene ?? null,
     links: [...project.links],
     attachments: [...project.attachments],
     docs: model.docs
@@ -195,13 +208,13 @@ function mapProjects(model: VaultReadModel): Project[] {
 
 function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSession>): Agent[] {
   return model.agents.map((agent) => {
-    const session = sessions.find((entry) => entry.agentName.replace(/#\d+$/, '') === agent.id || entry.agentName === agent.id)
+    const session = sessions.find((entry) => (entry.agentId ?? entry.agentName.replace(/#\d+$/, '')) === agent.id)
     const waitingTask = model.tasks.find((task) => task.assignee === agent.id && task.status === 'waiting-approval')
     const activeTask = model.tasks.find((task) => task.assignee === agent.id && task.status === 'in-progress')
 
     let state: Agent['state'] = 'idle'
     if (waitingTask) state = 'waiting'
-    else if (session && session.idleSeconds < 120) state = 'active'
+    else if (session && (session.status === 'running' || session.status === 'handed-off' || session.status === 'attached' || session.idleSeconds < 120)) state = 'active'
     else if (session) state = 'stale'
     else if (activeTask) state = 'active'
 
@@ -215,7 +228,7 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       roles: [...agent.roles],
       provider: agent.provider,
       apiKeyRef: agent.apiKeyRef,
-      portraitAsset: agent.portraitAsset,
+      model: agent.model ?? null,
       spriteAsset: agent.spriteAsset,
       monthlyBudgetUsd: agent.monthlyBudgetUsd,
       aliases: [...agent.aliases],
@@ -235,6 +248,7 @@ function mapAgents(model: VaultReadModel, sessions: ReadonlyArray<ActiveAgentSes
       skillFiles: [...(agent.skillFiles ?? [])],
       body: agent.body,
       sourcePath: agent.sourcePath,
+      projectId: agent.projectId ?? null,
     }
   })
 }
@@ -272,6 +286,7 @@ async function readSnapshot() {
     auditNotes: [],
     docs: [],
     agents: [],
+    coordinatorThreads: [],
   }
 
   if (!settings.isValid) {
@@ -282,6 +297,7 @@ async function readSnapshot() {
       projects: [],
       columns: [],
       auditNotes: [],
+      coordinatorThreads: [],
       agents: [],
       auditLogs: [],
       showOnboarding: true,
@@ -298,6 +314,7 @@ async function readSnapshot() {
     projects,
     columns: model.columns,
     auditNotes: model.auditNotes,
+    coordinatorThreads: model.coordinatorThreads ?? [],
     agents: mapAgents(model, sessions),
     auditLogs: mapAuditLogs(model),
     showOnboarding: settings.availableWorkspaces.length === 0 || projects.length === 0,
@@ -310,6 +327,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   columns: [],
   auditNotes: [],
+  coordinatorThreads: [],
   settings: null,
   showOnboarding: false,
   auditLogs: [],
@@ -317,14 +335,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedTaskId: null,
   isDetailPanelOpen: false,
   isNewTaskModalOpen: false,
-  selectedProjectId: null,
+  selectedProjectId: loadSelectedProjectId(),
   isLoading: false,
   error: null,
   isMutating: false,
   mutationError: null,
   refreshIntervalId: null,
 
-  setSelectedProjectId: (id) => set({ selectedProjectId: id }),
+  setSelectedProjectId: (id) => {
+    persistSelectedProjectId(id)
+    set({ selectedProjectId: id })
+  },
   openTaskDetail: (taskId) => set({ selectedTaskId: taskId, isDetailPanelOpen: true }),
   closeTaskDetail: () => set({ selectedTaskId: null, isDetailPanelOpen: false }),
   openNewTaskModal: () => set({ isNewTaskModalOpen: true }),
@@ -368,13 +389,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().stopPolling()
   },
 
-  loadData: async () => {
-    if (snapshotLoadInFlight !== null) return snapshotLoadInFlight
+  loadData: async (options) => {
+    if (snapshotLoadInFlight !== null) {
+      if (!options?.force) return snapshotLoadInFlight
+      await snapshotLoadInFlight
+    }
 
     set({ isLoading: true, error: null })
     snapshotLoadInFlight = (async () => {
       try {
         const snapshot = await readSnapshot()
+        const selectedProjectId = resolvePersistedSelectedProjectId(
+          get().selectedProjectId,
+          snapshot.projects.map((project) => project.id),
+        )
+
+        persistSelectedProjectId(selectedProjectId)
         set({
           settings: snapshot.settings,
           tasks: snapshot.tasks,
@@ -383,6 +413,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           auditNotes: snapshot.model.auditNotes,
           agents: snapshot.agents,
           auditLogs: snapshot.auditLogs,
+          selectedProjectId,
           lastFetched: new Date(),
           showOnboarding: snapshot.showOnboarding,
           isLoading: false,
@@ -444,11 +475,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         priority: payload.priority,
         ...(payload.assigneeId ? { assignee: payload.assigneeId } : {}),
         ...(payload.requiredCapability ? { requiredCapability: payload.requiredCapability } : {}),
+        ...(payload.templateId ? { templateId: payload.templateId } : {}),
         ...(payload.cronSchedule ? { cron_schedule: payload.cronSchedule } : {}),
-        objective: payload.objective ?? (payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`),
-        acceptanceCriteria: payload.acceptanceCriteria ?? ['Task is created in the canonical vault', 'Task is visible to the React web app'],
+        ...(!payload.templateId ? { objective: payload.objective ?? (payload.description && payload.description.trim().length >= 50 ? payload.description : `${payload.description ?? payload.title} — created from the React web workspace flow.`) } : (payload.objective ? { objective: payload.objective } : {})),
+        ...(!payload.templateId ? { acceptanceCriteria: payload.acceptanceCriteria ?? ['Task is created in the canonical vault', 'Task is visible to the React web app'] } : (payload.acceptanceCriteria ? { acceptanceCriteria: payload.acceptanceCriteria } : {})),
         constraints: payload.constraints,
-        contextFiles: payload.contextFiles ?? ['web/src/api/client.ts'],
+        ...(!payload.templateId ? { contextFiles: payload.contextFiles ?? ['web/src/api/client.ts'] } : (payload.contextFiles ? { contextFiles: payload.contextFiles } : {})),
       })
       await get().loadData()
       set({ isNewTaskModalOpen: false, isMutating: false })
@@ -504,6 +536,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isMutating: true, mutationError: null })
     try {
       const patch: Record<string, unknown> = { status }
+      const now = new Date().toISOString()
       if (status === 'review') {
         patch.column = 'review'
       } else if (status === 'done') {
@@ -511,8 +544,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         patch.progress = 100
       } else if (status === 'in-progress') {
         patch.column = 'in-progress'
+        patch.execution_started_at = now
+        patch.dispatch_status = 'started'
+        patch.dispatch_reason = 'Moved to in-progress from the board.'
+        patch.last_dispatch_attempt_at = now
       } else if (status === 'blocked') {
         patch.column = 'review'
+      } else if (status === 'todo') {
+        patch.column = 'todo'
+        patch.blocked_reason = null
+        patch.dispatch_status = 'idle'
+        patch.dispatch_reason = null
       } else {
         patch.column = 'todo'
       }

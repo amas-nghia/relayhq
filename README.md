@@ -139,7 +139,7 @@ npx relayhq setup antigravity   # writes .antigravity/instructions/relayhq.md
 
 The skill file tells the agent exactly how to behave: claim before starting, send heartbeats every 5–10 min, move to "review" when done — never "done" directly. Without it the agent has the tools but no rules for using them correctly.
 
-Restart your agent. Five tools are now available: `relayhq_inbox`, `relayhq_start`, `relayhq_progress`, `relayhq_done`, `relayhq_blocked`.
+Restart your agent. Six tools are now available: `relayhq_inbox`, `relayhq_start`, `relayhq_progress`, `relayhq_request_approval`, `relayhq_done`, `relayhq_blocked`.
 
 ### OpenCode / Codex / any CLI agent
 
@@ -152,6 +152,8 @@ The setup command writes the full protocol as an instruction file — HTTP API e
 
 See [docs/connect.md](docs/connect.md) for all supported runtimes.
 
+Background auto-dispatch is disabled by default. Set `RELAYHQ_DISABLE_AUTO_DISPATCH=false` if you explicitly want RelayHQ to poll assigned or scheduled tasks and spawn agent sessions automatically.
+
 ---
 
 ## Agent workflow
@@ -160,6 +162,7 @@ See [docs/connect.md](docs/connect.md) for all supported runtimes.
 Session start  →  relayhq_inbox          check what's assigned to me
 Claim task     →  relayhq_start          get full context (objective, criteria, files)
 While working  →  relayhq_progress       update % + heartbeat every 5–10 min
+Need approval  →  relayhq_request_approval pause for a human decision
 If stuck       →  relayhq_blocked        stop and tell the human what's missing
 When done      →  relayhq_done           moves to "review" — human approves next
 ```

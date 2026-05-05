@@ -80,6 +80,7 @@ describe("PATCH /api/vault/projects/[id]", () => {
         status: "Paused",
         links: [{ label: "PRD", url: "https://notion.so/prd" }],
         attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-24T00:00:00Z" }],
+        scene: { background: { mode: "gradient", gradientFrom: "#1f2937", gradientTo: "#0f172a" } },
         codebases: [{ name: "frontend", path: "../repo", tech: "Nuxt", primary: true }],
       },
     }, { vaultRoot: root });
@@ -87,10 +88,12 @@ describe("PATCH /api/vault/projects/[id]", () => {
     expect(response).toEqual({
       id: "project-demo",
       name: "Renamed Project",
+      coordinatorAgentId: null,
       budget: "$12,000/mo",
       deadline: "2026-06-01T00:00:00Z",
       links: [{ label: "PRD", url: "https://notion.so/prd" }],
       attachments: [{ label: "Kickoff doc", url: "https://drive.google.com/doc", type: "doc", addedAt: "2026-04-24T00:00:00Z" }],
+      scene: { background: { mode: "gradient", gradientFrom: "#1f2937", gradientTo: "#0f172a" } },
       codebases: [{ name: "frontend", path: "../repo", tech: "Nuxt", primary: true }],
       description: "New description",
       status: "paused",
@@ -102,6 +105,7 @@ describe("PATCH /api/vault/projects/[id]", () => {
     expect(projectDocument).toContain('deadline: "2026-06-01T00:00:00Z"');
     expect(projectDocument).toContain('links: [{"label":"PRD","url":"https://notion.so/prd"}]');
     expect(projectDocument).toContain('attachments: [{"label":"Kickoff doc","url":"https://drive.google.com/doc","type":"doc","addedAt":"2026-04-24T00:00:00Z"}]');
+    expect(projectDocument).toContain('scene: {"background":{"mode":"gradient","gradientFrom":"#1f2937","gradientTo":"#0f172a"}}');
     expect(projectDocument).toContain('codebases: [{"name":"frontend","path":"../repo","tech":"Nuxt","primary":true}]');
     expect(projectDocument).toContain("## Description\nNew description");
 
@@ -119,6 +123,76 @@ describe("PATCH /api/vault/projects/[id]", () => {
       patch: { name: "   " },
     }, { vaultRoot: root })).rejects.toMatchObject({ statusCode: 400 });
   });
+
+  test("assigns a coordinator agent when the agent has the coordinator role", async () => {
+    const root = await createRoot();
+    await mkdir(join(root, "vault", "shared", "agents"), { recursive: true });
+    await mkdir(join(root, "vault", "shared", "tasks"), { recursive: true });
+    await writeFile(join(root, "vault", "shared", "agents", "agent-coordinator.md"), [
+      "---",
+      'id: "agent-coordinator"',
+      'type: "agent"',
+      'name: "Coordinator"',
+      'role: "coordinator"',
+      'roles: ["coordinator"]',
+      'provider: "anthropic"',
+      'model: "claude-sonnet-4-6"',
+      'capabilities: []',
+      'task_types_accepted: []',
+      'approval_required_for: []',
+      'cannot_do: []',
+      'accessible_by: []',
+      'skill_file: "skills/coordinator.md"',
+      'status: "available"',
+      'workspace_id: "ws-demo"',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-23T00:00:00Z"',
+      "---",
+      "",
+    ].join("\n"), "utf8");
+
+    const response = await updateProjectMetadata("project-demo", {
+      actorId: "agent-claude-code",
+      patch: { coordinator_agent_id: "agent-coordinator" },
+    }, { vaultRoot: root });
+
+    expect(response.coordinatorAgentId).toBe("agent-coordinator");
+
+    const projectDocument = await readFile(join(root, "vault", "shared", "projects", "project-demo.md"), "utf8");
+    expect(projectDocument).toContain('coordinator_agent_id: "agent-coordinator"');
+  });
+
+  test("rejects coordinator agents without the coordinator role", async () => {
+    const root = await createRoot();
+    await mkdir(join(root, "vault", "shared", "agents"), { recursive: true });
+    await writeFile(join(root, "vault", "shared", "agents", "agent-worker.md"), [
+      "---",
+      'id: "agent-worker"',
+      'type: "agent"',
+      'name: "Worker"',
+      'role: "implementation"',
+      'roles: ["implementation"]',
+      'provider: "anthropic"',
+      'model: "claude-sonnet-4-6"',
+      'capabilities: []',
+      'task_types_accepted: []',
+      'approval_required_for: []',
+      'cannot_do: []',
+      'accessible_by: []',
+      'skill_file: "skills/worker.md"',
+      'status: "available"',
+      'workspace_id: "ws-demo"',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-23T00:00:00Z"',
+      "---",
+      "",
+    ].join("\n"), "utf8");
+
+    await expect(updateProjectMetadata("project-demo", {
+      actorId: "agent-claude-code",
+      patch: { coordinator_agent_id: "agent-worker" },
+    }, { vaultRoot: root })).rejects.toMatchObject({ statusCode: 400 })
+  })
 
   test("deletes the project and related board and column files", async () => {
     const root = await createRoot();

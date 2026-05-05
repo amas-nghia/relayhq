@@ -7,6 +7,7 @@ import type {
   VaultDocEnvelope,
   VaultReadModel,
 } from './contract'
+import type { Project } from '../types'
 
 export type { AgentStateResponse } from './contract'
 
@@ -45,6 +46,7 @@ function readErrorMessage(payload: unknown, fallback: string) {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${getRelayHQApiBaseUrl()}${path}`, {
     ...init,
+    cache: 'no-store',
     headers: {
       'content-type': 'application/json',
       ...(init?.headers ?? {}),
@@ -70,6 +72,7 @@ export interface VaultTaskCreatePayload {
   readonly acceptanceCriteria?: ReadonlyArray<string>
   readonly constraints?: ReadonlyArray<string>
   readonly contextFiles?: ReadonlyArray<string>
+  readonly templateId?: string
   readonly tags?: ReadonlyArray<string>
   readonly dependsOn?: ReadonlyArray<string>
   readonly cron_schedule?: string
@@ -81,6 +84,17 @@ export interface RelayHQWorkspaceOption {
   readonly name: string
 }
 
+export interface RelayHQRuntimeCapacity {
+  readonly maxConcurrentRuntimeInstances: number
+  readonly activeRuntimeInstances: number
+  readonly availableRuntimeSlots: number
+  readonly capacityBlockedTaskCount: number
+}
+
+export interface RelayHQTaskRoutingConfig {
+  readonly tagAliases: Readonly<Record<string, ReadonlyArray<string>>>
+}
+
 export interface RelayHQSettingsResponse {
   readonly vaultRoot: string | null
   readonly resolvedRoot: string
@@ -89,7 +103,10 @@ export interface RelayHQSettingsResponse {
   readonly activeWorkspaceId: string | null
   readonly activeWorkspaceName: string | null
   readonly availableWorkspaces: ReadonlyArray<RelayHQWorkspaceOption>
+  readonly maxConcurrentRuntimeInstances: number
+  readonly runtimeCapacity: RelayHQRuntimeCapacity
   readonly platform?: string
+  readonly taskRouting: RelayHQTaskRoutingConfig
 }
 
 export interface RelayHQVaultInitPayload {
@@ -106,6 +123,8 @@ export interface RelayHQVaultInitResponse {
 export interface RelayHQSettingsSavePayload {
   readonly vaultRoot: string
   readonly workspaceId: string | null
+  readonly maxConcurrentRuntimeInstances: number
+  readonly taskRouting: RelayHQTaskRoutingConfig
 }
 
 export interface RelayHQProjectCreatePayload {
@@ -117,11 +136,21 @@ export interface RelayHQProjectPatchPayload {
   readonly actorId?: string
   readonly patch: {
     readonly name?: string
+    readonly coordinator_agent_id?: string | null
     readonly budget?: string | null
     readonly deadline?: string | null
     readonly status?: string | null
     readonly links?: ReadonlyArray<{ label: string; url: string }>
     readonly attachments?: ReadonlyArray<{ label: string; url: string; type: string; addedAt: string }>
+    readonly scene?: {
+      readonly background: {
+        readonly mode: 'color' | 'gradient' | 'image'
+        readonly color?: string
+        readonly gradientFrom?: string
+        readonly gradientTo?: string
+        readonly imageUrl?: string
+      }
+    } | null
     readonly codebase_root?: string | null
   }
 }
@@ -227,6 +256,31 @@ export interface AgentRunResponse {
   readonly args: ReadonlyArray<string>
 }
 
+export interface ProjectCoordinatorChatResponse extends AgentRunResponse {
+  readonly projectId: string
+  readonly coordinatorAgentId: string
+  readonly coordinatorThreadId: string
+}
+
+export interface ProjectCoordinatorThread {
+  readonly id: string
+  readonly type: 'coordinator-thread'
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly coordinatorAgentId: string
+  readonly activeSessionId: string | null
+  readonly status: 'active' | 'archived'
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly body: string
+  readonly sourcePath: string
+}
+
+export interface ProjectCoordinatorThreadResponse {
+  readonly thread: ProjectCoordinatorThread
+  readonly created: boolean
+}
+
 export interface AgentSessionRecord {
   readonly id: string
   readonly sessionId: string
@@ -250,10 +304,35 @@ export interface AgentSessionEventRecord {
   readonly sessionId: string
   readonly agentId: string
   readonly taskId: string | null
-  readonly type: 'session.started' | 'session.ended' | 'session.failed' | 'terminal.stdout' | 'terminal.stderr' | 'reasoning.summary' | 'user.message'
+  readonly type: 'session.started' | 'session.ended' | 'session.failed' | 'session.stopped' | 'session.usage' | 'terminal.stdout' | 'terminal.stderr' | 'reasoning.summary' | 'user.message'
   readonly timestamp: string
   readonly text?: string
   readonly code?: number | null
+  readonly usage?: {
+    readonly promptTokens?: number | null
+    readonly completionTokens?: number | null
+    readonly totalTokens?: number | null
+    readonly costUsd?: number | null
+    readonly model?: string | null
+    readonly usageSource: 'provider' | 'runtime' | 'estimated'
+    readonly estimatedRemainingContextTokens?: number | null
+    readonly contextWindowTokens?: number | null
+  }
+}
+
+export interface AgentSessionUsageResponse {
+  readonly sessionId: string
+  readonly agentId: string | null
+  readonly taskId: string | null
+  readonly promptTokens: number | null
+  readonly completionTokens: number | null
+  readonly totalTokens: number | null
+  readonly costUsd: number | null
+  readonly model: string | null
+  readonly usageSource: 'provider' | 'runtime' | 'estimated' | null
+  readonly estimatedRemainingContextTokens: number | null
+  readonly contextWindowTokens: number | null
+  readonly isEstimated: boolean
 }
 
 export interface VaultTaskSchedulePayload {
@@ -353,12 +432,17 @@ export interface AgentCreatePayload {
   readonly bootstrapStrategy?: string | null
   readonly verificationStatus?: string | null
   readonly capabilities?: ReadonlyArray<string>
+  readonly taskTypesAccepted?: ReadonlyArray<string>
   readonly approvalRequiredFor?: ReadonlyArray<string>
+  readonly skillFiles?: ReadonlyArray<string>
+  readonly projectId?: string | null
 }
 
 export interface AgentPatchPayload {
   readonly patch: {
     readonly name?: string
+    readonly provider?: string
+    readonly model?: string
     readonly account_id?: string
     readonly api_key_ref?: string
     readonly portrait_asset?: string
@@ -375,9 +459,28 @@ export interface AgentPatchPayload {
     readonly bootstrap_strategy?: string
     readonly verification_status?: string
     readonly aliases?: ReadonlyArray<string>
+    readonly skill_file?: string
+    readonly skill_files?: ReadonlyArray<string>
+    readonly body?: string
     readonly capabilities?: ReadonlyArray<string>
+    readonly task_types_accepted?: ReadonlyArray<string>
     readonly approval_required_for?: ReadonlyArray<string>
   }
+}
+
+export interface RelayHQSkillRecord {
+  readonly name: string
+  readonly version: string
+  readonly description: string
+  readonly sourcePath: string
+  readonly taskTypes: ReadonlyArray<string>
+  readonly appliesToTags: ReadonlyArray<string>
+}
+
+export interface AgentAvatarUploadResponse {
+  readonly path: string
+  readonly fileName: string
+  readonly contentType: string
 }
 
 export interface AgentRuntimeBindingResponse {
@@ -481,6 +584,43 @@ export interface AnalyticsDashboardResponse {
   readonly agents: AnalyticsAgentsResponse
 }
 
+export interface ProviderQuotaSummary {
+  readonly provider: string
+  readonly label: string
+  readonly availability: 'available' | 'unavailable' | 'error'
+  readonly source: 'live' | 'none'
+  readonly limitUsd: number | null
+  readonly usedUsd: number | null
+  readonly remainingUsd: number | null
+  readonly detail: string | null
+  readonly checkedAt: string
+}
+
+export interface AgentProviderUsageDay {
+  readonly day: string
+  readonly costUsd: number
+  readonly tokensUsed: number
+  readonly taskCount: number
+}
+
+export interface AgentProviderUsageSummary {
+  readonly agentId: string
+  readonly agentName: string
+  readonly provider: string | null
+  readonly model: string | null
+  readonly recentCostUsd: number
+  readonly recentTokensUsed: number
+  readonly recentTaskCount: number
+  readonly byDay: ReadonlyArray<AgentProviderUsageDay>
+  readonly providerQuota: ProviderQuotaSummary | null
+}
+
+export interface ProviderUsageResponse {
+  readonly generatedAt: string
+  readonly providers: ReadonlyArray<ProviderQuotaSummary>
+  readonly agents: ReadonlyArray<AgentProviderUsageSummary>
+}
+
 export const relayhqApi = {
   getReadModel: () => request<VaultReadModel>('/api/vault/read-model'),
   getAgentState: (agentId: string) => request<AgentStateResponse>(`/api/agent/state?agentId=${encodeURIComponent(agentId)}`),
@@ -492,6 +632,7 @@ export const relayhqApi = {
   getAnalyticsCost: () => request<AnalyticsCostResponse>('/api/analytics/cost'),
   getAnalyticsVelocity: () => request<AnalyticsVelocityResponse>('/api/analytics/velocity'),
   getAnalyticsAgents: () => request<AnalyticsAgentsResponse>('/api/analytics/agents'),
+  getAnalyticsProviders: () => request<ProviderUsageResponse>('/api/analytics/providers'),
   getSettings: () => request<RelayHQSettingsResponse>('/api/settings'),
   getAgentInstall: (runtime: string) => request<{ runtime: string; filename: string; content: string }>(`/api/agent/install?runtime=${encodeURIComponent(runtime)}`),
   getMcpSnippet: (tool: string) => request<{ snippet: string; configFilePath: string; instruction: string }>(`/api/settings/snippets?tool=${encodeURIComponent(tool)}`),
@@ -499,7 +640,7 @@ export const relayhqApi = {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
-  saveSettings: (payload: RelayHQSettingsSavePayload) => request<{ success: true; vaultRoot: string; workspaceId: string | null }>('/api/settings', {
+  saveSettings: (payload: RelayHQSettingsSavePayload) => request<{ success: true; vaultRoot: string; workspaceId: string | null; maxConcurrentRuntimeInstances: number; taskRouting: RelayHQTaskRoutingConfig }>('/api/settings', {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
@@ -511,15 +652,24 @@ export const relayhqApi = {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
-  patchProject: (projectId: string, payload: RelayHQProjectPatchPayload) => request<{ id: string; name: string; codebases: ReadonlyArray<{ name: string; path: string }>; description: string | null; status: string | null }>(`/api/vault/projects/${encodeURIComponent(projectId)}`, {
+  getProject: (projectId: string) => request<Project>(`/api/vault/projects/${encodeURIComponent(projectId)}`),
+  patchProject: (projectId: string, payload: RelayHQProjectPatchPayload) => request<{ id: string; name: string; coordinatorAgentId: string | null; codebases: ReadonlyArray<{ name: string; path: string }>; description: string | null; status: string | null; scene: { background: { mode: 'color' | 'gradient' | 'image'; color?: string; gradientFrom?: string; gradientTo?: string; imageUrl?: string } } | null }>(`/api/vault/projects/${encodeURIComponent(projectId)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  }),
+  openProjectCoordinatorChat: (projectId: string, payload?: { message?: string | null; mode?: 'fresh' | 'resume' | 'reset' | null }) => request<ProjectCoordinatorChatResponse>(`/api/vault/projects/${encodeURIComponent(projectId)}/coordinator-chat`, {
+    method: 'POST',
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  }),
+  openProjectCoordinatorThread: (projectId: string) => request<ProjectCoordinatorThreadResponse>(`/api/vault/projects/${encodeURIComponent(projectId)}/coordinator-thread`, {
+    method: 'POST',
   }),
   deleteProject: (projectId: string) => request<{ success: boolean; deletedPaths: ReadonlyArray<string> }>(`/api/vault/projects/${encodeURIComponent(projectId)}`, {
     method: 'DELETE',
   }),
   browseDirectories: (path?: string) => request<RelayHQBrowseDirectoriesResponse>(`/api/settings/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getApiKeys: () => request<RelayHQApiKeysResponse>('/api/settings/api-keys'),
+  listSkills: () => request<{ skills: ReadonlyArray<RelayHQSkillRecord>; skillDir: string }>('/api/settings/skills'),
   listVaultFiles: () => request<ReadonlyArray<RelayHQVaultFileEntry>>('/api/settings/vault-files'),
   scanAgents: () => request<{ discovered: ReadonlyArray<RelayHQScannedAgentTool> }>('/api/settings/scan-agents'),
   getWebhookSettings: () => request<RelayHQWebhookSettingsResponse>('/api/settings/webhooks'),
@@ -539,6 +689,22 @@ export const relayhqApi = {
     method: 'PATCH',
     body: JSON.stringify(payload),
   }),
+  uploadAgentAvatar: async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${getRelayHQApiBaseUrl()}/api/vault/assets/agent-avatar`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    const payload = await parseJson<unknown>(response)
+    if (!response.ok) {
+      throw new RelayHQApiError(readErrorMessage(payload, `RelayHQ request failed with status ${response.status}.`), response.status)
+    }
+
+    return payload as AgentAvatarUploadResponse
+  },
   bindAgentRuntime: (agentId: string, runtime: string) => request<AgentRuntimeBindingResponse>(`/api/vault/agents/${encodeURIComponent(agentId)}/bind-runtime`, {
     method: 'POST',
     body: JSON.stringify({ runtime }),
@@ -555,13 +721,17 @@ export const relayhqApi = {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
-  listAgentSessions: (agentId: string) => request<ReadonlyArray<AgentSessionRecord>>(`/api/agent/${encodeURIComponent(agentId)}/sessions`),
+  listAgentSessions: (agentId: string, options?: { projectId?: string | null }) => {
+    const params = options?.projectId ? `?projectId=${encodeURIComponent(options.projectId)}` : '';
+    return request<ReadonlyArray<AgentSessionRecord>>(`/api/agent/${encodeURIComponent(agentId)}/sessions${params}`);
+  },
   getAgentSessionEvents: (sessionId: string) => request<ReadonlyArray<AgentSessionEventRecord>>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/events`),
+  getAgentSessionUsage: (sessionId: string) => request<AgentSessionUsageResponse>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/usage`),
   sendAgentSessionMessage: (sessionId: string, message: string) => request<{ success: boolean; sessionId: string }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/messages`, {
     method: 'POST',
     body: JSON.stringify({ message }),
   }),
-  stopAgentSession: (sessionId: string) => request<{ success: boolean; sessionId: string }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}`, {
+  stopAgentSession: (sessionId: string, actorId = 'human-user') => request<{ success: boolean; sessionId: string }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}?actorId=${encodeURIComponent(actorId)}`, {
     method: 'DELETE',
   }),
 
@@ -572,6 +742,10 @@ export const relayhqApi = {
   patchTask: (taskId: string, payload: VaultTaskPatchPayload) => request<unknown>(`/api/vault/tasks/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  }),
+  deleteTask: (taskId: string, actorId: string) => request<{ success: boolean; taskId: string }>(`/api/vault/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ actorId }),
   }),
   scheduleTask: (taskId: string, payload: VaultTaskSchedulePayload) => request<unknown>(`/api/vault/tasks/${encodeURIComponent(taskId)}/schedule`, {
     method: 'POST',
@@ -598,17 +772,14 @@ export const relayhqApi = {
   getTaskComments: (taskId: string) => request<{ data: TaskThreadRecord; error: string | null }>(`/api/vault/tasks/${encodeURIComponent(taskId)}/comments`),
   addTaskComment: (taskId: string, payload: { author: string; body: string }) => request<{ data: TaskThreadRecord; error: string | null }>(`/api/vault/tasks/${encodeURIComponent(taskId)}/comments`, { method: 'POST', body: JSON.stringify(payload) }),
 
-  startOAuth: (provider: 'openrouter' | 'openai') => request<{ authUrl: string; state: string }>(`/api/auth/${provider}/start`),
-  pollOAuth: (provider: 'openrouter' | 'openai', state: string) => request<{ status: 'pending' | 'complete' | 'error' | 'expired'; apiKey?: string; error?: string }>(`/api/auth/${provider}/result?state=${encodeURIComponent(state)}`),
-
   verifyApiKey: (provider: string, apiKey: string) => request<{ valid: boolean; error?: string; models?: string[] }>('/api/settings/verify-key', {
     method: 'POST',
     body: JSON.stringify({ provider, apiKey }),
   }),
 
-  writeShellProfile: (target: 'zshrc' | 'bashrc' | 'powershell') => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
+  writeShellProfile: (target: 'zshrc' | 'bashrc' | 'powershell', envVars?: Record<string, string>) => request<{ written: boolean; path: string }>('/api/settings/shell-profile', {
     method: 'POST',
-    body: JSON.stringify({ target }),
+    body: JSON.stringify({ target, ...(envVars ? { envVars } : {}) }),
   }),
 
   getProjectIndexStatus: (projectId: string) => request<ProjectIndexStatusResponse>(`/api/vault/projects/${encodeURIComponent(projectId)}/index-status`),
@@ -618,6 +789,9 @@ export const relayhqApi = {
   }),
 
   searchCode: (query: string, projectId?: string) => request<{ query: string; hits: ReadonlyArray<{ id: string; title: string; summary: string; sourcePath: string; score: number; codebaseName?: string | null }>; hint?: string }>(`/api/agent/search-code?q=${encodeURIComponent(query)}${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ''}`),
+
+  startOAuthLogin: (provider: 'openai' | 'openrouter') => request<{ authUrl: string; state: string }>(`/api/auth/${provider}/start`),
+  pollOAuthResult: (provider: 'openai' | 'openrouter', state: string) => request<{ status: 'pending' | 'complete' | 'error' | 'expired'; apiKey?: string; error?: string }>(`/api/auth/${provider}/result?state=${encodeURIComponent(state)}`),
 }
 
 export type RelayHQApiClient = typeof relayhqApi

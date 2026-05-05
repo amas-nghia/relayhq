@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-frontend-testing",
+  "version": "1.0.0",
+  "description": "Frontend testing skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "frontend", "testing", "qa", "playwright"],
+  "license": "MIT"
+}

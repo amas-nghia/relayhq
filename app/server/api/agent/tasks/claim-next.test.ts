@@ -101,16 +101,32 @@ describe("POST /api/agent/tasks/claim-next", () => {
     }
   });
 
-  test("respects board and priority filters while allowing unassigned tasks", async () => {
+  test("respects board and priority filters while allowing sentinel unassigned tasks", async () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-claim-next-filtered-"));
     try {
       await seedVaultRoot(root);
-      await writeTask(root, createTask("task-unassigned", { assignee: null, board_id: "board-beta", priority: "critical" }));
+      await writeTask(root, createTask("task-unassigned-sentinel", { assignee: "unassigned", board_id: "board-beta", priority: "critical" }));
       await writeTask(root, createTask("task-alpha", { board_id: "board-alpha", priority: "critical" }));
 
       const response = await claimNextAgentTask({ agentId: "agent-claude-code", boardId: "board-beta", priority: "critical" }, { vaultRoot: root });
 
-      expect(response.claimed?.task.id).toBe("task-unassigned");
+      expect(response.claimed?.task.id).toBe("task-unassigned-sentinel");
+      expect(response.claimed?.task.boardId).toBe("board-beta");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("respects board and priority filters while allowing null unassigned tasks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-claim-next-filtered-null-"));
+    try {
+      await seedVaultRoot(root);
+      await writeTask(root, createTask("task-unassigned-null", { assignee: null, board_id: "board-beta", priority: "critical" }));
+      await writeTask(root, createTask("task-alpha", { board_id: "board-alpha", priority: "critical" }));
+
+      const response = await claimNextAgentTask({ agentId: "agent-claude-code", boardId: "board-beta", priority: "critical" }, { vaultRoot: root });
+
+      expect(response.claimed?.task.id).toBe("task-unassigned-null");
       expect(response.claimed?.task.boardId).toBe("board-beta");
     } finally {
       await rm(root, { recursive: true, force: true });

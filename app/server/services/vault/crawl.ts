@@ -1,7 +1,15 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, extname } from "node:path";
 import { resolveVaultWorkspaceRoot } from "./runtime";
-import type { GenericDocument } from "../kioku/indexer";
+
+interface GenericDocument {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly sourcePath: string;
+  readonly tags: ReadonlyArray<string>;
+  readonly updatedAt: string;
+}
 
 export async function crawlGenericDocuments(vaultRoot?: string): Promise<GenericDocument[]> {
   const root = vaultRoot ?? join(resolveVaultWorkspaceRoot(), "vault");

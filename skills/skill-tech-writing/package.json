@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-tech-writing",
+  "version": "1.0.0",
+  "description": "Technical writing and documentation skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "documentation", "tech-writing", "spec", "runbook"],
+  "license": "MIT"
+}

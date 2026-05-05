@@ -72,8 +72,8 @@ function compareText(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-function normalizeIdentity(value: string): string {
-  return value.trim();
+function normalizeIdentity(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function isAlignedCallerAssignee(callerId: string, assignee: string): boolean {

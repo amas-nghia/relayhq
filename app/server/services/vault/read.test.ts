@@ -264,6 +264,12 @@ describe("readCanonicalVaultReadModel", () => {
         message: "Review decision captured for the release plan",
         source: "relayhq-ui",
         confidence: 0.95,
+        promptTokens: null,
+        completionTokens: null,
+        tokensUsed: null,
+        model: null,
+        costUsd: null,
+        usageSource: null,
         createdAt: "2026-04-14T10:06:00Z",
         sourcePath: "vault/shared/audit/audit-001.md",
       });
@@ -643,6 +649,7 @@ describe("readCanonicalVaultReadModel", () => {
         auditNotes: [],
         docs: [],
         agents: [],
+        coordinatorThreads: [],
       });
       expectNoPrivateOverlayLeak(model);
     } finally {

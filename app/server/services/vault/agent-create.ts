@@ -249,7 +249,7 @@ export async function createVaultAgent(input: CreateAgentInput): Promise<CreateA
   const provider = normalizeRequiredString(input.provider, "provider");
   const model = normalizeRequiredString(input.model, "model");
   if (!isAllowedModel(model)) {
-    throw new AgentCreateError(400, `model "${model}" is not allowed. Use one of: claude-sonnet-4-6, claude-haiku-4-5, claude-opus-4-7, gpt-4o, gpt-4o-mini, gemini-2.0-flash.`);
+    throw new AgentCreateError(400, `model "${model}" is not allowed. Use one of: claude-sonnet-4-6, claude-haiku-4-5, claude-opus-4-7, gpt-5.4, gpt-5.4-mini, gemini-2.0-flash.`);
   }
   if (isExpensiveModel(model)) {
     console.warn(`[agent-create] WARNING: registering agent "${input.name}" with expensive model "${model}". Consider claude-sonnet-4-6 for routine tasks.`);

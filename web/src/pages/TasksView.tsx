@@ -7,11 +7,26 @@ import { TaskPriority, TaskStatus } from '../types';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { getTaskDispatchSummary, getTaskSurfaceLabel, getTaskSurfaceState } from '../lib/taskPresentation';
 
 type SortField = 'id' | 'title' | 'project' | 'status' | 'priority' | 'assignee' | null
 type SortDirection = 'asc' | 'desc' | null
 type FilterMenu = 'project' | 'status' | 'priority' | 'assignee' | null
+
+type TasksViewUrlState = {
+  searchQuery: string
+  sortField: SortField
+  sortDir: SortDirection
+  projectFilters: Set<string>
+  statusFilters: Set<string>
+  priorityFilters: Set<string>
+  assigneeFilters: Set<string>
+}
+
+const SORT_FIELDS = new Set<Exclude<SortField, null>>(['id', 'title', 'project', 'status', 'priority', 'assignee'])
+const SORT_DIRECTIONS = new Set<Exclude<SortDirection, null>>(['asc', 'desc'])
+const TASKS_VIEW_QUERY_KEYS = ['search', 'project', 'status', 'priority', 'assignee', 'sort', 'dir'] as const
 
 const STATUS_ORDER: Record<TaskStatus, number> = {
   review: 0,
@@ -34,6 +49,76 @@ const PRIORITY_ORDER: Record<TaskPriority, number> = {
 
 function compareText(left: string, right: string) {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
+}
+
+function parseCsvParam(searchParams: URLSearchParams, key: string) {
+  const value = searchParams.get(key)
+  if (!value) return new Set<string>()
+
+  return new Set(
+    value
+      .split(',')
+      .map(entry => entry.trim())
+      .filter(Boolean),
+  )
+}
+
+function areSetsEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) return false
+  for (const value of left) {
+    if (!right.has(value)) return false
+  }
+  return true
+}
+
+function parseTasksViewUrlState(search: string): TasksViewUrlState {
+  const searchParams = new URLSearchParams(search)
+  const sortFieldValue = searchParams.get('sort')
+  const sortDirValue = searchParams.get('dir')
+  const sortField = sortFieldValue && SORT_FIELDS.has(sortFieldValue as Exclude<SortField, null>) ? sortFieldValue as Exclude<SortField, null> : null
+  const sortDir = sortDirValue && SORT_DIRECTIONS.has(sortDirValue as Exclude<SortDirection, null>) ? sortDirValue as Exclude<SortDirection, null> : null
+
+  return {
+    searchQuery: searchParams.get('search') ?? '',
+    sortField: sortField && sortDir ? sortField : null,
+    sortDir: sortField && sortDir ? sortDir : null,
+    projectFilters: parseCsvParam(searchParams, 'project'),
+    statusFilters: parseCsvParam(searchParams, 'status'),
+    priorityFilters: parseCsvParam(searchParams, 'priority'),
+    assigneeFilters: parseCsvParam(searchParams, 'assignee'),
+  }
+}
+
+function serializeTasksViewUrlState(currentSearch: string, state: TasksViewUrlState) {
+  const searchParams = new URLSearchParams(currentSearch)
+  const normalizedSearch = state.searchQuery.trim()
+
+  for (const key of TASKS_VIEW_QUERY_KEYS) {
+    searchParams.delete(key)
+  }
+
+  if (normalizedSearch) {
+    searchParams.set('search', normalizedSearch)
+  }
+
+  const filterEntries: Array<[string, Set<string>]> = [
+    ['project', state.projectFilters],
+    ['status', state.statusFilters],
+    ['priority', state.priorityFilters],
+    ['assignee', state.assigneeFilters],
+  ]
+
+  for (const [key, values] of filterEntries) {
+    if (values.size === 0) continue
+    searchParams.set(key, [...values].sort(compareText).join(','))
+  }
+
+  if (state.sortField && state.sortDir) {
+    searchParams.set('sort', state.sortField)
+    searchParams.set('dir', state.sortDir)
+  }
+
+  return searchParams.toString()
 }
 
 function formatRelativeTime(value?: string) {
@@ -74,6 +159,7 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
   const projects = useAppStore(state => state.projects);
   const isLoading = useAppStore(state => state.isLoading);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
+  const location = useLocation()
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>(null)
@@ -96,8 +182,41 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const getStatusIcon = (status: TaskStatus) => {
-    switch(status) {
+  useEffect(() => {
+    const nextState = parseTasksViewUrlState(location.search)
+
+    setSearchQuery(current => current === nextState.searchQuery ? current : nextState.searchQuery)
+    setSortField(current => current === nextState.sortField ? current : nextState.sortField)
+    setSortDir(current => current === nextState.sortDir ? current : nextState.sortDir)
+    setProjectFilters(current => areSetsEqual(current, nextState.projectFilters) ? current : nextState.projectFilters)
+    setStatusFilters(current => areSetsEqual(current, nextState.statusFilters) ? current : nextState.statusFilters)
+    setPriorityFilters(current => areSetsEqual(current, nextState.priorityFilters) ? current : nextState.priorityFilters)
+    setAssigneeFilters(current => areSetsEqual(current, nextState.assigneeFilters) ? current : nextState.assigneeFilters)
+  }, [location.search])
+
+  const serializedUrlState = useMemo(() => serializeTasksViewUrlState(location.search, {
+    searchQuery,
+    sortField,
+    sortDir,
+    projectFilters,
+    statusFilters,
+    priorityFilters,
+    assigneeFilters,
+  }), [assigneeFilters, location.search, priorityFilters, projectFilters, searchQuery, sortDir, sortField, statusFilters])
+
+  useEffect(() => {
+    const currentSearch = location.search.startsWith('?') ? location.search.slice(1) : location.search
+    if (serializedUrlState === currentSearch) return
+
+    navigate({ search: serializedUrlState ? `?${serializedUrlState}` : '' }, { replace: true })
+  }, [location.search, navigate, serializedUrlState])
+
+  const getStatusIcon = (surfaceState: ReturnType<typeof getTaskSurfaceState>) => {
+    switch(surfaceState) {
+      case 'waiting': return <Clock className="w-4 h-4 text-status-waiting" />;
+      case 'queued': return <Clock className="w-4 h-4 text-status-active" />;
+      case 'dispatch-blocked': return <AlertTriangle className="w-4 h-4 text-status-blocked" />;
+      case 'dispatch-failed': return <AlertTriangle className="w-4 h-4 text-status-blocked" />;
       case 'review': return <CheckCircle2 className="w-4 h-4 text-status-active" />;
       case 'waiting-approval': return <Clock className="w-4 h-4 text-status-waiting" />;
       case 'scheduled': return <Clock className="w-4 h-4 text-text-tertiary" />;
@@ -106,19 +225,6 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
       case 'done': return <Check className="w-4 h-4 text-status-done" />;
       case 'todo': return <Circle className="w-4 h-4 text-text-tertiary" />;
       case 'cancelled': return <AlertTriangle className="w-4 h-4 text-text-tertiary" />;
-    }
-  };
-
-  const getStatusLabel = (status: TaskStatus) => {
-    switch(status) {
-      case 'review': return 'in review';
-      case 'waiting-approval': return 'awaiting approval';
-      case 'scheduled': return 'scheduled';
-      case 'blocked': return 'blocked';
-      case 'in-progress': return 'in-prog';
-      case 'done': return 'done';
-      case 'todo': return 'todo';
-      case 'cancelled': return 'cancelled';
     }
   };
 
@@ -270,17 +376,21 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
           </Button>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3" ref={filterMenuRef}>
-          <div className="relative flex-1 min-w-[200px] flex items-center gap-2">
-            <Search className="w-4 h-4 absolute left-3 text-text-tertiary" />
-            <Input
-              type="text" 
-              value={searchQuery}
-              onChange={event => setSearchQuery(event.target.value)}
+        <div className="flex flex-wrap items-end gap-3" ref={filterMenuRef}>
+          <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">
+            Search tasks
+            <div className="relative flex items-center gap-2">
+              <Search className="absolute left-3 h-4 w-4 text-text-tertiary" />
+              <Input
+                type="text"
+                value={searchQuery}
+                onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search tasks..." 
-              className="pl-9"
-            />
-          </div>
+                aria-label="Search tasks"
+                className="pl-9"
+              />
+            </div>
+          </label>
           <div className="relative">
             <Button variant="outline" className={clsx('gap-1.5 px-3', projectFilters.size > 0 && 'border-accent text-accent')} onClick={() => setOpenFilterMenu(current => current === 'project' ? null : 'project')}>
               Project{projectFilters.size > 0 ? ` •${projectFilters.size}` : ''} <Filter className="w-3.5 h-3.5" />
@@ -380,32 +490,41 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
             {visibleTasks.map(task => {
               const project = projects.find(p => p.id === task.projectId);
               const agent = agents.find(a => a.id === task.assigneeId);
+              const surfaceState = getTaskSurfaceState(task)
+              const dispatchSummary = getTaskDispatchSummary(task)
               
               return (
-                <tr 
-                  key={task.id} 
-                  onClick={() => {
-                    if (onTaskSelect) {
-                      onTaskSelect(task.id)
-                      return
-                    }
-
-                    navigate(`/tasks/${task.id}`)
-                  }}
-                  className="hover:bg-surface-secondary/50 transition-colors cursor-pointer group"
+                <tr
+                  key={task.id}
+                  className="group transition-colors hover:bg-surface-secondary/50"
                 >
                   <td className="px-4 py-3">
-                    {getStatusIcon(task.status)}
+                    {getStatusIcon(surfaceState)}
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-text-secondary">
                     {task.id}
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-text-primary">
                     <div className="max-w-sm xl:max-w-md">
-                      <span className="truncate flex items-center gap-2">{task.title}</span>
-                      {task.dispatchStatus && task.status === 'todo' && task.assigneeId && task.assigneeId !== 'unassigned' ? (
+                      {onTaskSelect ? (
+                        <button
+                          type="button"
+                          onClick={() => onTaskSelect(task.id)}
+                          className="flex items-center gap-2 truncate rounded-sm text-left underline-offset-4 transition-colors hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        >
+                          <span className="truncate">{task.title}</span>
+                        </button>
+                      ) : (
+                        <Link
+                          to={`/tasks/${task.id}`}
+                          className="flex items-center gap-2 truncate rounded-sm underline-offset-4 transition-colors hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        >
+                          <span className="truncate">{task.title}</span>
+                        </Link>
+                      )}
+                      {dispatchSummary ? (
                         <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-text-tertiary">
-                          {task.dispatchStatus}{task.dispatchReason ? ` · ${task.dispatchReason}` : ''}
+                          {dispatchSummary.label} · {dispatchSummary.message}
                         </div>
                       ) : null}
                     </div>
@@ -416,16 +535,17 @@ export function TasksView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
                   <td className="px-4 py-3">
                     <span className={clsx(
                       "rounded border px-2 py-1 text-[11px] font-bold uppercase tracking-wider",
-                      task.status === 'in-progress' && "border-status-active/20 bg-blue-50 text-status-active",
-                      task.status === 'review' && "border-status-active/20 bg-brand-muted text-status-active",
-                      task.status === 'waiting-approval' && "border-status-waiting/20 bg-amber-50 text-status-waiting",
-                      task.status === 'scheduled' && "border-border bg-slate-100 text-text-secondary",
-                      task.status === 'blocked' && "border-status-blocked/20 bg-red-50 text-status-blocked",
-                      task.status === 'done' && "border-status-done/20 bg-green-50 text-status-done",
-                      task.status === 'todo' && "border-border bg-slate-100 text-status-todo",
-                      task.status === 'cancelled' && "border-border bg-slate-100 text-text-secondary"
+                      surfaceState === 'in-progress' && "border-status-active/20 bg-blue-50 text-status-active",
+                      surfaceState === 'review' && "border-status-active/20 bg-brand-muted text-status-active",
+                      surfaceState === 'waiting-approval' && "border-status-waiting/20 bg-amber-50 text-status-waiting",
+                      surfaceState === 'scheduled' && "border-border bg-slate-100 text-text-secondary",
+                      (surfaceState === 'blocked' || surfaceState === 'dispatch-blocked' || surfaceState === 'dispatch-failed') && "border-status-blocked/20 bg-red-50 text-status-blocked",
+                      (surfaceState === 'waiting' || surfaceState === 'queued') && "border-status-waiting/20 bg-status-waiting/10 text-status-waiting",
+                      surfaceState === 'done' && "border-status-done/20 bg-green-50 text-status-done",
+                      surfaceState === 'todo' && "border-border bg-slate-100 text-status-todo",
+                      surfaceState === 'cancelled' && "border-border bg-slate-100 text-text-secondary"
                     )}>
-                      {getStatusLabel(task.status)}
+                      {getTaskSurfaceLabel(task)}
                     </span>
                   </td>
                   <td className="px-4 py-3">

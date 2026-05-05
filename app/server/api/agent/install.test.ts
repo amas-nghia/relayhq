@@ -14,4 +14,8 @@ describe("GET /api/agent/install", () => {
     expect(response.filename).toBe(".codex/instructions/relayhq.md");
     expect(response.content).toContain("## RelayHQ - Agent Protocol");
   });
+
+  test("rejects unknown runtimes", () => {
+    expect(() => getAgentInstall("unknown-runtime")).toThrow("Unknown runtime: unknown-runtime");
+  });
 });

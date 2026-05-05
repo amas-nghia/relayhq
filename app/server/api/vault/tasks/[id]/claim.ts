@@ -24,14 +24,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
+  const vaultRoot = resolveVaultWorkspaceRoot();
+  const readModel = buildVaultReadModel(await readSharedVaultCollections(vaultRoot));
+  const task = readModel.tasks.find((entry) => entry.id === taskId);
+
   const result = await claimTaskLifecycle({
     taskId,
     actorId: body.actorId,
     assignee: typeof body.assignee === "string" && body.assignee.trim().length > 0 ? body.assignee : undefined,
+    vaultRoot,
   });
-  const vaultRoot = resolveVaultWorkspaceRoot();
-  const readModel = buildVaultReadModel(await readSharedVaultCollections(vaultRoot));
-  const task = readModel.tasks.find((entry) => entry.id === taskId);
 
   return {
     ...result,

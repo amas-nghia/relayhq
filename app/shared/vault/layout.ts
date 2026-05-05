@@ -9,6 +9,7 @@ export type VaultCollection =
   | "approvals"
   | "agents"
   | "audit"
+  | "coordinator-threads"
   | "threads"
   | "provider-overlay"
   | "prefs"
@@ -93,6 +94,13 @@ export const canonicalVaultLayout = {
       path: "vault/shared/audit/{audit_note_id}.md",
       frontmatterType: "audit-note",
       description: "Audit notes and traceability entries.",
+    },
+    {
+      ownership: "shared",
+      collection: "coordinator-threads",
+      path: "vault/shared/coordinator-threads/{coordinator_thread_id}.md",
+      frontmatterType: "coordinator-thread",
+      description: "Durable project coordinator chat anchors.",
     },
     {
       ownership: "shared",

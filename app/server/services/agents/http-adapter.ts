@@ -4,6 +4,27 @@ import { writeAuditNote } from "../vault/audit-write";
 import { patchTaskLifecycle } from "../vault/task-lifecycle";
 import { scheduleTaskLifecycle } from "../vault/task-lifecycle";
 
+function estimateTokensFromText(value: string): number {
+  const normalized = value.trim()
+  if (normalized.length === 0) return 0
+  return Math.max(1, Math.ceil(normalized.length / 4))
+}
+
+function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number | null {
+  const normalized = model.toLowerCase()
+  const isMini = normalized.includes("gpt-4o-mini") || /gpt-5(?:\.\d+)?-mini\b/.test(normalized)
+  const isStandard = (normalized.includes("gpt-4o") && !normalized.includes("gpt-4o-mini")) || /gpt-5(?:\.\d+)?(?:-(?:fast|pro))?\b/.test(normalized)
+  const pricing = isMini
+    ? { inputPerMillion: 0.15, outputPerMillion: 0.6 }
+    : isStandard
+      ? { inputPerMillion: 2.5, outputPerMillion: 10 }
+      : null
+
+  if (pricing === null) return null
+
+  return Number((((promptTokens * pricing.inputPerMillion) + (completionTokens * pricing.outputPerMillion)) / 1_000_000).toFixed(6))
+}
+
 function resolveSecretRef(apiKeyRef: string, env: NodeJS.ProcessEnv): string {
   if (!apiKeyRef.startsWith("env:")) {
     throw createError({ statusCode: 422, statusMessage: "Only env: api_key_ref values are supported for HTTP adapters." })
@@ -78,7 +99,6 @@ export async function runHttpAgentAdapter(options: {
       taskId: options.taskId,
       actorId: options.agentId,
       nextRunAt,
-      reason: `Rate limited after exhausting models: ${models.join(", ")}`,
       vaultRoot: options.vaultRoot,
     })
     return
@@ -107,6 +127,11 @@ export async function runHttpAgentAdapter(options: {
     }
   }
 
+  const promptTokens = estimateTokensFromText(options.prompt)
+  const completionTokens = estimateTokensFromText(finalText)
+  const tokensUsed = promptTokens + completionTokens
+  const estimatedCostUsd = estimateCostUsd(activeModel, promptTokens, completionTokens)
+
   await patchTaskLifecycle({
     taskId: options.taskId,
     actorId: options.agentId,
@@ -114,11 +139,26 @@ export async function runHttpAgentAdapter(options: {
       status: "review",
       column: "review",
       progress: 100,
+      tokens_used: tokensUsed,
       model: activeModel,
+      ...(estimatedCostUsd === null ? {} : { cost_usd: estimatedCostUsd }),
       execution_notes: activeModel === options.model ? `Running on ${activeModel}` : `Running on fallback model: ${activeModel}`,
       result: finalText.slice(0, 4000) || `${options.provider} adapter completed without final text.`,
       completed_at: new Date().toISOString(),
     },
     vaultRoot: options.vaultRoot,
+  })
+
+  await writeAuditNote({
+    vaultRoot: options.vaultRoot,
+    taskId: options.taskId,
+    source: options.agentId,
+    message: `http adapter completed on ${activeModel}`,
+    promptTokens,
+    completionTokens,
+    tokensUsed,
+    model: activeModel,
+    costUsd: estimatedCostUsd,
+    usageSource: "estimated",
   })
 }

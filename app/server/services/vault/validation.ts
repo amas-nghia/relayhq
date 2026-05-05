@@ -1,4 +1,4 @@
-import { VaultSchemaError, validateTaskFrontmatter, type TaskFrontmatter, type ValidationIssue, type ValidationResult } from "../../../shared/vault/schema";
+import { PROJECT_SCENE_BACKGROUND_MODES, VaultSchemaError, validateTaskFrontmatter, type TaskFrontmatter, type ValidationIssue, type ValidationResult } from "../../../shared/vault/schema";
 import type { ProjectFrontmatter } from "./repository";
 import { containsSecretMaterial } from "../security/secrets";
 
@@ -51,7 +51,7 @@ const TASK_MUTABLE_KEYS: ReadonlyArray<keyof TaskFrontmatter> = [
 
 const PROJECT_IMMUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["id", "type", "workspace_id", "created_at", "updated_at"] as const;
 
-const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name", "description", "budget", "deadline", "status", "links", "attachments", "codebase_root", "codebases"] as const;
+const PROJECT_MUTABLE_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = ["name", "coordinator_agent_id", "description", "budget", "deadline", "status", "links", "attachments", "scene", "codebase_root", "codebases"] as const;
 
 export interface TaskWriteValidationInput {
   readonly current: TaskFrontmatter;
@@ -118,6 +118,52 @@ function isIsoTimestamp(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !Number.isNaN(Date.parse(value));
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateProjectScene(scene: unknown, issues: ValidationIssue[]): void {
+  if (!isPlainRecord(scene)) {
+    pushIssue(issues, "scene", "must be an object");
+    return;
+  }
+
+  const background = scene.background;
+  if (!isPlainRecord(background)) {
+    pushIssue(issues, "scene.background", "must be an object");
+    return;
+  }
+
+  if (typeof background.mode !== "string" || !(PROJECT_SCENE_BACKGROUND_MODES as readonly string[]).includes(background.mode)) {
+    pushIssue(issues, "scene.background.mode", `must be one of: ${PROJECT_SCENE_BACKGROUND_MODES.join(", ")}`);
+  }
+  if (background.color !== undefined && !isNonEmptyString(background.color)) {
+    pushIssue(issues, "scene.background.color", "must be a non-empty string when provided");
+  }
+  if (background.gradientFrom !== undefined && !isNonEmptyString(background.gradientFrom)) {
+    pushIssue(issues, "scene.background.gradientFrom", "must be a non-empty string when provided");
+  }
+  if (background.gradientTo !== undefined && !isNonEmptyString(background.gradientTo)) {
+    pushIssue(issues, "scene.background.gradientTo", "must be a non-empty string when provided");
+  }
+  if (background.imageUrl !== undefined && !isNonEmptyString(background.imageUrl)) {
+    pushIssue(issues, "scene.background.imageUrl", "must be a non-empty string when provided");
+  }
+
+  if (background.mode === "color" && !isNonEmptyString(background.color)) {
+    pushIssue(issues, "scene.background.color", "required for color mode");
+  }
+  if (background.mode === "gradient" && !isNonEmptyString(background.gradientFrom)) {
+    pushIssue(issues, "scene.background.gradientFrom", "required for gradient mode");
+  }
+  if (background.mode === "gradient" && !isNonEmptyString(background.gradientTo)) {
+    pushIssue(issues, "scene.background.gradientTo", "required for gradient mode");
+  }
+  if (background.mode === "image" && !isNonEmptyString(background.imageUrl)) {
+    pushIssue(issues, "scene.background.imageUrl", "required for image mode");
+  }
+}
+
 function validateProjectFrontmatter(input: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -172,6 +218,10 @@ function validateProjectFrontmatter(input: unknown): ValidationResult {
         pushIssue(issues, `codebases[${index}].primary`, "must be a boolean when provided");
       }
     });
+  }
+
+  if ((input as Record<string, unknown>).scene !== undefined) {
+    validateProjectScene((input as Record<string, unknown>).scene, issues);
   }
 
   if (!isIsoTimestamp(input.created_at)) {

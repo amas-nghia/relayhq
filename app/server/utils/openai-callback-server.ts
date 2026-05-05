@@ -13,7 +13,6 @@ let activeState: string | null = null
 
 export function startOpenAICallbackServer(state: string, codeVerifier: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    // close any existing server
     if (activeServer) {
       activeServer.close()
       activeServer = null
@@ -79,7 +78,6 @@ export function startOpenAICallbackServer(state: string, codeVerifier: string): 
     server.listen(PORT, '127.0.0.1', () => {
       activeServer = server
       activeState = state
-      // auto-close after 10 min
       setTimeout(() => {
         if (activeState === state) {
           server.close()

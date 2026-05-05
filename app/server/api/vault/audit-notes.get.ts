@@ -10,6 +10,12 @@ export interface AuditNoteResponse {
   readonly message: string;
   readonly source: string;
   readonly confidence: number;
+  readonly promptTokens: number | null;
+  readonly completionTokens: number | null;
+  readonly tokensUsed: number | null;
+  readonly model: string | null;
+  readonly costUsd: number | null;
+  readonly usageSource: "provider" | "runtime" | "estimated" | null;
   readonly createdAt: string;
   readonly sourcePath: string;
 }
@@ -34,6 +40,12 @@ function toAuditNoteResponse(model: VaultReadModel): AuditNotesPayload {
         message: note.message,
         source: note.source,
         confidence: note.confidence,
+        promptTokens: note.promptTokens,
+        completionTokens: note.completionTokens,
+        tokensUsed: note.tokensUsed,
+        model: note.model,
+        costUsd: note.costUsd,
+        usageSource: note.usageSource,
         createdAt: note.createdAt,
         sourcePath: note.sourcePath,
       })),

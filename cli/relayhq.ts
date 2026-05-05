@@ -56,7 +56,7 @@ export interface RelayHQCliInvocation {
 
 export interface RelayHQCliResult {
   readonly command: string;
-  readonly payload: ReadonlyArray<TaskFrontmatter> | RelayHQWritebackIntent | ReadonlyArray<string> | Record<string, unknown>;
+  readonly payload: unknown;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

@@ -84,7 +84,7 @@ export async function initializeVault(
     });
   }
 
-  const settingsResult: SettingsSaveResponse = await saveVaultRootSetting(request.vaultRoot, workspaceId, options);
+  const settingsResult: SettingsSaveResponse = await saveVaultRootSetting(request.vaultRoot, workspaceId, 1, options);
 
   return {
     created: scaffoldResult.created,

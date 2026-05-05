@@ -62,7 +62,7 @@ export function createProviderOverlayWritePlan(
   }
 
   assertPrivateOverlayPath(path);
-  assertSharedVaultSafeProviderOverlay(frontmatter as Record<string, unknown>);
+  assertSharedVaultSafeProviderOverlay(frontmatter as unknown as Record<string, unknown>);
 
   return {
     path,

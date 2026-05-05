@@ -1,5 +1,5 @@
 export interface TaskInputValidationIssue {
-  readonly field: "title" | "objective" | "acceptanceCriteria" | "contextFiles";
+  readonly field: "title" | "objective" | "acceptanceCriteria" | "contextFiles" | "tags";
   readonly reason: string;
 }
 
@@ -8,6 +8,7 @@ export interface TaskInputShape {
   readonly objective?: string;
   readonly acceptanceCriteria?: ReadonlyArray<string>;
   readonly contextFiles?: ReadonlyArray<string>;
+  readonly tags?: ReadonlyArray<string>;
 }
 
 export function validateTaskInput(input: TaskInputShape): ReadonlyArray<TaskInputValidationIssue> {
@@ -28,6 +29,10 @@ export function validateTaskInput(input: TaskInputShape): ReadonlyArray<TaskInpu
 
   if (!Array.isArray(input.contextFiles) || input.contextFiles.length === 0) {
     issues.push({ field: "contextFiles", reason: "must contain at least 1 item" });
+  }
+
+  if (!Array.isArray(input.tags) || input.tags.length === 0) {
+    issues.push({ field: "tags", reason: "must contain at least 1 tag for agent routing" });
   }
 
   return issues;

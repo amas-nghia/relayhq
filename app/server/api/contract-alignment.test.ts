@@ -29,6 +29,7 @@ async function seedVault(root: string) {
   await mkdir(join(root, "vault", "shared", "tasks"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "docs"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "agents"), { recursive: true });
+  await mkdir(join(root, "vault", "shared", "coordinator-threads"), { recursive: true });
 
   await writeFile(join(root, "vault", "shared", "workspaces", "ws-demo.md"), `---\nid: "ws-demo"\ntype: "workspace"\nname: "Demo Workspace"\nowner_ids: ["@owner"]\nmember_ids: ["@owner"]\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\n---\n# Demo Workspace\n\nWorkspace brief.\n`, "utf8");
   await writeFile(join(root, "vault", "shared", "projects", "project-demo.md"), `---\nid: "project-demo"\ntype: "project"\nworkspace_id: "ws-demo"\nname: "Demo Project"\ncodebases: [{"name":"web","path":"../web","primary":true}]\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\n---\n# Demo Project\n`, "utf8");
@@ -37,6 +38,7 @@ async function seedVault(root: string) {
   await writeFile(join(root, "vault", "shared", "tasks", "task-demo.md"), `---\nid: "task-demo"\ntype: "task"\nversion: 1\nworkspace_id: "ws-demo"\nproject_id: "project-demo"\nboard_id: "board-demo"\ncolumn: "todo"\nstatus: "todo"\npriority: "high"\ntitle: "Demo task"\nassignee: "agent-claude-code"\ncreated_by: "@owner"\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\nheartbeat_at: null\nexecution_started_at: null\nexecution_notes: null\nprogress: 0\napproval_needed: false\napproval_requested_by: null\napproval_reason: null\napproved_by: null\napproved_at: null\napproval_outcome: "pending"\nblocked_reason: null\nblocked_since: null\nresult: null\ncompleted_at: null\nparent_task_id: null\ndepends_on: []\ntags: []\nlinks: []\nlocked_by: null\nlocked_at: null\nlock_expires_at: null\n---\n## Objective\n\nDemo objective.\n`, "utf8");
   await writeFile(join(root, "vault", "shared", "docs", "doc-demo.md"), `---\nid: "doc-demo"\ntype: "doc"\ndoc_type: "feature"\nworkspace_id: "ws-demo"\nproject_id: "project-demo"\ntitle: "Demo doc"\nstatus: "draft"\nvisibility: "project"\naccess_roles: ["all"]\nsensitive: false\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\ntags: ["demo"]\n---\n# Demo doc\n`, "utf8");
   await writeFile(join(root, "vault", "shared", "agents", "agent-claude-code.md"), `---\nid: "agent-claude-code"\ntype: "agent"\nname: "Claude Code"\nrole: "implementation"\nroles: ["implementation"]\nprovider: "anthropic"\nmodel: "claude-sonnet-4-6"\ncapabilities: ["write-typescript"]\ntask_types_accepted: ["feature-implementation"]\napproval_required_for: []\ncannot_do: []\naccessible_by: ["@owner"]\nskill_file: "skills/claude-code.md"\nstatus: "available"\nworkspace_id: "ws-demo"\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\n---\n`, "utf8");
+  await writeFile(join(root, "vault", "shared", "coordinator-threads", "coordinator-thread-project-demo.md"), `---\nid: "coordinator-thread-project-demo"\ntype: "coordinator-thread"\nworkspace_id: "ws-demo"\nproject_id: "project-demo"\ncoordinator_agent_id: "agent-claude-code"\nactive_session_id: null\nstatus: "active"\ncreated_at: "2026-04-24T00:00:00Z"\nupdated_at: "2026-04-24T00:00:00Z"\n---\n# Demo Project Coordinator Thread\n`, "utf8");
 }
 
 describe("BE contract alignment", () => {
@@ -49,6 +51,10 @@ describe("BE contract alignment", () => {
     const model = await readCanonicalVaultReadModel(root);
     const typedModel: VaultReadModel = model;
     expect(typedModel.projects[0]?.codebases).toEqual([{ name: "web", path: "../web", primary: true }]);
+    expect(typedModel.projects[0]?.coordinatorThreadIds).toEqual(["coordinator-thread-project-demo"]);
+    expect(typedModel.coordinatorThreads?.[0]?.projectId).toBe("project-demo");
+    expect(typedModel.tasks[0]?.activeSessionId).toBeNull();
+    expect(typedModel.tasks[0]?.activeSessionStatus).toBeNull();
 
     const sessionStore = new SessionStore({ tokenFactory: () => 'sess-demo' });
     sessionStore.issue('agent-claude-code', new Date('2026-04-24T00:00:00Z'));
@@ -63,6 +69,7 @@ describe("BE contract alignment", () => {
       now: () => new Date('2026-04-24T00:01:00Z'),
     });
     expect(context.projects[0]?.codebases).toEqual([{ name: "web", path: "../web", primary: true }]);
+    expect(context.codebrain).toEqual([]);
 
   });
 });

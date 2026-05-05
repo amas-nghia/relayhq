@@ -138,7 +138,7 @@ export function OnboardingWizard() {
   async function handleUseExistingVault() {
     setWizardError(null)
     try {
-      await relayhqApi.saveSettings({ vaultRoot: existingVaultRoot, workspaceId: null })
+      await relayhqApi.saveSettings({ vaultRoot: existingVaultRoot, workspaceId: null, maxConcurrentRuntimeInstances: settings?.maxConcurrentRuntimeInstances ?? 1, taskRouting: settings?.taskRouting ?? { tagAliases: {} } })
       await loadData()
       setStepOverride(2)
     } catch (error) {

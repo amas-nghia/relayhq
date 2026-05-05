@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
 export type AgentRunnerStatus = 'starting' | 'running' | 'handed-off' | 'completed' | 'failed' | 'stopped';
+export const DEFAULT_RUNNER_STALE_AFTER_MS = 10 * 60 * 1000;
 
 export interface AgentRunner {
   id: string;
@@ -19,6 +20,7 @@ export interface AgentRunner {
   pid?: number;
   startTime: string;
   lastEventAt: string;
+  stopReason?: string | null;
 }
 
 export interface AgentRunnerSummary {
@@ -47,7 +49,7 @@ export interface AgentRunnerInputResult {
 interface RunnerHooks {
 	readonly onStdout?: (chunk: string) => void
 	readonly onStderr?: (chunk: string) => void
-	readonly onClose?: (code: number | null) => void
+	readonly onClose?: (code: number | null, signal: NodeJS.Signals | null) => void
 	readonly onError?: (error: Error) => void
 }
 
@@ -57,6 +59,7 @@ interface StartRunnerConfig extends RunnerHooks {
 	taskId?: string;
 	provider: string;
 	prompt: string;
+	initialInput?: string;
 	command?: string;
 	args?: string[];
 	cwd?: string;
@@ -65,6 +68,36 @@ interface StartRunnerConfig extends RunnerHooks {
 	launchSurface?: 'background' | 'visible-terminal';
 	launchMode?: 'fresh' | 'resume';
 	resumedFromSessionId?: string | null;
+}
+
+function terminateProcessTree(process: ChildProcess, launchSurface: 'background' | 'visible-terminal') {
+	if (launchSurface === 'background' && typeof process.pid === 'number' && process.pid > 0) {
+		try {
+			globalThis.process.kill(-process.pid, 'SIGKILL')
+			return
+		} catch {
+			// Fall back to the direct child pid when the platform or process group does not support negative pid kills.
+		}
+	}
+
+	process.kill('SIGKILL')
+}
+
+export function isRunnerSessionLive(
+	info: Pick<AgentRunnerSummary, 'status' | 'lastEventAt'>,
+	nowMs: number = Date.now(),
+	staleAfterMs: number = DEFAULT_RUNNER_STALE_AFTER_MS,
+) {
+	if (info.status !== 'running' && info.status !== 'handed-off') return false
+	const lastEventAtMs = Date.parse(info.lastEventAt)
+	if (Number.isNaN(lastEventAtMs)) return false
+	return nowMs - lastEventAtMs <= staleAfterMs
+}
+
+export function isRunnerSessionReusable(
+	info: Pick<AgentRunnerSummary, 'status'>,
+) {
+	return info.status === 'running' || info.status === 'handed-off'
 }
 
 class RunnerManager {
@@ -113,9 +146,14 @@ class RunnerManager {
     const child = spawn(command, args, {
       stdio: 'pipe',
       shell: false,
+      detached: (config.launchSurface ?? 'background') === 'background',
       ...(config.cwd ? { cwd: config.cwd } : {}),
       ...(config.env ? { env: config.env } : {}),
     });
+
+    if (config.initialInput && config.initialInput.trim().length > 0) {
+      child.stdin?.write(config.initialInput.endsWith('\n') ? config.initialInput : `${config.initialInput}\n`)
+    }
 
     const nowIso = new Date().toISOString();
 
@@ -136,20 +174,23 @@ class RunnerManager {
       pid: child.pid,
       startTime: nowIso,
       lastEventAt: nowIso,
+      stopReason: null,
     };
 
     this.runners.set(runnerId, { info, process: child });
 
     // Handle process lifecycle
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       const entry = this.runners.get(runnerId);
       if (entry) {
-        entry.info.status = entry.info.launchSurface === 'visible-terminal'
-          ? 'handed-off'
-          : code === 0 ? 'completed' : 'failed';
+        entry.info.status = entry.info.status === 'stopped'
+          ? 'stopped'
+          : entry.info.launchSurface === 'visible-terminal'
+            ? 'handed-off'
+            : code === 0 ? 'completed' : 'failed';
         entry.info.lastEventAt = new Date().toISOString();
       }
-      config.onClose?.(code)
+      config.onClose?.(code, signal)
     });
 
     child.on('error', (err) => {
@@ -192,10 +233,21 @@ class RunnerManager {
     return this.getRunners().filter((runner) => runner.agentName === agentName)
   }
 
-  stopRunner(id: string) {
+  getReusableTaskRunner(agentName: string, taskId: string): AgentRunner | null {
+    const runner = this.getRunners().find((entry) => (
+      entry.agentName === agentName
+      && entry.taskId === taskId
+      && isRunnerSessionReusable(entry)
+    ))
+    if (!runner) return null
+    return this.getRunner(runner.sessionId)
+  }
+
+  stopRunner(id: string, reason?: string) {
     const entry = this.runners.get(id);
     if (entry && entry.info.status === 'running') {
-      entry.process.kill('SIGKILL');
+      entry.info.stopReason = reason ?? 'Session stopped by operator.'
+      terminateProcessTree(entry.process, entry.info.launchSurface)
       entry.info.status = 'stopped';
       entry.info.lastEventAt = new Date().toISOString();
       return true;

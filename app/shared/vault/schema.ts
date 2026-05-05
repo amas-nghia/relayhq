@@ -14,7 +14,7 @@ export const TASK_STATUSES = [
   "cancelled",
 ] as const;
 
-export const TASK_COLUMNS = ["todo", "in-progress", "review", "done"] as const;
+export const TASK_COLUMNS = ["todo", "in-progress", "review", "done", "failed"] as const;
 
 export const TASK_PRIORITIES = ["critical", "high", "medium", "low"] as const;
 
@@ -26,6 +26,7 @@ export const AGENT_BOOTSTRAP_STRATEGIES = ["instruction-file", "env-vars", "stdi
 export const TASK_DISPATCH_STATUSES = ["idle", "checking", "ready", "started", "blocked", "failed"] as const;
 
 export const APPROVAL_OUTCOMES = ["approved", "rejected", "pending"] as const;
+export const COORDINATOR_THREAD_STATUSES = ["active", "archived"] as const;
 
 export const ALLOWED_MODELS = [
   "claude-haiku-4-5",
@@ -35,17 +36,22 @@ export const ALLOWED_MODELS = [
   "claude-sonnet-4-6",
   "claude-opus-4-5",
   "claude-opus-4-7",
-  "gpt-4o",
-  "gpt-4o-mini",
+  "gpt-5.4",
+  "gpt-5.4-mini",
   "gpt-4-turbo",
+  "gpt-5.5",
+  "gpt-5.5-pro",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
 ] as const;
 
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];
 
-export const EXPENSIVE_MODELS: readonly string[] = ["claude-opus-4-5", "claude-opus-4-7", "gpt-4-turbo"];
+export const EXPENSIVE_MODELS: readonly string[] = ["claude-opus-4-5", "claude-opus-4-7", "gpt-4-turbo", "gpt-5.5-pro"];
 
 export function isAllowedModel(value: string): value is AllowedModel {
   return (ALLOWED_MODELS as readonly string[]).includes(value);
@@ -65,6 +71,7 @@ export type AgentWorkingDirectoryStrategy = (typeof AGENT_WORKING_DIRECTORY_STRA
 export type AgentBootstrapStrategy = (typeof AGENT_BOOTSTRAP_STRATEGIES)[number];
 export type TaskDispatchStatus = (typeof TASK_DISPATCH_STATUSES)[number];
 export type ApprovalOutcome = (typeof APPROVAL_OUTCOMES)[number];
+export type CoordinatorThreadStatus = (typeof COORDINATOR_THREAD_STATUSES)[number];
 
 export interface ValidationIssue {
   readonly field: string;
@@ -89,6 +96,18 @@ export class VaultSchemaError extends Error {
 export interface TaskLink {
   readonly project: string;
   readonly thread: string;
+}
+
+export interface CoordinatorThreadFrontmatter {
+  readonly id: string;
+  readonly type: "coordinator-thread";
+  readonly workspace_id: string;
+  readonly project_id: string;
+  readonly coordinator_agent_id: string;
+  readonly active_session_id: string | null;
+  readonly status: CoordinatorThreadStatus;
+  readonly created_at: string;
+  readonly updated_at: string;
 }
 
 export interface TaskHistoryEntry {
@@ -182,6 +201,7 @@ export interface AgentFrontmatter {
   readonly skill_files?: ReadonlyArray<string>;
   readonly status: string;
   readonly workspace_id: string;
+  readonly project_id?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -238,6 +258,21 @@ export interface ProjectLinkEntry {
   readonly url: string;
 }
 
+export const PROJECT_SCENE_BACKGROUND_MODES = ["color", "gradient", "image"] as const;
+export type ProjectSceneBackgroundMode = (typeof PROJECT_SCENE_BACKGROUND_MODES)[number];
+
+export interface ProjectSceneBackground {
+  readonly mode: ProjectSceneBackgroundMode;
+  readonly color?: string;
+  readonly gradientFrom?: string;
+  readonly gradientTo?: string;
+  readonly imageUrl?: string;
+}
+
+export interface ProjectSceneConfig {
+  readonly background: ProjectSceneBackground;
+}
+
 export const PROJECT_ATTACHMENT_TYPES = ["doc", "audio", "video", "sheet", "image", "link"] as const;
 export type ProjectAttachmentType = (typeof PROJECT_ATTACHMENT_TYPES)[number];
 
@@ -256,12 +291,14 @@ export interface ProjectFrontmatter {
   readonly type: "project";
   readonly workspace_id: string;
   readonly name: string;
+  readonly coordinator_agent_id?: string | null;
   readonly description?: string;
   readonly budget?: string;
   readonly deadline?: string;
   readonly status?: ProjectStatus;
   readonly links?: ReadonlyArray<ProjectLinkEntry>;
   readonly attachments?: ReadonlyArray<ProjectAttachmentEntry>;
+  readonly scene?: ProjectSceneConfig;
   readonly codebase_root?: string | null;
   readonly codebases?: ReadonlyArray<ProjectCodebaseEntry>;
   readonly created_at: string;
@@ -275,6 +312,12 @@ export interface AuditNoteFrontmatter {
   readonly message: string;
   readonly source: string;
   readonly confidence: number;
+  readonly prompt_tokens?: number | null;
+  readonly completion_tokens?: number | null;
+  readonly tokens_used?: number | null;
+  readonly model?: string | null;
+  readonly cost_usd?: number | null;
+  readonly usage_source?: "provider" | "runtime" | "estimated" | null;
   readonly created_at: string;
 }
 
@@ -759,6 +802,9 @@ export function validateAgentFrontmatter(input: unknown): ValidationResult {
   }
   requireStringField(input, "status", issues);
   requireStringField(input, "workspace_id", issues);
+  if (hasKey(input, "project_id")) {
+    requireNullableStringField(input, "project_id", issues);
+  }
   requireRequiredTimestampField(input, "created_at", issues);
   requireRequiredTimestampField(input, "updated_at", issues);
 
@@ -828,6 +874,32 @@ export function validateProviderOverlayFrontmatter(input: unknown): ValidationRe
   return { valid: issues.length === 0, issues };
 }
 
+export function validateCoordinatorThreadFrontmatter(input: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isRecord(input)) {
+    pushIssue(issues, "_self", "must be an object");
+    return { valid: false, issues };
+  }
+
+  requireStringField(input, "id", issues);
+
+  const type = requireStringField(input, "type", issues);
+  if (type !== undefined && type !== "coordinator-thread") {
+    pushIssue(issues, "type", "must be coordinator-thread");
+  }
+
+  requireStringField(input, "workspace_id", issues);
+  requireStringField(input, "project_id", issues);
+  requireStringField(input, "coordinator_agent_id", issues);
+  requireNullableStringField(input, "active_session_id", issues);
+  requireEnumField(input, "status", COORDINATOR_THREAD_STATUSES, issues);
+  requireRequiredTimestampField(input, "created_at", issues);
+  requireRequiredTimestampField(input, "updated_at", issues);
+
+  return { valid: issues.length === 0, issues };
+}
+
 export function validateWorkspaceFrontmatter(input: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -886,6 +958,61 @@ function validateProjectAttachment(value: unknown, index: number, issues: Valida
   return isNonEmptyString(label) && isNonEmptyString(url) && typeof type === "string" && PROJECT_ATTACHMENT_TYPES.includes(type as ProjectAttachmentType) && isTimestamp(addedAt);
 }
 
+function validateProjectSceneBackground(value: unknown, issues: ValidationIssue[]): value is ProjectSceneBackground {
+  if (!isRecord(value)) {
+    pushIssue(issues, "scene.background", "must be an object");
+    return false;
+  }
+
+  const mode = value.mode;
+  if (typeof mode !== "string" || !PROJECT_SCENE_BACKGROUND_MODES.includes(mode as ProjectSceneBackgroundMode)) {
+    pushIssue(issues, "scene.background.mode", `must be one of: ${PROJECT_SCENE_BACKGROUND_MODES.join(", ")}`);
+    return false;
+  }
+
+  if (value.color !== undefined && !isNonEmptyString(value.color)) {
+    pushIssue(issues, "scene.background.color", "must be a non-empty string when provided");
+  }
+  if (value.gradientFrom !== undefined && !isNonEmptyString(value.gradientFrom)) {
+    pushIssue(issues, "scene.background.gradientFrom", "must be a non-empty string when provided");
+  }
+  if (value.gradientTo !== undefined && !isNonEmptyString(value.gradientTo)) {
+    pushIssue(issues, "scene.background.gradientTo", "must be a non-empty string when provided");
+  }
+  if (value.imageUrl !== undefined && !isNonEmptyString(value.imageUrl)) {
+    pushIssue(issues, "scene.background.imageUrl", "must be a non-empty string when provided");
+  }
+
+  if (mode === "color" && !isNonEmptyString(value.color)) {
+    pushIssue(issues, "scene.background.color", "required for color mode");
+  }
+  if (mode === "gradient" && !isNonEmptyString(value.gradientFrom)) {
+    pushIssue(issues, "scene.background.gradientFrom", "required for gradient mode");
+  }
+  if (mode === "gradient" && !isNonEmptyString(value.gradientTo)) {
+    pushIssue(issues, "scene.background.gradientTo", "required for gradient mode");
+  }
+  if (mode === "image" && !isNonEmptyString(value.imageUrl)) {
+    pushIssue(issues, "scene.background.imageUrl", "required for image mode");
+  }
+
+  return true;
+}
+
+function validateProjectScene(value: unknown, issues: ValidationIssue[]): value is ProjectSceneConfig {
+  if (!isRecord(value)) {
+    pushIssue(issues, "scene", "must be an object");
+    return false;
+  }
+
+  if (!hasKey(value, "background")) {
+    pushIssue(issues, "scene.background", "required");
+    return false;
+  }
+
+  return validateProjectSceneBackground(value.background, issues);
+}
+
 export function validateProjectFrontmatter(input: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -903,6 +1030,7 @@ export function validateProjectFrontmatter(input: unknown): ValidationResult {
 
   requireStringField(input, "workspace_id", issues);
   requireStringField(input, "name", issues);
+  if (hasKey(input, "coordinator_agent_id")) requireNullableStringField(input, "coordinator_agent_id", issues);
   if (hasKey(input, "description")) requireStringField(input, "description", issues);
   if (hasKey(input, "budget")) requireStringField(input, "budget", issues);
   if (hasKey(input, "deadline")) requireRequiredTimestampField(input, "deadline", issues);
@@ -923,6 +1051,7 @@ export function validateProjectFrontmatter(input: unknown): ValidationResult {
       attachments.forEach((attachment, index) => validateProjectAttachment(attachment, index, issues));
     }
   }
+  if (hasKey(input, "scene")) validateProjectScene(input.scene, issues);
   if (hasKey(input, "codebase_root")) requireNullableStringField(input, "codebase_root", issues);
   if (hasKey(input, "codebases") && !Array.isArray(input.codebases)) {
     pushIssue(issues, "codebases", "must be an array when provided");
@@ -959,6 +1088,30 @@ export function validateAuditNoteFrontmatter(input: unknown): ValidationResult {
     pushIssue(issues, "confidence", "must be a number between 0 and 1");
   }
 
+  if (hasKey(input, "prompt_tokens") && input.prompt_tokens !== null && !isInteger(input.prompt_tokens)) {
+    pushIssue(issues, "prompt_tokens", "must be an integer or null");
+  }
+
+  if (hasKey(input, "completion_tokens") && input.completion_tokens !== null && !isInteger(input.completion_tokens)) {
+    pushIssue(issues, "completion_tokens", "must be an integer or null");
+  }
+
+  if (hasKey(input, "tokens_used") && input.tokens_used !== null && !isInteger(input.tokens_used)) {
+    pushIssue(issues, "tokens_used", "must be an integer or null");
+  }
+
+  if (hasKey(input, "model")) {
+    requireNullableStringField(input, "model", issues)
+  }
+
+  if (hasKey(input, "cost_usd") && input.cost_usd !== null && !isFiniteNumber(input.cost_usd)) {
+    pushIssue(issues, "cost_usd", "must be a number or null");
+  }
+
+  if (hasKey(input, "usage_source") && input.usage_source !== null) {
+    requireEnumField(input, "usage_source", ["provider", "runtime", "estimated"] as const, issues)
+  }
+
   requireRequiredTimestampField(input, "created_at", issues);
 
   return { valid: issues.length === 0, issues };
@@ -980,6 +1133,13 @@ export function assertAgentFrontmatter(input: unknown): asserts input is AgentFr
 
 export function assertProviderOverlayFrontmatter(input: unknown): asserts input is ProviderOverlayFrontmatter {
   const result = validateProviderOverlayFrontmatter(input);
+  if (!result.valid) {
+    throw new VaultSchemaError(result.issues);
+  }
+}
+
+export function assertCoordinatorThreadFrontmatter(input: unknown): asserts input is CoordinatorThreadFrontmatter {
+  const result = validateCoordinatorThreadFrontmatter(input);
   if (!result.valid) {
     throw new VaultSchemaError(result.issues);
   }
@@ -1068,7 +1228,7 @@ export function assertIssueFrontmatter(input: unknown): asserts input is IssueFr
   }
 }
 
-export const DOC_TYPES = ["feature-spec", "design", "runbook", "general", "feature", "decision", "research", "retro", "brief", "plan", "meeting-minutes", "budget", "expense", "sop", "policy", "adr"] as const;
+export const DOC_TYPES = ["feature-spec", "design", "runbook", "general", "feature", "decision", "research", "retro", "brief", "plan", "meeting-minutes", "budget", "expense", "sop", "policy", "adr", "repo-map", "capability-map"] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 export const DOC_STATUSES = ["draft", "active", "archived"] as const;
 export type DocStatus = (typeof DOC_STATUSES)[number];

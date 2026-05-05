@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, readBody } from "h3";
 
-import type { TaskPriority } from "../../../shared/vault/schema";
+import type { TaskDispatchStatus, TaskPriority } from "../../../shared/vault/schema";
+import type { TaskFrontmatter } from "../../services/vault/repository";
 import { autoDispatchAssignedTask } from "../../services/agents/dispatch";
 import { writeAuditNote } from "../../services/vault/audit-write";
 import { formatTaskInputIssues, validateTaskInput } from "../../services/vault/task-input";
@@ -22,9 +23,9 @@ export interface CreateVaultTaskFromBodyDependencies {
 
 export function buildBody(
   objective: string | undefined,
-  acceptanceCriteria: string[] | undefined,
-  constraints: string[] | undefined,
-  contextFiles: string[] | undefined,
+  acceptanceCriteria: ReadonlyArray<string> | undefined,
+  constraints: ReadonlyArray<string> | undefined,
+  contextFiles: ReadonlyArray<string> | undefined,
 ): string {
   const parts: string[] = [];
 
@@ -124,6 +125,7 @@ export async function createVaultTaskFromBody(body: unknown, dependencies: Creat
     objective,
     acceptanceCriteria,
     contextFiles,
+    tags: body.tags,
   });
 
   if (issues.length > 0) {
@@ -159,24 +161,25 @@ export async function createVaultTaskFromBody(body: unknown, dependencies: Creat
   }
 
   let autoDispatch: Awaited<ReturnType<typeof autoDispatchAssignedTask>> | undefined;
+  const assignedAgentId = result.frontmatter.assignee;
 
-  if (result.frontmatter.assignee !== "unassigned" && result.frontmatter.status === "todo") {
+  if (process.env.RELAYHQ_DISABLE_AUTO_DISPATCH !== "true" && assignedAgentId && assignedAgentId !== "unassigned" && result.frontmatter.status === "todo") {
     const readModel = await runReadCanonicalVaultReadModel(vaultRoot);
     autoDispatch = await runAutoDispatchAssignedTask({
       readModel,
       taskId: result.frontmatter.id,
-      agentId: result.frontmatter.assignee,
+      agentId: assignedAgentId,
       launchSurface: "background",
       vaultRoot,
     });
 
-    const dispatchPatch = autoDispatch.launched
+    const dispatchPatch: Readonly<Partial<TaskFrontmatter>> = autoDispatch.launched
       ? { dispatch_status: "started", dispatch_reason: "Background session started automatically.", last_dispatch_attempt_at: new Date().toISOString() }
-      : { dispatch_status: autoDispatch.decision.status === "ready" ? "ready" : "blocked", dispatch_reason: autoDispatch.decision.reason, last_dispatch_attempt_at: new Date().toISOString() };
+      : { dispatch_status: (autoDispatch.decision.status === "ready" ? "ready" : "blocked") satisfies TaskDispatchStatus, dispatch_reason: autoDispatch.decision.reason, last_dispatch_attempt_at: new Date().toISOString() };
 
     await runPatchTaskLifecycle({
       taskId: result.frontmatter.id,
-      actorId: autoDispatch.launched ? result.frontmatter.assignee : DEFAULT_ACTOR_ID,
+      actorId: autoDispatch.launched ? assignedAgentId : DEFAULT_ACTOR_ID,
       patch: dispatchPatch,
       releaseLock: !autoDispatch.launched,
     });

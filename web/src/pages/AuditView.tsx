@@ -3,6 +3,7 @@ import { AlertTriangle, Bot, CheckCircle2, Clock3, Plus, User2 } from 'lucide-re
 import { useNavigate } from 'react-router-dom'
 
 import { useAppStore } from '../store/appStore'
+
 type TaskActivityKind = 'created' | 'claimed' | 'done' | 'blocked' | 'waiting-approval'
 
 type TaskActivityEvent = {
@@ -53,9 +54,24 @@ function formatTime(value: string): string {
   return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatCost(value: number): string {
+  return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`
+}
+
 export function AuditView() {
   const tasks = useAppStore(state => state.tasks)
+  const auditNotes = useAppStore(state => state.auditNotes)
   const navigate = useNavigate()
+
+  const usageByTaskId = useMemo(() => {
+    const map = new Map<string, (typeof auditNotes)[number]>()
+    for (const note of [...auditNotes].sort((left, right) => right.createdAt.localeCompare(left.createdAt))) {
+      if (map.has(note.taskId)) continue
+      if (note.tokensUsed === null && note.costUsd === null && note.model === null) continue
+      map.set(note.taskId, note)
+    }
+    return map
+  }, [auditNotes])
 
   const groups = useMemo(() => {
     const events: TaskActivityEvent[] = tasks.flatMap((task) => {
@@ -140,6 +156,7 @@ export function AuditView() {
             <div className="relative ml-5 flex flex-col gap-5 border-l-2 border-border pl-5">
               {group.rows.map(event => {
                 const isUser = !event.actor.startsWith('agent-')
+                const usage = usageByTaskId.get(event.taskId)
 
                 return (
                   <button
@@ -168,6 +185,30 @@ export function AuditView() {
                         <div className="max-w-3xl rounded border border-border/50 bg-surface-secondary p-2 text-sm text-text-secondary/80">
                           {event.taskId}
                         </div>
+                        {usage && (event.kind === 'done' || event.kind === 'blocked' || event.kind === 'waiting-approval') && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+                            {usage.tokensUsed !== null && (
+                              <span className="rounded border border-border/60 bg-surface-secondary px-2 py-1">
+                                {usage.tokensUsed.toLocaleString()} tok
+                              </span>
+                            )}
+                            {usage.costUsd !== null && (
+                              <span className="rounded border border-border/60 bg-surface-secondary px-2 py-1">
+                                {formatCost(usage.costUsd)}
+                              </span>
+                            )}
+                            {usage.model && (
+                              <span className="rounded border border-border/60 bg-surface-secondary px-2 py-1">
+                                {usage.model}
+                              </span>
+                            )}
+                            {usage.usageSource === 'estimated' && (
+                              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-200">
+                                est.
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </button>

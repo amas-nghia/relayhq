@@ -16,9 +16,17 @@ describe("resolveLaunchCwd", () => {
   });
 
   test("builds OpenCode command with JSON mode, permissions bypass, and cwd dir", () => {
-    expect(resolveCommand({ provider: "openai", runtimeKind: "opencode" } as never, "hello", "/workspace/repo")).toEqual({
+    expect(resolveCommand({ provider: "openai", runtimeKind: "opencode", id: "agent-openai" } as never, "hello", "/workspace/repo")).toEqual({
       command: "opencode",
-      args: ["run", "hello", "--format", "json", "--dangerously-skip-permissions", "--dir", "/workspace/repo"],
+      args: ["run", "hello", "--title", "RelayHQ agent-openai", "--format", "json", "--thinking", "--dangerously-skip-permissions", "--dir", "/workspace/repo"],
+      runtimeKind: "opencode",
+    });
+  });
+
+  test("passes the configured OpenCode model when present", () => {
+    expect(resolveCommand({ provider: "openai", runtimeKind: "opencode", id: "agent-openai", model: "gpt-5.4" } as never, "hello")).toEqual({
+      command: "opencode",
+      args: ["run", "hello", "--model", "openai/gpt-5.4", "--title", "RelayHQ agent-openai", "--format", "json", "--thinking", "--dangerously-skip-permissions"],
       runtimeKind: "opencode",
     });
   });

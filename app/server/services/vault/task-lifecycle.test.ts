@@ -60,12 +60,14 @@ function createTask(overrides: Partial<TaskFrontmatter> = {}): TaskFrontmatter {
   };
 }
 
-async function createVaultRoot(task: TaskFrontmatter): Promise<string> {
+async function createVaultRoot(...tasks: TaskFrontmatter[]): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relayhq-task-api-"));
   const tasksDir = join(root, "vault", "shared", "tasks");
   await mkdir(join(root, "vault", "shared", "approvals"), { recursive: true });
   await mkdir(tasksDir, { recursive: true });
-  await writeFile(join(tasksDir, `${task.id}.md`), serializeTaskDocument(task, "# Task\n"), "utf8");
+  for (const task of tasks) {
+    await writeFile(join(tasksDir, `${task.id}.md`), serializeTaskDocument(task, "# Task\n"), "utf8");
+  }
   return root;
 }
 
@@ -120,6 +122,22 @@ describe("task lifecycle service", () => {
       action: "moved-to-review",
       to_status: "review",
     });
+  });
+
+  test("syncs column from status when a patch omits column", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ column: "in-progress", status: "in-progress", locked_by: "agent-backend-dev", locked_at: "2026-04-15T09:58:00Z", lock_expires_at: "2026-04-15T10:03:00Z" }));
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const result = await patchTaskLifecycle({
+      taskId: "task-001",
+      actorId: "agent-backend-dev",
+      vaultRoot,
+      now,
+      patch: { status: "review", progress: 100, result: "Shipped" },
+    });
+
+    expect(result.frontmatter.status).toBe("review");
+    expect(result.frontmatter.column).toBe("review");
   });
 
   test("recovers stale locks when moving a task to review", async () => {
@@ -206,7 +224,11 @@ describe("task lifecycle service", () => {
   });
 
   test("claims a task into in-progress state", async () => {
-    const vaultRoot = await createVaultRoot(createTask());
+    const vaultRoot = await createVaultRoot(createTask({
+      dispatch_status: "blocked",
+      dispatch_reason: "Runtime capacity exhausted (1/1 slots in use). Task queued until a runtime slot is free.",
+      last_dispatch_attempt_at: "2026-04-15T09:55:00Z",
+    }));
     const now = new Date("2026-04-15T10:00:00Z");
 
     const result = await claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now });
@@ -214,6 +236,9 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.status).toBe("in-progress");
     expect(result.frontmatter.column).toBe("in-progress");
     expect(result.frontmatter.execution_started_at).toBe(now.toISOString());
+    expect(result.frontmatter.dispatch_status).toBe("started");
+    expect(result.frontmatter.dispatch_reason).toBe("Execution claimed by the assigned agent.");
+    expect(result.frontmatter.last_dispatch_attempt_at).toBe(now.toISOString());
     expect(result.frontmatter.history?.[0]).toMatchObject({
       actor: "agent-backend-dev",
       action: "claimed",
@@ -278,13 +303,13 @@ describe("task lifecycle service", () => {
     await writeWebhookSettingsFile(vaultRoot, "task.scheduled");
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;
-    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+    globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls += 1;
       expect(init?.headers).toMatchObject({
         "x-relayhq-event": "task.scheduled",
       });
       return new Response(null, { status: 200 });
-    };
+    }) as typeof fetch;
 
     try {
       const now = new Date("2026-04-15T10:00:00Z");
@@ -335,13 +360,13 @@ describe("task lifecycle service", () => {
     await writeWebhookSettingsFile(vaultRoot, "task.updated");
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;
-    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+    globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls += 1;
       expect(init?.headers).toMatchObject({
         "x-relayhq-event": "task.updated",
       });
       return new Response(null, { status: 200 });
-    };
+    }) as typeof fetch;
 
     try {
       const now = new Date("2026-04-15T10:00:00Z");
@@ -374,6 +399,93 @@ describe("task lifecycle service", () => {
     expect(result.frontmatter.locked_by).toBe("agent-backend-dev");
     expect(result.frontmatter.locked_at).toBe(now.toISOString());
     expect(result.frontmatter.lock_expires_at).toBe(new Date(now.getTime() + 5 * 60 * 1000).toISOString());
+  });
+
+  test("blocks a second in-progress claim for the same assignee", async () => {
+    const vaultRoot = await createVaultRoot(
+      createTask({
+        id: "task-001",
+        assignee: "agent-backend-dev",
+        status: "todo",
+        column: "todo",
+      }),
+      createTask({
+        id: "task-002",
+        assignee: "agent-backend-dev",
+        status: "in-progress",
+        column: "in-progress",
+        execution_started_at: "2026-04-15T09:30:00Z",
+        locked_by: "agent-backend-dev",
+        locked_at: "2026-04-15T09:30:00Z",
+        lock_expires_at: "2026-04-15T10:05:00Z",
+        heartbeat_at: "2026-04-15T10:00:00Z",
+      }),
+    );
+
+    await expect(claimTaskLifecycle({
+      taskId: "task-001",
+      actorId: "agent-backend-dev",
+      vaultRoot,
+      now: new Date("2026-04-15T10:00:00Z"),
+    })).rejects.toMatchObject({
+      statusCode: 409,
+      statusMessage: "Runtime capacity exhausted (1/1 slots in use). Task queued until a runtime slot is free.",
+    });
+  });
+
+  test("serializes concurrent claims so only one task enters in-progress per assignee", async () => {
+    const vaultRoot = await createVaultRoot(
+      createTask({ id: "task-001", assignee: "agent-backend-dev", status: "todo", column: "todo" }),
+      createTask({ id: "task-002", assignee: "agent-backend-dev", status: "todo", column: "todo" }),
+    );
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const [first, second] = await Promise.allSettled([
+      claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now }),
+      claimTaskLifecycle({ taskId: "task-002", actorId: "agent-backend-dev", vaultRoot, now }),
+    ]);
+
+    const fulfilled = [first, second].filter((result) => result.status === "fulfilled");
+    const rejected = [first, second].filter((result) => result.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      statusCode: 409,
+      statusMessage: expect.stringContaining("Task queued until a runtime slot is free."),
+    });
+
+    const taskOne = await readTaskDocument(join(vaultRoot, "vault", "shared", "tasks", "task-001.md"));
+    const taskTwo = await readTaskDocument(join(vaultRoot, "vault", "shared", "tasks", "task-002.md"));
+    const activeTaskIds = [taskOne, taskTwo]
+      .filter((task) => task.frontmatter.status === "in-progress")
+      .map((task) => task.frontmatter.id);
+    const queuedTaskIds = [taskOne, taskTwo]
+      .filter((task) => task.frontmatter.status === "todo")
+      .map((task) => task.frontmatter.id);
+
+    expect(activeTaskIds).toHaveLength(1);
+    expect(queuedTaskIds).toHaveLength(1);
+  });
+
+  test("serializes concurrent claims on the same task so only one succeeds", async () => {
+    const vaultRoot = await createVaultRoot(
+      createTask({ id: "task-001", assignee: "agent-backend-dev", status: "todo", column: "todo" }),
+    );
+    const now = new Date("2026-04-15T10:00:00Z");
+
+    const [first, second] = await Promise.allSettled([
+      claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now }),
+      claimTaskLifecycle({ taskId: "task-001", actorId: "agent-backend-dev", vaultRoot, now }),
+    ]);
+
+    const fulfilled = [first, second].filter((result) => result.status === "fulfilled");
+    const rejected = [first, second].filter((result) => result.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      statusCode: 409,
+      statusMessage: "Task task-001 is in-progress, not todo.",
+    });
   });
 
   test("refreshes task heartbeat without mutating business state", async () => {
@@ -421,6 +533,20 @@ describe("task lifecycle service", () => {
     expect(approvals[0]).toContain('outcome: "pending"');
   });
 
+  test("denies human approval requests through the lifecycle service", async () => {
+    const vaultRoot = await createVaultRoot(createTask({ status: "in-progress", column: "in-progress" }));
+
+    await expect(requestTaskApprovalLifecycle({
+      taskId: "task-001",
+      actorId: "@alice",
+      reason: "Need human sign-off",
+      vaultRoot,
+    })).rejects.toMatchObject({
+      statusCode: 403,
+      statusMessage: expect.stringContaining("human approval path"),
+    });
+  });
+
   test("schedules a task and releases its lock", async () => {
     const vaultRoot = await createVaultRoot(createTask({
       status: "in-progress",
@@ -458,7 +584,7 @@ describe("task lifecycle service", () => {
 
     const result = await patchTaskLifecycle({
       taskId: "task-001",
-      actorId: "agent-backend-dev",
+      actorId: "@alice",
       vaultRoot,
       now,
       patch: { status: "done", column: "done", progress: 100, result: "Completed" },

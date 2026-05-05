@@ -1,6 +1,17 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'failed' | 'blocked' | 'scheduled' | 'review' | 'waiting-approval' | 'done' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type AgentState = 'idle' | 'active' | 'waiting' | 'stale'
+export type ProjectSceneBackgroundMode = 'color' | 'gradient' | 'image'
+
+export interface ProjectSceneConfig {
+  background: {
+    mode: ProjectSceneBackgroundMode
+    color?: string
+    gradientFrom?: string
+    gradientTo?: string
+    imageUrl?: string
+  }
+}
 
 export interface Agent {
   id: string
@@ -13,7 +24,6 @@ export interface Agent {
   provider?: string
   apiKeyRef?: string | null
   model?: string | null
-  portraitAsset?: string | null
   spriteAsset?: string | null
   monthlyBudgetUsd?: number | null
   aliases?: ReadonlyArray<string>
@@ -28,23 +38,27 @@ export interface Agent {
   bootstrapStrategy?: string | null
   verificationStatus?: string | null
   capabilities?: ReadonlyArray<string>
+  taskTypesAccepted?: ReadonlyArray<string>
   approvalRequiredFor?: ReadonlyArray<string>
   skillFile?: string
   skillFiles?: ReadonlyArray<string>
   body?: string
   sourcePath?: string
+  projectId?: string | null
 }
 
 export interface Project {
   id: string
   name: string
   boardId?: string
+  coordinatorAgentId?: string | null
   lastActive: boolean
   codebaseRoot?: string | null
   description?: string | null
   budget?: string | null
   deadline?: string | null
   status?: string | null
+  scene?: ProjectSceneConfig | null
   links: ReadonlyArray<ProjectLink>
   attachments: ReadonlyArray<ProjectAttachment>
   docs: ReadonlyArray<ProjectDoc>
@@ -87,6 +101,8 @@ export interface Task {
   assigneeId?: string
   progress: number
   executionStartedAt?: string
+  activeSessionId?: string | null
+  activeSessionStatus?: 'active' | 'stopped' | null
   executionNotes?: string
   history?: Array<{ at: string; actor: string; action: string; fromStatus?: TaskStatus; toStatus?: TaskStatus }>
   dispatchStatus?: string | null

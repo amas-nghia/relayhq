@@ -14,26 +14,29 @@ export interface ApiKeyEntry {
   readonly label: string;
   readonly isSet: boolean;
   readonly preview: string | null; // last 4 chars only
+  readonly source?: 'env';
 }
 
 export interface ApiKeysResponse {
   readonly keys: ReadonlyArray<ApiKeyEntry>;
 }
 
-export function detectApiKeys(env: NodeJS.ProcessEnv = process.env): ApiKeysResponse {
-  const keys = KNOWN_KEYS.map(({ envVar, provider, label }) => {
-    const value = env[envVar];
-    const isSet = typeof value === "string" && value.trim().length > 0;
-    return {
+export default defineEventHandler(async () => {
+  const keys: ApiKeyEntry[] = [];
+
+  for (const { envVar, provider, label } of KNOWN_KEYS) {
+    const envValue = process.env[envVar];
+    const isEnvSet = typeof envValue === 'string' && envValue.trim().length > 0;
+
+    keys.push({
       envVar,
       provider,
       label,
-      isSet,
-      preview: isSet ? `···${value!.slice(-4)}` : null,
-    } satisfies ApiKeyEntry;
-  });
+      isSet: isEnvSet,
+      preview: isEnvSet ? `···${envValue!.slice(-4)}` : null,
+      source: isEnvSet ? 'env' : undefined,
+    });
+  }
 
   return { keys };
-}
-
-export default defineEventHandler(() => detectApiKeys());
+});

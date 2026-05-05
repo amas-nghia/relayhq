@@ -9,6 +9,7 @@ export interface SessionStoreEntry {
 }
 
 export interface ActiveSession {
+  readonly sessionId: string;
   readonly agentName: string;
   readonly lastSeenAt: string;
   readonly idleSeconds: number;
@@ -86,8 +87,9 @@ export class SessionStore {
     this.cleanupExpired(now);
 
     const nowMs = now.getTime();
-    const sessions = Array.from(this.#entries.values())
-      .map((entry) => ({
+    const sessions = Array.from(this.#entries.entries())
+      .map(([token, entry]) => ({
+        sessionId: token,
         ...entry,
         idleSeconds: Math.max(0, Math.floor((nowMs - Date.parse(entry.lastSeenAt)) / 1000)),
       }))
@@ -105,6 +107,7 @@ export class SessionStore {
       seen.set(session.agentName, index);
 
       return {
+        sessionId: session.sessionId,
         agentName: count > 1 ? `${session.agentName}#${index}` : session.agentName,
         lastSeenAt: session.lastSeenAt,
         idleSeconds: session.idleSeconds,

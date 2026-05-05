@@ -1,97 +1,147 @@
-# Quick Start
-
-Get RelayHQ running locally in 5 minutes.
+# Getting Started
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) — JavaScript runtime and package manager
-- [Node.js 18+](https://nodejs.org) — required by some Nuxt internals
-- [PM2](https://pm2.keymetrics.io) — optional, for running both services together
+- [Bun](https://bun.sh) — runtime for the API server
+- [Node.js 18+](https://nodejs.org) — required by the web UI build
+- [PM2](https://pm2.keymetrics.io) — optional, runs both services together
 
-## Option 1: PM2 (recommended)
-
-Starts the API server and web UI in one command.
+## Run with PM2 (recommended)
 
 ```bash
-git clone https://github.com/amas-nghia/RelayHQ.git
-cd RelayHQ
-
 npm install -g pm2
+
+# From the repo root:
 pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-Open [http://localhost:44211](http://localhost:44211) in your browser.
+Open [http://localhost:44211](http://localhost:44211). You land directly in the OS shell — the Kanban board.
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Web UI | 44211 | React Kanban board |
-| API server | 44210 | Nuxt 3 task lifecycle routes |
-
-## Option 2: Manual
-
-Run each service in a separate terminal.
+## Run manually
 
 **Terminal 1 — API server:**
-
 ```bash
 cd app
 bun install
 bun run dev
-# → http://localhost:44210
+# Listening on http://localhost:44210
 ```
 
 **Terminal 2 — Web UI:**
-
 ```bash
 cd web
-bun install
-bun run dev
-# → http://localhost:44211
+npm install
+npm run dev
+# Listening on http://localhost:44211
 ```
+
+## Vault location
+
+By default RelayHQ reads from `vault/shared/` relative to the repo root.
+
+To use an external vault (e.g. an Obsidian vault):
+```bash
+RELAYHQ_VAULT_ROOT=/path/to/your/vault pm2 start ecosystem.config.cjs
+# or
+RELAYHQ_VAULT_ROOT=/path/to/your/vault bun run dev
+```
+
+After restart, the API reads all task, agent, project, and board files from the new path.
 
 ## Verify the setup
 
-Once both services are running, open the board at [http://localhost:44211](http://localhost:44211).
-
-You should see the demo vault loaded with seeded tasks in the Kanban columns.
-
-To verify the API directly:
-
 ```bash
+curl http://localhost:44210/api/health
+# → {"status":"ok","vaultRoot":"/path/to/vault"}
+
 curl http://localhost:44210/api/vault/read-model | jq '.tasks | length'
+# → number of tasks in the vault
 ```
 
-## Create your first task via CLI
+## Create your first task
+
+Tasks require tags so the auto-dispatcher can route them to the right agent.
+
+```bash
+curl -X POST http://localhost:44210/api/vault/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "My first task",
+    "projectId": "project-demo",
+    "boardId": "board-demo",
+    "columnId": "todo",
+    "priority": "medium",
+    "tags": ["feature-implementation"],
+    "objective": "Describe what needs to be done and why in at least 50 characters.",
+    "acceptanceCriteria": ["Criterion one", "Criterion two"],
+    "contextFiles": ["path/to/relevant/file.ts"]
+  }'
+```
+
+## Register an agent
+
+Create a file in `vault/shared/agents/`:
+
+```bash
+cat > vault/shared/agents/agent-my-dev.md << 'EOF'
+---
+id: agent-my-dev
+type: agent
+name: My Dev Agent
+role: worker
+provider: anthropic
+model: claude-sonnet-4-6
+capabilities:
+  - write-code
+  - write-tests
+task_types_accepted:
+  - feature-implementation
+  - bug-fix
+approval_required_for: []
+cannot_do: []
+accessible_by: []
+skill_file: null
+status: available
+workspace_id: ws-my-workspace
+api_key_ref: env:ANTHROPIC_API_KEY
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+---
+EOF
+```
+
+The agent's `task_types_accepted` and `capabilities` fields must overlap with task `tags` for the auto-dispatcher to assign work to it.
+
+## Use the CLI
 
 ```bash
 # List tasks
 bun run ./cli/relayhq.ts tasks
 
 # Claim a task as an agent
-bun run ./cli/relayhq.ts claim task-001 --assignee=my-agent
+bun run ./cli/relayhq.ts claim task-001 --assignee=agent-my-dev
 
-# Mark it ready for review
+# Send a heartbeat during work
+bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-my-dev
+
+# Request human approval
+bun run ./cli/relayhq.ts request-approval task-001 \
+  --assignee=agent-my-dev \
+  --reason="Need sign-off before deleting data"
+
+# Mark complete
 bun run ./cli/relayhq.ts update task-001 \
-  --assignee=my-agent \
+  --assignee=agent-my-dev \
   --status=review \
-  --result="Done."
+  --result="Implemented. PR #42."
 ```
 
-After each command, check `vault/shared/tasks/task-001.md` — you will see the file updated directly.
-
-## Custom vault location
-
-By default, RelayHQ reads from `vault/shared/` relative to the repo root.
-
-To use a different vault directory:
-
-```bash
-RELAYHQ_VAULT_ROOT=/path/to/your/vault pm2 start ecosystem.config.cjs
-```
+Default base URL is `http://127.0.0.1:44210`. Override with `RELAYHQ_BASE_URL` or `--base-url`.
 
 ## Next steps
 
-- [Agent Protocol](agents/protocol.md) — how to integrate an AI agent
-- [Vault Schema](vault/schema.md) — field reference for task files
-- [Architecture](architecture.md) — understand the system design
+- [Architecture](architecture.md) — understand how the pieces fit together
+- [Agent Definitions](agents/definitions.md) — configure agents with API keys, skills, and capabilities
+- [Agent Protocol](agents/protocol.md) — how agents interact with RelayHQ during a session
+- [Vault Schema](vault/schema.md) — full field reference for vault files

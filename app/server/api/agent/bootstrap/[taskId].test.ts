@@ -28,6 +28,12 @@ function createTask(id: string, overrides: Partial<VaultReadModel["tasks"][numbe
     executionStartedAt: null,
     executionNotes: null,
     progress: 25,
+    history: [],
+    dispatchStatus: null,
+    dispatchReason: null,
+    lastDispatchAttemptAt: null,
+    nextRunAt: null,
+    cronSchedule: null,
     approvalNeeded: false,
     approvalRequestedBy: null,
     approvalReason: null,
@@ -182,6 +188,7 @@ function createFixtureReadModel(): VaultReadModel {
 
     docs: [],
     agents: [],
+    issues: [],
   };
 }
 

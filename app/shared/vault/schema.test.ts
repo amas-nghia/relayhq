@@ -8,6 +8,7 @@ import {
   VAULT_SCHEMA_VERSION,
   validateAgentFrontmatter,
   validateAuditNoteFrontmatter,
+  validateCoordinatorThreadFrontmatter,
   validateProjectFrontmatter,
   validateProviderOverlayFrontmatter,
   validateTaskFrontmatter,
@@ -26,6 +27,7 @@ describe("canonical vault layout", () => {
       "vault/shared/approvals/{approval_id}.md",
       "vault/shared/agents/{agent_id}.md",
       "vault/shared/audit/{audit_note_id}.md",
+      "vault/shared/coordinator-threads/{coordinator_thread_id}.md",
       "vault/shared/threads/{thread_id}.md",
       "vault/users/{user_id}/provider.md",
       "vault/users/{user_id}/prefs.md",
@@ -49,6 +51,23 @@ describe("canonical vault layout", () => {
 });
 
 describe("task frontmatter validation", () => {
+  test("accepts a valid coordinator thread schema", () => {
+    const result = validateCoordinatorThreadFrontmatter({
+      id: "coordinator-thread-project-auth",
+      type: "coordinator-thread",
+      workspace_id: "ws-acme",
+      project_id: "project-auth",
+      coordinator_agent_id: "agent-coordinator",
+      active_session_id: null,
+      status: "active",
+      created_at: "2026-04-14T10:00:00Z",
+      updated_at: "2026-04-14T10:00:00Z",
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.issues).toHaveLength(0);
+  });
+
   test("accepts a valid task schema", () => {
     const result = validateTaskFrontmatter({
       id: "task-001",
@@ -93,6 +112,22 @@ describe("task frontmatter validation", () => {
     expect(result.valid).toBe(true);
     expect(result.issues).toHaveLength(0);
   });
+
+  test("accepts project scene background configuration", () => {
+    const result = validateProjectFrontmatter({
+      id: "project-auth",
+      type: "project",
+      workspace_id: "ws-acme",
+      name: "Authentication",
+      scene: { background: { mode: "image", imageUrl: "https://example.com/scene.png" } },
+      codebases: [{ name: "frontend", path: "../web", primary: true }],
+      created_at: "2026-04-14T10:00:00Z",
+      updated_at: "2026-04-14T10:00:00Z",
+    })
+
+    expect(result.valid).toBe(true)
+    expect(result.issues).toHaveLength(0)
+  })
 
   test("rejects invalid task enums and version mismatches", () => {
     const result = validateTaskFrontmatter({
@@ -202,7 +237,7 @@ describe("other frontmatter validators", () => {
         provider: "claude",
         api_key_ref: "env:ANTHROPIC_API_KEY_ACCOUNT_1",
         model: "claude-sonnet-4-6",
-        fallback_models: ["claude-haiku-4-5", "gpt-4o-mini"],
+        fallback_models: ["claude-haiku-4-5", "gpt-5.4-mini"],
         monthly_budget_usd: 25,
         aliases: ["backend-dev", "code-assistant"],
         runtime_kind: "claude-code",
@@ -317,6 +352,7 @@ describe("other frontmatter validators", () => {
         type: "project",
         workspace_id: "ws-acme",
         name: "Acme Project",
+        coordinator_agent_id: "agent-coordinator",
         description: "Internal product delivery workspace",
         budget: "$12,000/mo",
         deadline: "2026-06-01T00:00:00Z",

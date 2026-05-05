@@ -170,7 +170,7 @@ async function parseWebhookConfig(
   webhook: { id?: string; url?: string; events?: ReadonlyArray<string>; signing_secret_ref?: string | null; signingSecretRef?: string | null },
   index: number,
   validateNetwork: boolean = true,
-): WebhookConfig {
+): Promise<WebhookConfig> {
   if (typeof webhook.url !== "string" || !Array.isArray(webhook.events)) {
     throw new Error("Invalid webhook config.");
   }

@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-backend-dev",
+  "version": "1.0.0",
+  "description": "Backend development skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "backend", "api", "database", "server"],
+  "license": "MIT"
+}

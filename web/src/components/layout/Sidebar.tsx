@@ -1,11 +1,10 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Bell, Bot, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, Monitor, User2 } from 'lucide-react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Bell, Bot, CalendarClock, ChevronRight, FolderKanban, KanbanSquare, Hourglass, LayoutDashboard, Monitor, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAppStore } from '../../store/appStore'
 import { NewProjectDialog } from '../project/NewProjectDialog'
-import { ProjectMark } from '../project/ProjectMark'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
@@ -18,8 +17,10 @@ export function Sidebar() {
   const { open, mobileOpen, setMobileOpen } = useSidebar()
   const pendingCount = useAppStore(state => state.tasks.filter(t => t.status === 'waiting-approval').length)
   const projects = useAppStore(state => state.projects)
+  const selectedProjectId = useAppStore(state => state.selectedProjectId)
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length)
   const agents = useAppStore(state => state.agents)
+  const desktopHref = selectedProjectId ? `/?project=${encodeURIComponent(selectedProjectId)}` : '/'
 
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState<'notifications' | 'user' | null>(null)
@@ -43,18 +44,20 @@ export function Sidebar() {
 
   const navItems = [
     { name: 'Board', path: '/', icon: KanbanSquare },
+    { name: 'Scheduler', path: '/schedule', icon: CalendarClock },
     { name: 'Approvals', path: '/approvals', icon: Hourglass, badge: pendingCount > 0 ? pendingCount : 0, badgeColor: 'bg-status-waiting text-surface' },
     { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount, badgeColor: 'bg-status-active text-surface' },
     { name: 'Audit', path: '/audit', icon: LayoutDashboard },
   ]
   const footerIconButtonClass = 'relative h-9 w-9 shrink-0 text-brand hover:text-brand-bright'
   const sidebarRowClass = 'flex items-center rounded-none px-3 py-2 text-sm uppercase tracking-[0.08em] transition-colors'
+  const outlineLinkClass = 'lcd-button inline-flex items-center justify-center gap-2 rounded-none border border-accent bg-transparent font-medium uppercase tracking-[0.14em] text-accent transition-all hover:border-brand-bright hover:bg-transparent hover:text-brand-bright hover:shadow-[0_0_12px_rgba(255,215,0,0.4)]'
 
   return (
     <SidebarRoot className={clsx('relative md:static', mobileOpen && 'translate-x-0')}>
       <SidebarHeader className={clsx(open ? 'px-3' : 'items-center px-2')}>
         <div className={clsx('flex items-center gap-2', open ? 'justify-start' : 'justify-center')}>
-          <img src="/favicon.svg" className="h-9 w-9 shrink-0" alt="RelayHQ" />
+          <img src="/favicon.svg" width={36} height={36} className="h-9 w-9 shrink-0" alt="RelayHQ" />
           {open && (
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-text-primary">RelayHQ</div>
@@ -62,17 +65,16 @@ export function Sidebar() {
             </div>
           )}
           {open && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              title="Switch to Desktop OS"
-              className="h-7 shrink-0 px-2 text-[9px] tracking-[0.18em]"
-              onClick={() => navigate('/desktop')}
-            >
-              <Monitor className="h-3.5 w-3.5" />
-              OS
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Link
+                to={desktopHref}
+                title="Switch to Desktop OS"
+                className={clsx(outlineLinkClass, 'h-7 px-2 text-[9px] tracking-[0.18em]')}
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                OS
+              </Link>
+            </div>
           )}
         </div>
 
@@ -109,29 +111,29 @@ export function Sidebar() {
           {open && <SidebarGroupLabel>Projects</SidebarGroupLabel>}
           <SidebarMenu>
             {projects.map(project => {
-              const selected = location.pathname === `/projects/${project.id}`
+              const boardPath = `/?project=${encodeURIComponent(project.id)}`
+              const selected = location.pathname === '/' && selectedProjectId === project.id
               return (
                 <li key={project.id}>
-                  <button
-                    type="button"
+                  <NavLink
+                    to={boardPath}
                     title={project.name}
                     onClick={() => {
-                      navigate(`/projects/${project.id}`)
                       setMobileOpen(false)
                     }}
-                    className={clsx(
+                    className={({ isActive }) => clsx(
                       sidebarRowClass,
                       'w-full',
                       open ? 'gap-2 justify-start' : 'justify-center',
-                      selected
+                      (selected || isActive)
                         ? 'bg-brand-muted text-brand'
                         : 'text-text-secondary hover:bg-brand-muted hover:text-brand',
                     )}
                   >
-                    <ProjectMark className="h-7 w-7 shrink-0" />
+                    <FolderKanban className="h-4.5 w-4.5 shrink-0 opacity-90" />
                     {open && <span className="truncate text-left">{project.name}</span>}
                     <span className={clsx('ml-auto h-2.5 w-2.5 shrink-0 rounded-none border border-surface-sidebar', project.lastActive ? 'bg-status-done' : 'bg-text-tertiary')} />
-                  </button>
+                  </NavLink>
                 </li>
               )
             })}
@@ -163,6 +165,9 @@ export function Sidebar() {
             <Button
               type="button"
               title="Notifications"
+              aria-label={openMenu === 'notifications' ? 'Close notifications menu' : 'Open notifications menu'}
+              aria-expanded={openMenu === 'notifications'}
+              aria-haspopup="dialog"
               onClick={() => setOpenMenu(current => current === 'notifications' ? null : 'notifications')}
               variant="outline"
               size="icon"
@@ -175,6 +180,9 @@ export function Sidebar() {
             <Button
               type="button"
               title="User and status"
+              aria-label={openMenu === 'user' ? 'Close user status menu' : 'Open user status menu'}
+              aria-expanded={openMenu === 'user'}
+              aria-haspopup="dialog"
               onClick={() => setOpenMenu(current => current === 'user' ? null : 'user')}
               variant="outline"
               size="icon"
@@ -192,18 +200,18 @@ export function Sidebar() {
                   <div className="text-sm font-semibold text-text-primary">Notifications</div>
                   <div className="text-xs text-text-tertiary">Approval queue and review requests</div>
                 </div>
-                <button type="button" onClick={() => { navigate('/approvals'); setOpenMenu(null); }} className="text-xs font-medium text-brand hover:text-brand-dark">
+                <Link to="/approvals" onClick={() => setOpenMenu(null)} className="text-xs font-medium text-brand hover:text-brand-dark">
                   Open approvals
-                </button>
+                </Link>
               </div>
 
               {waitingTasks.length > 0 ? (
                 <div className="space-y-2">
                   {waitingTasks.map(task => (
-                    <button
+                    <Link
                       key={task.id}
-                      type="button"
-                      onClick={() => { navigate('/approvals'); setOpenMenu(null); }}
+                      to="/approvals"
+                      onClick={() => setOpenMenu(null)}
                       className="flex w-full items-start justify-between gap-3 rounded-none border border-border bg-surface-secondary px-3 py-2 text-left transition-colors hover:bg-brand-muted hover:text-brand"
                     >
                       <div className="min-w-0">
@@ -211,7 +219,7 @@ export function Sidebar() {
                         <div className="truncate text-xs text-text-tertiary">{task.id}</div>
                       </div>
                       <Badge variant="secondary" className="border-status-waiting/20 bg-status-waiting/10 text-status-waiting">review</Badge>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               ) : (
@@ -241,14 +249,14 @@ export function Sidebar() {
                   <span className="text-text-secondary">Registered agents</span>
                   <span className="font-semibold text-text-primary">{agents.length}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { navigate('/agents'); setOpenMenu(null); }}
+                <Link
+                  to="/agents"
+                  onClick={() => setOpenMenu(null)}
                   className="flex w-full items-center justify-between rounded-none border border-border bg-surface-secondary px-3 py-2 text-sm text-text-primary transition-colors hover:bg-brand-muted hover:text-brand"
                 >
                   View agent status
                   <ChevronRight className="h-4 w-4 text-text-tertiary" />
-                </button>
+                </Link>
               </div>
             </Card>
           )}
@@ -261,7 +269,7 @@ export function Sidebar() {
         onClose={() => setIsNewProjectOpen(false)}
         onCreated={async (projectId) => {
           await useAppStore.getState().loadData()
-          navigate(`/projects/${projectId}`)
+          navigate(`/?project=${encodeURIComponent(projectId)}`)
         }}
       />
     </SidebarRoot>

@@ -2,11 +2,12 @@ import { readdir, readFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 
-import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertDocFrontmatter, assertIssueFrontmatter, assertProjectFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
+import { APPROVAL_OUTCOMES, assertAgentFrontmatter, assertAuditNoteFrontmatter, assertCoordinatorThreadFrontmatter, assertDocFrontmatter, assertIssueFrontmatter, assertProjectFrontmatter, assertTaskFrontmatter, assertWorkspaceFrontmatter } from "../../../shared/vault/schema";
 import {
   buildVaultReadModel,
   type VaultReadModel,
 } from "../../models/read-model";
+import { cleanupStaleAgentTaskSessionRecords, listAgentTaskSessionRecords } from "../agents/session-registry";
 import { VAULT_COLLECTION_DIRECTORIES } from "./repository";
 import type {
   ApprovalFrontmatter,
@@ -14,6 +15,7 @@ import type {
   AuditNoteFrontmatter,
   BoardFrontmatter,
   ColumnFrontmatter,
+  CoordinatorThreadFrontmatter,
   DocFrontmatter,
   IssueFrontmatter,
   ProjectFrontmatter,
@@ -358,6 +360,7 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
     type: "project" as const,
     workspace_id: requireString(record, "workspace_id", filePath),
     name: requireString(record, "name", filePath),
+    ...(record.coordinator_agent_id === undefined ? {} : { coordinator_agent_id: requireNullableString(record, "coordinator_agent_id", filePath) }),
     ...(record.description === undefined ? {} : { description: requireString(record, "description", filePath) }),
     ...(record.budget === undefined ? {} : { budget: requireString(record, "budget", filePath) }),
     ...(record.deadline === undefined ? {} : { deadline: requireTimestamp(record, "deadline", filePath) }),
@@ -382,6 +385,7 @@ function parseProjectFrontmatter(record: Record<string, unknown>, filePath: stri
           }),
         }
       : {}),
+    ...(typeof record.scene === "object" && record.scene !== null ? { scene: record.scene as ProjectFrontmatter["scene"] } : {}),
     ...(record.codebase_root === undefined ? {} : { codebase_root: requireNullableString(record, "codebase_root", filePath) }),
     codebases,
     created_at: requireTimestamp(record, "created_at", filePath),
@@ -456,8 +460,8 @@ function parseAgentFrontmatter(record: Record<string, unknown>, filePath: string
     roles: record.roles === undefined ? [requireString(record, "role", filePath)] : [...requireStringArray(record, "roles", filePath)].sort(compareText),
     provider: requireString(record, "provider", filePath),
     ...(record.api_key_ref === undefined ? {} : { api_key_ref: requireNullableString(record, "api_key_ref", filePath) }),
-    ...(record.portrait_asset === undefined ? {} : { portrait_asset: requireNullableString(record, "portrait_asset", filePath) }),
-    ...(record.sprite_asset === undefined ? {} : { sprite_asset: requireNullableString(record, "sprite_asset", filePath) }),
+    ...(record.portrait_asset === undefined ? {} : { portrait_asset: requireString(record, "portrait_asset", filePath) }),
+    ...(record.sprite_asset === undefined ? {} : { sprite_asset: requireString(record, "sprite_asset", filePath) }),
     model: requireString(record, "model", filePath),
     ...(record.fallback_models === undefined ? {} : { fallback_models: [...requireStringArray(record, "fallback_models", filePath)].sort(compareText) }),
     ...(record.monthly_budget_usd === undefined ? {} : { monthly_budget_usd: record.monthly_budget_usd === null ? null : requireNumber(record, "monthly_budget_usd", filePath) }),
@@ -481,11 +485,31 @@ function parseAgentFrontmatter(record: Record<string, unknown>, filePath: string
     ...(record.skill_files === undefined ? {} : { skill_files: [...requireStringArray(record, "skill_files", filePath)].sort(compareText) }),
     status: requireString(record, "status", filePath),
     workspace_id: requireString(record, "workspace_id", filePath),
+    ...(record.project_id === undefined ? {} : { project_id: requireNullableString(record, "project_id", filePath) }),
     created_at: requireTimestamp(record, "created_at", filePath),
     updated_at: requireTimestamp(record, "updated_at", filePath),
   } satisfies AgentFrontmatter;
 
   assertAgentFrontmatter(frontmatter);
+  return frontmatter;
+}
+
+function parseCoordinatorThreadFrontmatter(record: Record<string, unknown>, filePath: string): CoordinatorThreadFrontmatter {
+  requireExactType(record, "coordinator-thread", filePath);
+
+  const frontmatter = {
+    id: requireString(record, "id", filePath),
+    type: "coordinator-thread" as const,
+    workspace_id: requireString(record, "workspace_id", filePath),
+    project_id: requireString(record, "project_id", filePath),
+    coordinator_agent_id: requireString(record, "coordinator_agent_id", filePath),
+    active_session_id: requireNullableString(record, "active_session_id", filePath),
+    status: requireString(record, "status", filePath) as CoordinatorThreadFrontmatter["status"],
+    created_at: requireTimestamp(record, "created_at", filePath),
+    updated_at: requireTimestamp(record, "updated_at", filePath),
+  } satisfies CoordinatorThreadFrontmatter;
+
+  assertCoordinatorThreadFrontmatter(frontmatter);
   return frontmatter;
 }
 
@@ -497,6 +521,12 @@ function parseAuditNoteFrontmatter(record: Record<string, unknown>, filePath: st
     message: requireString(record, "message", filePath),
     source: requireString(record, "source", filePath),
     confidence: requireNumber(record, "confidence", filePath),
+    ...(record.prompt_tokens === undefined ? {} : { prompt_tokens: record.prompt_tokens === null ? null : requireNumber(record, "prompt_tokens", filePath) }),
+    ...(record.completion_tokens === undefined ? {} : { completion_tokens: record.completion_tokens === null ? null : requireNumber(record, "completion_tokens", filePath) }),
+    ...(record.tokens_used === undefined ? {} : { tokens_used: record.tokens_used === null ? null : requireNumber(record, "tokens_used", filePath) }),
+    ...(record.model === undefined ? {} : { model: requireNullableString(record, "model", filePath) }),
+    ...(record.cost_usd === undefined ? {} : { cost_usd: record.cost_usd === null ? null : requireNumber(record, "cost_usd", filePath) }),
+    ...(record.usage_source === undefined ? {} : { usage_source: requireNullableString(record, "usage_source", filePath) as AuditNoteFrontmatter["usage_source"] }),
     created_at: requireTimestamp(record, "created_at", filePath),
   } satisfies AuditNoteFrontmatter;
 
@@ -600,7 +630,40 @@ async function readCollection<TFrontmatter extends VaultFrontmatter>(
   return documents.filter((document): document is VaultDocument<TFrontmatter> => document !== null);
 }
 
+async function readProjectScopedAgents(vaultRoot: string): Promise<ReadonlyArray<VaultDocument<AgentFrontmatter>>> {
+  const projectsDir = join(vaultRoot, VAULT_COLLECTION_DIRECTORIES.projects);
+  let projectEntries: ReadonlyArray<Dirent> = [];
+  try {
+    projectEntries = await readdir(projectsDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const results: VaultDocument<AgentFrontmatter>[] = [];
+  for (const entry of projectEntries) {
+    if (!entry.isDirectory()) continue;
+    const agentsDir = join(projectsDir, entry.name, "agents");
+    let agentFiles: ReadonlyArray<Dirent> = [];
+    try {
+      agentFiles = await readdir(agentsDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    const mdFiles = agentFiles
+      .filter((f) => f.isFile() && f.name.endsWith(".md"))
+      .map((f) => join(agentsDir, f.name))
+      .sort(compareText);
+    const docs = await Promise.all(mdFiles.map((fp) => readVaultDocument(vaultRoot, fp, parseAgentFrontmatter)));
+    results.push(...docs.filter((d): d is VaultDocument<AgentFrontmatter> => d !== null));
+  }
+  return results;
+}
+
 export async function readSharedVaultCollections(vaultRoot: string): Promise<VaultReadCollections> {
+  const [globalAgents, projectAgents] = await Promise.all([
+    readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.agents, parseAgentFrontmatter),
+    readProjectScopedAgents(vaultRoot),
+  ]);
   return {
     workspaces: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.workspaces, parseWorkspaceFrontmatter),
     projects: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.projects, parseProjectFrontmatter),
@@ -611,10 +674,17 @@ export async function readSharedVaultCollections(vaultRoot: string): Promise<Vau
     docs: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.docs, parseDocFrontmatter),
     approvals: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.approvals, parseApprovalFrontmatter),
     auditNotes: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.auditNotes, parseAuditNoteFrontmatter),
-    agents: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.agents, parseAgentFrontmatter),
+    agents: [...globalAgents, ...projectAgents],
+    coordinatorThreads: await readCollection(vaultRoot, VAULT_COLLECTION_DIRECTORIES.coordinatorThreads, parseCoordinatorThreadFrontmatter),
   };
 }
 
 export async function readCanonicalVaultReadModel(vaultRoot: string, now: Date = new Date()): Promise<VaultReadModel> {
-  return buildVaultReadModel(await readSharedVaultCollections(vaultRoot), now);
+  await cleanupStaleAgentTaskSessionRecords(vaultRoot, now)
+  const activeTaskSessions = new Map(
+    (await listAgentTaskSessionRecords(vaultRoot))
+      .filter((entry) => entry.status === "active")
+      .map((entry) => [entry.taskId, { sessionId: entry.sessionId, status: entry.status }] as const),
+  )
+  return buildVaultReadModel(await readSharedVaultCollections(vaultRoot), now, activeTaskSessions);
 }

@@ -92,6 +92,54 @@ async function createVaultRoot(): Promise<string> {
     ].join("\n"),
   );
 
+  await writeVaultDocument(
+    root,
+    "vault/shared/agents/agent-backend-dev.md",
+    [
+      'id: "agent-backend-dev"',
+      'type: "agent"',
+      'workspace_id: "ws-alpha"',
+      'name: "Backend Dev"',
+      'role: "implementation"',
+      'roles: ["implementation"]',
+      'provider: "openai"',
+      'model: "gpt-5.4"',
+      'capabilities: ["write-code", "run-tests"]',
+      'task_types_accepted: ["bug-fix", "feature-implementation", "backend"]',
+      'approval_required_for: []',
+      'cannot_do: []',
+      'accessible_by: []',
+      'skill_file: "skills/backend.md"',
+      'status: "available"',
+      'created_at: 2026-04-14T10:00:00Z',
+      'updated_at: 2026-04-14T10:00:00Z',
+    ].join("\n"),
+  );
+
+  await writeVaultDocument(
+    root,
+    "vault/shared/agents/agent-frontend-dev.md",
+    [
+      'id: "agent-frontend-dev"',
+      'type: "agent"',
+      'workspace_id: "ws-alpha"',
+      'name: "Frontend Dev"',
+      'role: "implementation"',
+      'roles: ["implementation"]',
+      'provider: "openai"',
+      'model: "gpt-5.4"',
+      'capabilities: ["design-ui"]',
+      'task_types_accepted: ["frontend", "documentation"]',
+      'approval_required_for: []',
+      'cannot_do: []',
+      'accessible_by: []',
+      'skill_file: "skills/frontend.md"',
+      'status: "available"',
+      'created_at: 2026-04-14T10:00:00Z',
+      'updated_at: 2026-04-14T10:00:00Z',
+    ].join("\n"),
+  );
+
   return root;
 }
 
@@ -169,14 +217,14 @@ describe("createVaultTask", () => {
     await writeWebhookSettingsFile(root);
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;
-    globalThis.fetch = async (_url: string, init?: RequestInit) => {
+    globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls += 1;
       expect(init?.headers).toMatchObject({
         "x-relayhq-event": "task.created",
       });
       expect(String(init?.body)).toContain("[RelayHQ] task.created • Ship project create flow");
       return new Response(null, { status: 200 });
-    };
+    }) as typeof fetch;
 
     try {
       const now = new Date("2026-04-16T10:00:00Z");
@@ -218,10 +266,136 @@ describe("createVaultTask", () => {
           assignee: "agent-backend-dev",
           vaultRoot: root,
         }),
-      ).rejects.toEqual(expect.objectContaining<TaskCreateError>({ statusCode: 400 }));
+      ).rejects.toEqual(expect.objectContaining({ statusCode: 400 }));
 
       const model = await readCanonicalVaultReadModel(root);
       expect(model.tasks).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto-assigns to the best matching available agent from tags when assignee is omitted", async () => {
+    const root = await createVaultRoot();
+
+    try {
+      const result = await createVaultTask({
+        title: "Fix backend dispatch regression",
+        projectId: "project-alpha",
+        boardId: "board-alpha",
+        columnId: "todo",
+        priority: "high",
+        tags: ["bug-fix", "backend"],
+        vaultRoot: root,
+      });
+
+      expect(result.frontmatter.assignee).toBe("agent-backend-dev");
+      expect(result.frontmatter.dispatch_status).toBe("checking");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps task unassigned when no agent matches the routing tags", async () => {
+    const root = await createVaultRoot();
+
+    try {
+      const result = await createVaultTask({
+        title: "Handle legal review workflow",
+        projectId: "project-alpha",
+        boardId: "board-alpha",
+        columnId: "todo",
+        priority: "high",
+        tags: ["legal", "compliance"],
+        vaultRoot: root,
+      });
+
+      expect(result.frontmatter.assignee).toBe("unassigned");
+      expect(result.frontmatter.dispatch_status).toBe("idle");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("prefers the less loaded matching agent when multiple agents can handle the task", async () => {
+    const root = await createVaultRoot();
+    await writeVaultDocument(
+      root,
+      "vault/shared/agents/agent-backend-dev-b.md",
+      [
+        'id: "agent-backend-dev-b"',
+        'type: "agent"',
+        'workspace_id: "ws-alpha"',
+        'name: "Backend Dev B"',
+        'role: "implementation"',
+        'roles: ["implementation"]',
+        'provider: "openai"',
+        'model: "gpt-5.4"',
+        'capabilities: ["write-code", "run-tests"]',
+        'task_types_accepted: ["bug-fix", "feature-implementation", "backend"]',
+        'approval_required_for: []',
+        'cannot_do: []',
+        'accessible_by: []',
+        'skill_file: "skills/backend.md"',
+        'status: "available"',
+        'created_at: 2026-04-14T10:00:00Z',
+        'updated_at: 2026-04-14T10:00:00Z',
+      ].join("\n"),
+    );
+    await writeVaultDocument(
+      root,
+      "vault/shared/tasks/task-existing.md",
+      [
+        'id: "task-existing"',
+        'type: "task"',
+        'version: 1',
+        'workspace_id: "ws-alpha"',
+        'project_id: "project-alpha"',
+        'board_id: "board-alpha"',
+        'column: "in-progress"',
+        'status: "in-progress"',
+        'priority: "high"',
+        'title: "Existing backend work"',
+        'assignee: "agent-backend-dev"',
+        'created_by: "@relayhq-web"',
+        'created_at: 2099-04-14T10:00:00Z',
+        'updated_at: 2099-04-14T10:00:00Z',
+        'heartbeat_at: 2099-04-14T10:02:00Z',
+        'execution_started_at: 2099-04-14T10:00:00Z',
+        'execution_notes: null',
+        'progress: 10',
+        'approval_needed: false',
+        'approval_requested_by: null',
+        'approval_reason: null',
+        'approved_by: null',
+        'approved_at: null',
+        'approval_outcome: "pending"',
+        'blocked_reason: null',
+        'blocked_since: null',
+        'result: null',
+        'completed_at: null',
+        'parent_task_id: null',
+        'depends_on: []',
+        'tags: ["bug-fix", "backend"]',
+        'links: []',
+        'locked_by: "agent-backend-dev"',
+        'locked_at: 2099-04-14T10:00:00Z',
+        'lock_expires_at: 2099-04-14T10:05:00Z',
+      ].join("\n"),
+    );
+
+    try {
+      const result = await createVaultTask({
+        title: "Another backend bug",
+        projectId: "project-alpha",
+        boardId: "board-alpha",
+        columnId: "todo",
+        priority: "high",
+        tags: ["bug-fix", "backend"],
+        vaultRoot: root,
+      });
+
+      expect(result.frontmatter.assignee).toBe("agent-backend-dev-b");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

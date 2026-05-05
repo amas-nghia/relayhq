@@ -1,6 +1,6 @@
 import { MessageSquare, Pencil, Square, X } from 'lucide-react'
 import clsx from 'clsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { relayhqApi, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AgentStateResponse } from '../api/client'
 import { useAppStore } from '../store/appStore'
@@ -12,59 +12,36 @@ import { useNavigate } from 'react-router-dom'
 import { AgentSetupWizard } from '../components/layout/AgentSetupWizard'
 import { RuntimeTruthBadges, RuntimeTruthMessage } from '../components/agent/RuntimeTruth'
 
-const SPRITE_OPTIONS = [
-  '/assets/sprites/girl_cyber_demon_dual_scythe_1.png',
-  '/assets/sprites/girl_cyber_demon_scythe_1.png',
-  '/assets/sprites/girl_cyber_demon_scythe_2.png',
-  '/assets/sprites/girl_cyber_demon_scythe_3.png',
-  '/assets/sprites/girl_cyber_demon_scythe_4.png',
-  '/assets/sprites/girl_cyber_demon_scythe_5.png',
-  '/assets/sprites/girl_cyber_demon_scythe_6.png',
-  '/assets/sprites/girl_cyber_demon_scythe_7.png',
-  '/assets/sprites/girl_cyber_demon_scythe_8.png',
-  '/assets/sprites/girl_cyber_demon_scythe_9.png',
-] as const
-
-const PORTRAIT_OPTIONS = [
-  '/assets/portraits/adventurer_silver_girl_1.png',
-  '/assets/portraits/angel_blonde_girl_1.png',
-  '/assets/portraits/bunny_blue_girl_1.png',
-  '/assets/portraits/bunny_blue_girl_2.png',
-  '/assets/portraits/bunny_white_girl_1.png',
-  '/assets/portraits/bunny_white_girl_2.png',
-  '/assets/portraits/bunny_white_girl_3.png',
-  '/assets/portraits/bunny_white_girl_4.png',
-  '/assets/portraits/bunny_white_girl_5.png',
-  '/assets/portraits/bunny_white_girl_6.png',
-] as const
-
 const RUNTIME_OPTIONS = [
   { id: 'opencode', label: 'OpenCode' },
   { id: 'claude-code', label: 'Claude Code' },
   { id: 'codex', label: 'Codex' },
 ] as const
 
+const PROVIDERS = [
+  { id: 'anthropic', label: 'Anthropic', envVar: 'ANTHROPIC_API_KEY' },
+  { id: 'openai', label: 'OpenAI', envVar: 'OPENAI_API_KEY' },
+  { id: 'google', label: 'Google', envVar: 'GOOGLE_API_KEY' },
+  { id: 'openrouter', label: 'OpenRouter', envVar: 'OPENROUTER_API_KEY' },
+] as const
+
+const MODELS_BY_PROVIDER: Record<string, ReadonlyArray<string>> = {
+  anthropic: ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'],
+  openai: ['gpt-5.5-pro', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-4-turbo'],
+  google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+  openrouter: ['meta-llama/llama-3.1-70b-instruct', 'mistralai/mistral-large', 'qwen/qwen-2.5-72b-instruct'],
+}
+
 export function AgentsView() {
-  const agents = useAppStore(state => state.agents)
+  const agents = useAppStore(state => state.agents).filter(agent => agent.role !== 'coordinator' && !(agent.roles ?? []).includes('coordinator'))
   const tasks = useAppStore(state => state.tasks)
   const projects = useAppStore(state => state.projects)
+  const settings = useAppStore(state => state.settings)
   const navigate = useNavigate()
   const loadData = useAppStore(state => state.loadData)
   const activeAgents = agents.filter(a => a.state !== 'idle')
   const idleAgents = agents.filter(a => a.state === 'idle')
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
-  const [agentName, setAgentName] = useState('')
-  const [accountId, setAccountId] = useState('')
-  const [apiKeyRef, setApiKeyRef] = useState('')
-  const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState('')
-  const [runMode, setRunMode] = useState<'manual' | 'subprocess' | 'webhook'>('manual')
-  const [runCommand, setRunCommand] = useState('')
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [aliases, setAliases] = useState('')
-  const [capabilities, setCapabilities] = useState('')
-  const [approvalRequiredFor, setApprovalRequiredFor] = useState('')
-  const [spriteAsset, setSpriteAsset] = useState('')
-  const [portraitAsset, setPortraitAsset] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null)
   const [selectedInboxAgentId, setSelectedInboxAgentId] = useState<string | null>(null)
@@ -84,7 +61,7 @@ export function AgentsView() {
   const [newAgentRole, setNewAgentRole] = useState('implementation')
   const [newAgentProvider, setNewAgentProvider] = useState('claude')
   const [newAgentModel, setNewAgentModel] = useState('claude-sonnet-4-6')
-  const [newAgentRunMode, setNewAgentRunMode] = useState<'manual' | 'subprocess' | 'webhook'>('manual')
+  const [newAgentRunMode, setNewAgentRunMode] = useState<'subprocess' | 'webhook'>('subprocess')
   const [newAgentRunCommand, setNewAgentRunCommand] = useState('')
   const [newAgentWebhookUrl, setNewAgentWebhookUrl] = useState('')
   const [newAgentAliases, setNewAgentAliases] = useState('')
@@ -92,8 +69,6 @@ export function AgentsView() {
   const [newAgentApprovalRequiredFor, setNewAgentApprovalRequiredFor] = useState('')
   const [newAgentAccountId, setNewAgentAccountId] = useState('')
   const [newAgentApiKeyRef, setNewAgentApiKeyRef] = useState('')
-
-  const editingAgent = agents.find(agent => agent.id === editingAgentId) ?? null
 
   function getInboxCount(agentId: string) {
     return agentStates[agentId]?.inbox.length ?? tasks.filter(task => task.assigneeId === agentId && task.status === 'todo').length
@@ -186,6 +161,9 @@ export function AgentsView() {
         await loadSessionEvents(resumedSessions[0].sessionId)
         return resumedSessions[0]
       }
+      return null
+    } catch (error) {
+      setRunNowNotice(error instanceof Error ? error.message : `Unable to start agent ${agentId}.`)
       return null
     } finally {
       setRunningAgentId(null)
@@ -298,7 +276,7 @@ export function AgentsView() {
     setNewAgentRole('implementation')
     setNewAgentProvider('claude')
     setNewAgentModel('claude-sonnet-4-6')
-    setNewAgentRunMode('manual')
+    setNewAgentRunMode('subprocess')
     setNewAgentRunCommand('')
     setNewAgentWebhookUrl('')
     setNewAgentAliases('')
@@ -312,18 +290,6 @@ export function AgentsView() {
     const agent = agents.find(entry => entry.id === agentId)
     if (!agent) return
     setEditingAgentId(agentId)
-    setAgentName(agent.name)
-    setAccountId(agent.accountId ?? '')
-    setApiKeyRef(agent.apiKeyRef ?? '')
-    setMonthlyBudgetUsd(agent.monthlyBudgetUsd != null ? String(agent.monthlyBudgetUsd) : '')
-    setRunMode((agent.runMode as 'manual' | 'subprocess' | 'webhook' | null) ?? 'manual')
-    setRunCommand(agent.runCommand ?? '')
-    setWebhookUrl(agent.webhookUrl ?? '')
-    setAliases((agent.aliases ?? []).join('\n'))
-    setCapabilities((agent.capabilities ?? []).join('\n'))
-    setApprovalRequiredFor((agent.approvalRequiredFor ?? []).join('\n'))
-    setSpriteAsset(agent.spriteAsset ?? '')
-    setPortraitAsset(agent.portraitAsset ?? '')
   }
 
   async function runInboxTask(agentId: string) {
@@ -379,46 +345,7 @@ export function AgentsView() {
     }
   }
 
-  async function saveAgent() {
-    if (!editingAgentId) return
-    setIsSaving(true)
-    try {
-      await relayhqApi.patchAgent(editingAgentId, {
-          patch: {
-            name: agentName,
-            account_id: accountId || undefined,
-            api_key_ref: apiKeyRef || undefined,
-            portrait_asset: portraitAsset || undefined,
-            sprite_asset: spriteAsset || undefined,
-            monthly_budget_usd: monthlyBudgetUsd.trim().length > 0 ? Number(monthlyBudgetUsd) : undefined,
-            run_command: runCommand.trim().length > 0 ? runCommand.trim() : undefined,
-            run_mode: runMode,
-            webhook_url: webhookUrl.trim().length > 0 ? webhookUrl.trim() : undefined,
-            aliases: aliases.split(/\r?\n|,/).map(line => line.trim()).filter(Boolean),
-          capabilities: capabilities.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
-          approval_required_for: approvalRequiredFor.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
-        },
-      })
-      await loadData()
-      setEditingAgentId(null)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  async function deleteAgent() {
-    if (!editingAgentId) return
-    if (!window.confirm(`Delete agent ${editingAgent?.name ?? editingAgentId}?`)) return
-
-    setIsSaving(true)
-    try {
-      await relayhqApi.deleteAgent(editingAgentId)
-      await loadData()
-      setEditingAgentId(null)
-    } finally {
-      setIsSaving(false)
-    }
-  }
+  const editingAgentRecord = agents.find(agent => agent.id === editingAgentId) ?? null
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6">
@@ -440,11 +367,28 @@ export function AgentsView() {
       </div>
 
       <div className="flex flex-col gap-6">
+        {settings?.runtimeCapacity ? (
+          <div className="rounded-xl border border-border bg-surface-secondary p-4 text-sm text-text-secondary">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Workspace runtime capacity</div>
+                <div className="mt-1 text-base font-semibold text-text-primary">
+                  {settings.runtimeCapacity.activeRuntimeInstances} active / {settings.runtimeCapacity.maxConcurrentRuntimeInstances} slots
+                </div>
+              </div>
+              <div className="text-right text-xs text-text-tertiary">
+                <div>{settings.runtimeCapacity.availableRuntimeSlots} slots free</div>
+                <div>{settings.runtimeCapacity.capacityBlockedTaskCount} tasks waiting on capacity</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {agents.map(agent => {
             const task = getCurrentTask(agent.id)
             const inboxCount = getInboxCount(agent.id)
-            const runModeLabel = agent.runMode ?? 'manual'
+            const runModeLabel = agent.runMode ?? 'subprocess'
             const readiness = runtimeReadiness[agent.id]
             const sessions = sessionsByAgent[agent.id] ?? []
             const latestSession = sessions[0] ?? null
@@ -496,7 +440,7 @@ export function AgentsView() {
                   <div className="mt-4 text-sm text-text-tertiary">No current task.</div>
                 )}
 
-                <div className="mt-4 rounded-xl border border-border bg-surface-secondary p-3 text-xs text-text-secondary">
+                <div className="mt-4 border-t border-border pt-3 text-xs text-text-secondary">
                   <div className="flex items-center justify-between gap-3">
                     <span>Runtime</span>
                     <span className="font-medium text-text-primary">{readiness?.runtimeKind ?? agent.runtimeKind ?? runModeLabel}</span>
@@ -551,134 +495,7 @@ export function AgentsView() {
 
       </div>
 
-      {editingAgent && (
-        <Dialog open>
-          <DialogOverlay onClick={() => setEditingAgentId(null)} />
-          <DialogContent>
-            <DialogPanel className="max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>Edit agent</DialogTitle>
-                <Button variant="ghost" size="icon" onClick={() => setEditingAgentId(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogHeader>
-              <DialogBody>
-                <div className="flex flex-col gap-5">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Sprite</div>
-                      <div className="flex items-start gap-3">
-                        <div className="flex flex-col items-center gap-1.5 border border-border bg-surface-secondary p-2 lcd-card">
-                          {spriteAsset ? (
-                            <img src={spriteAsset} alt="Selected sprite" className="h-24 w-24 object-contain" style={{ imageRendering: 'pixelated' }} />
-                          ) : (
-                            <div className="flex h-24 w-24 items-center justify-center text-[10px] text-text-tertiary">No sprite</div>
-                          )}
-                        </div>
-                        <div className="grid flex-1 grid-cols-5 gap-2">
-                          {SPRITE_OPTIONS.map(option => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => setSpriteAsset(option)}
-                              className={`border p-1 transition-transform lcd-card ${spriteAsset === option ? 'border-brand bg-brand-muted scale-[1.03]' : 'border-border bg-surface hover:border-brand/40'}`}
-                            >
-                              <img src={option} alt="Sprite option" className="h-12 w-full object-contain" style={{ imageRendering: 'pixelated' }} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Portrait</div>
-                      <div className="flex items-start gap-3">
-                        <div className="flex flex-col items-center gap-1.5 border border-border bg-surface-secondary p-2 lcd-card">
-                          {portraitAsset ? (
-                            <img src={portraitAsset} alt="Selected portrait" className="h-14 w-14 object-cover" style={{ imageRendering: 'pixelated' }} />
-                          ) : (
-                            <div className="flex h-14 w-14 items-center justify-center text-[10px] text-text-tertiary">No portrait</div>
-                          )}
-                        </div>
-                        <div className="grid flex-1 grid-cols-5 gap-2">
-                          {PORTRAIT_OPTIONS.map(option => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => setPortraitAsset(option)}
-                              className={`border p-1 transition-transform lcd-card ${portraitAsset === option ? 'border-brand bg-brand-muted scale-[1.03]' : 'border-border bg-surface hover:border-brand/40'}`}
-                            >
-                              <img src={option} alt="Portrait option" className="h-12 w-full object-cover" style={{ imageRendering: 'pixelated' }} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Name
-                    <Input value={agentName} onChange={event => setAgentName(event.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Account id
-                    <Input value={accountId} onChange={event => setAccountId(event.target.value)} placeholder="codex-account-1" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    API key ref
-                    <Input value={apiKeyRef} onChange={event => setApiKeyRef(event.target.value)} placeholder="env:OPENAI_API_KEY_ACCOUNT_1" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Monthly budget USD
-                    <Input value={monthlyBudgetUsd} onChange={event => setMonthlyBudgetUsd(event.target.value)} placeholder="25" />
-                  </label>
-                  <div className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Run mode
-                    <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                      {(['manual', 'subprocess', 'webhook'] as const).map(mode => (
-                        <button key={mode} type="button" onClick={() => setRunMode(mode)} className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${runMode === mode ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}>
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Run command
-                    <Input value={runCommand} onChange={event => setRunCommand(event.target.value)} placeholder="bun run ./cli/relayhq.ts run --taskId={taskId}" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Webhook URL
-                    <Input value={webhookUrl} onChange={event => setWebhookUrl(event.target.value)} placeholder="https://example.com/webhook" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Aliases
-                    <Textarea value={aliases} onChange={event => setAliases(event.target.value)} rows={2} placeholder="claude-operator, coder" />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Capabilities
-                    <Textarea value={capabilities} onChange={event => setCapabilities(event.target.value)} rows={4} />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">
-                    Approval required for
-                    <Textarea value={approvalRequiredFor} onChange={event => setApprovalRequiredFor(event.target.value)} rows={3} />
-                  </label>
-                  <div className="flex flex-wrap justify-between gap-2 pt-2">
-                    <Button type="button" variant="danger" onClick={() => void deleteAgent()} disabled={isSaving}>
-                      Delete
-                    </Button>
-                    <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setEditingAgentId(null)}>Cancel</Button>
-                    <Button type="button" onClick={() => void saveAgent()} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save'}</Button>
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              </DialogBody>
-            </DialogPanel>
-          </DialogContent>
-        </Dialog>
-      )}
+      {editingAgentRecord ? <AgentSetupWizard open mode="edit" initialAgent={editingAgentRecord} onClose={() => setEditingAgentId(null)} /> : null}
 
       {selectedChatAgentId && (() => {
         const agent = agents.find(entry => entry.id === selectedChatAgentId) ?? null
@@ -698,13 +515,13 @@ export function AgentsView() {
               : 'Send a follow-up instruction to the agent session'
 
         return (
-          <Dialog open>
+          <Dialog open onOpenChange={(open) => { if (!open) setSelectedChatAgentId(null) }}>
             <DialogOverlay onClick={() => setSelectedChatAgentId(null)} />
             <DialogContent>
               <DialogPanel className="max-w-4xl">
                 <DialogHeader>
                   <DialogTitle>{agent?.name ?? selectedChatAgentId} · Agent Chat</DialogTitle>
-                  <Button variant="ghost" size="icon" onClick={() => setSelectedChatAgentId(null)}>
+                  <Button variant="ghost" size="icon" aria-label="Close agent chat dialog" onClick={() => setSelectedChatAgentId(null)}>
                     <X className="h-4 w-4" />
                   </Button>
                 </DialogHeader>
@@ -748,7 +565,7 @@ export function AgentsView() {
                       </div>
                       <div className="border-t border-border p-4">
                         <div className="flex gap-2">
-                        <Input value={draft} onChange={(event) => setMessageDrafts(current => ({ ...current, [selectedChatAgentId]: event.target.value }))} placeholder={chatPlaceholder} disabled={!(latestSession?.launchSurface === 'background' && latestSession?.status === 'running')} />
+                        <Input aria-label={`Message ${agent?.name ?? selectedChatAgentId}`} value={draft} onChange={(event) => setMessageDrafts(current => ({ ...current, [selectedChatAgentId]: event.target.value }))} placeholder={chatPlaceholder} disabled={!(latestSession?.launchSurface === 'background' && latestSession?.status === 'running')} />
                         <Button type="button" onClick={() => void sendSessionMessage(selectedChatAgentId)} disabled={runningAgentId === selectedChatAgentId || draft.trim().length === 0 || !(latestSession?.launchSurface === 'background' && latestSession?.status === 'running')}>Send</Button>
                       </div>
                       </div>
@@ -764,13 +581,13 @@ export function AgentsView() {
       <AgentSetupWizard open={isNewAgentOpen} onClose={() => setIsNewAgentOpen(false)} />
 
       {false && isNewAgentOpen && (
-        <Dialog open>
+        <Dialog open onOpenChange={(open) => { if (!open) setIsNewAgentOpen(false) }}>
           <DialogOverlay onClick={() => setIsNewAgentOpen(false)} />
           <DialogContent>
             <DialogPanel className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>New agent</DialogTitle>
-                <Button variant="ghost" size="icon" onClick={() => setIsNewAgentOpen(false)}>
+                <Button variant="ghost" size="icon" aria-label="Close new agent dialog" onClick={() => setIsNewAgentOpen(false)}>
                   <X className="h-4 w-4" />
                 </Button>
               </DialogHeader>
@@ -796,7 +613,7 @@ export function AgentsView() {
                   <div className="flex flex-col gap-1.5 text-sm text-text-secondary md:col-span-2">
                     Run mode
                     <div className="flex gap-2 rounded-xl border border-border bg-surface-secondary p-1">
-                      {(['manual', 'subprocess', 'webhook'] as const).map(mode => (
+                      {(['subprocess', 'webhook'] as const).map(mode => (
                         <button key={mode} type="button" onClick={() => setNewAgentRunMode(mode)} className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${newAgentRunMode === mode ? 'bg-surface text-accent shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}>
                           {mode}
                         </button>
@@ -836,7 +653,7 @@ export function AgentsView() {
                 <div className="mt-4 flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setIsNewAgentOpen(false)}>Cancel</Button>
                   <Button type="button" onClick={() => void saveNewAgent()} disabled={isSaving || newAgentName.trim().length === 0}>
-                    {isSaving ? 'Saving...' : 'Create'}
+                    {isSaving ? 'Saving…' : 'Create'}
                   </Button>
                 </div>
               </DialogBody>

@@ -71,7 +71,7 @@ function createReadModelTask(overrides: Partial<ReadModelTask> = {}): ReadModelT
     status: task.status,
     priority: task.priority,
     title: task.title,
-    assignee: task.assignee,
+    assignee: task.assignee ?? "",
     createdBy: task.created_by,
     createdAt: task.created_at,
     updatedAt: task.updated_at,
@@ -79,6 +79,10 @@ function createReadModelTask(overrides: Partial<ReadModelTask> = {}): ReadModelT
     executionStartedAt: task.execution_started_at,
     executionNotes: task.execution_notes,
     progress: task.progress,
+    history: [],
+    dispatchStatus: null,
+    dispatchReason: null,
+    lastDispatchAttemptAt: null,
     approvalNeeded: task.approval_needed,
     approvalRequestedBy: task.approval_requested_by,
     approvalReason: task.approval_reason,
@@ -166,6 +170,7 @@ describe("relayhq cli surface", () => {
       updateTaskStatus: async () => ({}),
       sendHeartbeat: async () => ({}),
       requestApproval: async () => ({}),
+      scheduleTask: async () => ({}),
     };
 
     const result = await executeRelayHQInvocation(client, ["tasks", "--assignee=agent-alpha"], new Date("2026-04-14T12:00:00Z"));
@@ -194,6 +199,7 @@ describe("relayhq cli surface", () => {
         calls.push({ kind: "request-approval", payload });
         return payload;
       },
+      scheduleTask: async (payload) => payload,
     };
 
     await executeRelayHQInvocation(client, ["claim", "task-001", "--assignee=agent-alpha"], new Date("2026-04-14T12:00:00Z"));
@@ -215,6 +221,7 @@ describe("relayhq cli surface", () => {
       updateTaskStatus: async () => ({}),
       sendHeartbeat: async () => ({}),
       requestApproval: async () => ({}),
+      scheduleTask: async () => ({}),
     };
 
     await expect(executeRelayHQInvocation(client, ["update", "task-001", "--assignee=agent-alpha", "--status=not-a-status"])).rejects.toThrow(
@@ -244,8 +251,10 @@ describe("relayhq cli surface", () => {
       projects: [],
       boards: [],
       columns: [],
+      issues: [],
       approvals: [],
       auditNotes: [],
+      docs: [],
       agents: [],
       tasks: [
         createReadModelTask({ id: "task-002", assignee: "agent-alpha", title: "Ready task" }),

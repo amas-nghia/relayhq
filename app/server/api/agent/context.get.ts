@@ -43,6 +43,14 @@ export interface AgentContextSkill {
   readonly content: string;
 }
 
+export interface AgentContextCodebrainDoc {
+  readonly id: string;
+  readonly title: string;
+  readonly doc_type: string;
+  readonly path: string;
+  readonly summary: string;
+}
+
 export interface AgentContextResponse {
   readonly vaultRoot?: string;
   readonly workspaceId: string | null;
@@ -53,6 +61,7 @@ export interface AgentContextResponse {
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>;
   readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>;
   readonly relevant_docs: ReadonlyArray<{ taskId: string; docs: ReadonlyArray<{ id: string; title: string; doc_type: string; path: string; summary: string }> }>;
+  readonly codebrain: ReadonlyArray<AgentContextCodebrainDoc>;
   readonly skills: ReadonlyArray<AgentContextSkill>;
   readonly activeSessions: ReadonlyArray<ActiveSession>;
 }
@@ -67,18 +76,93 @@ interface ReadAgentContextDependencies {
   readonly skillDir?: string;
 }
 
+const BOARD_COLUMN_LANES = new Set(["todo", "in-progress", "review", "done"]);
+const CODEBRAIN_DOC_TYPES = new Set(["repo-map", "capability-map"]);
+
+function normalizeColumnLane(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase().replace(/[_\s]+/g, "-") ?? "";
+  return BOARD_COLUMN_LANES.has(normalized) ? normalized : null;
+}
+
+function laneFromColumnName(name: string): string | null {
+  return normalizeColumnLane(name);
+}
+
+function laneFromTaskStatus(status: VaultReadModel["tasks"][number]["status"]): string | null {
+  switch (status) {
+    case "todo":
+      return "todo";
+    case "scheduled":
+      return "todo";
+    case "in-progress":
+      return "in-progress";
+    case "review":
+    case "waiting-approval":
+    case "blocked":
+      return "review";
+    case "done":
+    case "cancelled":
+      return "done";
+    default:
+      return normalizeColumnLane(status);
+  }
+}
+
+function summarizeDoc(body: string) {
+  return body.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+function getCodebrainDocs(readModel: VaultReadModel, task: VaultReadModel["tasks"][number] | null): ReadonlyArray<AgentContextCodebrainDoc> {
+  if (task === null) return [];
+
+  return readModel.docs
+    .filter((doc) => doc.projectId === task.projectId)
+    .filter((doc) => CODEBRAIN_DOC_TYPES.has(doc.docType))
+    .map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      doc_type: doc.docType,
+      path: doc.sourcePath,
+      summary: summarizeDoc(doc.body),
+      score: (doc.docType === "repo-map" ? 30 : 20) + doc.tags.filter((tag) => task.tags.includes(tag)).length * 10,
+    }))
+    .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title))
+    .slice(0, 3)
+    .map(({ score: _score, ...doc }) => doc);
+}
+
 function toAgentContextResponse(
   readModel: VaultReadModel,
   activeSessions: ReadonlyArray<ActiveSession>,
   agentId: string | null,
   skills: ReadonlyArray<InstalledSkill>,
+  codebrain: ReadonlyArray<AgentContextCodebrainDoc>,
 ): AgentContextResponse {
   const workspace = readModel.workspaces[0] ?? null;
   const tasksByColumnId = new Map<string, number>();
   const exposedVaultRoot = readExposedVaultRoot();
+  const columnsById = new Map(readModel.columns.map((column) => [column.id, column] as const));
+  const boardColumnIdsByLane = new Map<string, string>();
+
+  for (const column of readModel.columns) {
+    const lane = laneFromColumnName(column.name) ?? normalizeColumnLane(column.id);
+    if (lane !== null && !boardColumnIdsByLane.has(`${column.boardId}:${lane}`)) {
+      boardColumnIdsByLane.set(`${column.boardId}:${lane}`, column.id);
+    }
+  }
 
   for (const task of readModel.tasks) {
-    tasksByColumnId.set(task.columnId, (tasksByColumnId.get(task.columnId) ?? 0) + 1);
+    const directColumn = columnsById.get(task.columnId);
+    const mappedColumnId = directColumn?.boardId === task.boardId
+      ? directColumn.id
+      : (() => {
+          const lane = laneFromTaskStatus(task.status) ?? normalizeColumnLane(task.columnId);
+          return lane === null ? null : boardColumnIdsByLane.get(`${task.boardId}:${lane}`) ?? null;
+        })();
+
+    if (mappedColumnId !== null) {
+      tasksByColumnId.set(mappedColumnId, (tasksByColumnId.get(mappedColumnId) ?? 0) + 1);
+    }
   }
 
   return {
@@ -109,6 +193,7 @@ function toAgentContextResponse(
         taskId: task.id,
         docs: getRelevantDocsForTask(readModel, task, { agentId: task.assignee }),
       })),
+    codebrain,
     skills: skills.map((skill) => ({
       name: skill.name,
       version: skill.version,
@@ -169,12 +254,19 @@ export async function readAgentContext(
   const selectedTask = options.taskId === undefined || options.taskId === null
     ? null
     : filteredReadModel.tasks.find((task) => task.id === options.taskId) ?? null;
-  const agentSkillFiles = options.agentId === null || options.agentId === undefined
-    ? []
-    : filteredReadModel.agents.find((agent) => agent.id === options.agentId)?.skillFiles ?? [];
-  const matchedSkills = matchInstalledSkills({ skills: installedSkills, task: selectedTask, agentSkillFiles });
+  const agentRecord = options.agentId === null || options.agentId === undefined
+    ? null
+    : filteredReadModel.agents.find((agent) => agent.id === options.agentId) ?? null
+  const matchedSkills = matchInstalledSkills({
+    skills: installedSkills,
+    task: selectedTask,
+    agentPrimarySkillFile: agentRecord?.skillFile ?? null,
+    agentSkillFiles: agentRecord?.skillFiles ?? [],
+  });
 
-  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now), options.agentId ?? null, matchedSkills);
+  const codebrain = getCodebrainDocs({ ...filteredReadModel, docs: filteredDocs.allowed }, selectedTask);
+
+  return toAgentContextResponse({ ...filteredReadModel, docs: filteredDocs.allowed }, sessionStore.getActiveSessions(now), options.agentId ?? null, matchedSkills, codebrain);
 }
 
 export default defineEventHandler(async (event) => {

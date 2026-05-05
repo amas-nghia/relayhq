@@ -183,6 +183,221 @@ body::after {
   z-index: 199;
 }
 
+[data-theme='papernote'] {
+  color-scheme: light;
+  --brand: #6f4e37;
+  --brand-bright: #3d2c20;
+  --brand-light: rgba(111, 78, 55, 0.14);
+  --brand-dark: #8f6b53;
+  --brand-muted: rgba(111, 78, 55, 0.1);
+  --surface: #f4efe4;
+  --surface-secondary: #ece3d3;
+  --surface-sidebar: #e4d7c3;
+  --border: #c4b39d;
+  --text-primary: #2f241d;
+  --text-secondary: #5c4b3f;
+  --text-tertiary: #8f7b69;
+  --status-active: #8f6b53;
+  --status-waiting: #c28b43;
+  --status-blocked: #b15e4e;
+  --status-done: #56745d;
+  --status-todo: #9a8c7c;
+}
+
+[data-theme='papernote'] body {
+  background:
+    linear-gradient(180deg, #fbf7ef 0%, #f4efe4 100%),
+    #f4efe4;
+  background-size: 100% 100%;
+  background-position: 0 0;
+}
+
+[data-theme='papernote'] body::before {
+  background: none;
+}
+
+[data-theme='papernote'] body::after {
+  background: none;
+}
+
+[data-theme='papernote'] .lcd-button {
+  box-shadow: 4px 4px 0 rgba(196, 179, 157, 0.95);
+}
+
+[data-theme='papernote'] .lcd-button:hover,
+[data-theme='papernote'] .lcd-button:focus-visible {
+  box-shadow:
+    3px 3px 0 rgba(196, 179, 157, 0.95),
+    0 0 0 1px rgba(111, 78, 55, 0.12);
+  background: rgba(111, 78, 55, 0.06);
+  color: var(--brand-bright);
+  border-color: var(--brand);
+}
+
+[data-theme='papernote'] .lcd-card {
+  box-shadow:
+    6px 6px 0 rgba(196, 179, 157, 0.9),
+    0 0 0 1px rgba(111, 78, 55, 0.12) inset,
+    0 0 18px rgba(111, 78, 55, 0.05);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 26%, transparent 74%, rgba(111, 78, 55, 0.04));
+}
+
+[data-theme='papernote'] .lcd-card:hover {
+  box-shadow:
+    8px 8px 0 rgba(196, 179, 157, 0.98),
+    0 0 0 1px rgba(111, 78, 55, 0.16) inset,
+    0 0 20px rgba(111, 78, 55, 0.08);
+}
+
+[data-theme='papernote'] .desktop-surface {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 78, 55, 0.08),
+    inset 0 0 24px rgba(111, 78, 55, 0.04);
+  background-image:
+    linear-gradient(rgba(111, 78, 55, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(111, 78, 55, 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, #fbf7ef 0%, #f4efe4 100%);
+  background-size: 28px 28px, 28px 28px, 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+[data-theme='papernote'] .gallery-item:hover {
+  box-shadow:
+    6px 6px 0 rgba(196, 179, 157, 0.9),
+    0 0 0 1px rgba(111, 78, 55, 0.12) inset,
+    0 0 16px rgba(111, 78, 55, 0.05);
+}
+
+[data-theme='papernote'] .board-card {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 24%, transparent 72%, rgba(111, 78, 55, 0.04));
+}
+
+[data-theme='papernote'] .lane-scroll {
+  scrollbar-color: rgba(111, 78, 55, 0.4) transparent;
+}
+
+[data-theme='papernote'] .lane-scroll::-webkit-scrollbar-thumb {
+  background: rgba(111, 78, 55, 0.4);
+  background-clip: padding-box;
+}
+
+[data-theme='papernote'] .lane-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(111, 78, 55, 0.55);
+  background-clip: padding-box;
+}
+
+[data-theme='papernote-dark'] {
+  color-scheme: dark;
+  --brand: #ffffff;
+  --brand-bright: #ffffff;
+  --brand-light: rgba(217, 179, 140, 0.12);
+  --brand-dark: #b88963;
+  --brand-muted: rgba(217, 179, 140, 0.08);
+  --surface: #1c1713;
+  --surface-secondary: #241e19;
+  --surface-sidebar: #140f0c;
+  --border: #4a3d33;
+  --text-primary: #ffffff;
+  --text-secondary: #e7e7e7;
+  --text-tertiary: #9f8a79;
+  --status-active: #ffffff;
+  --status-waiting: #d49b55;
+  --status-blocked: #d07b6d;
+  --status-done: #8ab08b;
+  --status-todo: #9a8c7c;
+}
+
+[data-theme='papernote-dark'] body {
+  background:
+    linear-gradient(180deg, #1a1511 0%, #120f0c 100%),
+    radial-gradient(ellipse at center, rgba(217, 179, 140, 0.08) 0%, transparent 70%);
+  background-size: 100% 100%;
+  background-position: 0 0;
+}
+
+[data-theme='papernote-dark'] body::before {
+  background: none;
+}
+
+[data-theme='papernote-dark'] body::after {
+  background: none;
+}
+
+[data-theme='papernote-dark'] .lcd-button {
+  box-shadow: 4px 4px 0 rgba(74, 61, 51, 0.95);
+}
+
+[data-theme='papernote-dark'] .lcd-button:hover,
+[data-theme='papernote-dark'] .lcd-button:focus-visible {
+  box-shadow:
+    3px 3px 0 rgba(74, 61, 51, 0.95),
+    0 0 0 1px rgba(217, 179, 140, 0.12);
+  background: rgba(217, 179, 140, 0.06);
+  color: var(--brand-bright);
+  border-color: var(--brand);
+}
+
+[data-theme='papernote-dark'] .lcd-card {
+  box-shadow:
+    6px 6px 0 rgba(74, 61, 51, 0.9),
+    0 0 0 1px rgba(217, 179, 140, 0.1) inset,
+    0 0 18px rgba(0, 0, 0, 0.18);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 26%, transparent 74%, rgba(217, 179, 140, 0.03));
+}
+
+[data-theme='papernote-dark'] .lcd-card:hover {
+  box-shadow:
+    8px 8px 0 rgba(74, 61, 51, 0.98),
+    0 0 0 1px rgba(217, 179, 140, 0.14) inset,
+    0 0 20px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='papernote-dark'] .desktop-surface {
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 179, 140, 0.08),
+    inset 0 0 24px rgba(0, 0, 0, 0.2);
+  background-image:
+    linear-gradient(rgba(217, 179, 140, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(217, 179, 140, 0.1) 1px, transparent 1px),
+    linear-gradient(180deg, #1a1511 0%, #120f0c 100%);
+  background-size: 28px 28px, 28px 28px, 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+[data-theme='papernote-dark'] .gallery-item:hover {
+  box-shadow:
+    6px 6px 0 rgba(74, 61, 51, 0.9),
+    0 0 0 1px rgba(217, 179, 140, 0.1) inset,
+    0 0 16px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='papernote-dark'] .board-card {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 24%, transparent 72%, rgba(217, 179, 140, 0.03));
+}
+
+[data-theme='papernote-dark'] .lane-scroll {
+  scrollbar-color: rgba(217, 179, 140, 0.35) transparent;
+}
+
+[data-theme='papernote-dark'] .lane-scroll::-webkit-scrollbar-thumb {
+  background: rgba(217, 179, 140, 0.35);
+  background-clip: padding-box;
+}
+
+[data-theme='papernote-dark'] .lane-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 179, 140, 0.5);
+  background-clip: padding-box;
+}
+
+[data-theme='papernote-dark'] .desktop-corner-glow {
+  display: none;
+}
+
+[data-theme='papernote-dark'] main,
+[data-theme='papernote-dark'] nav {
+  animation: none;
+}
+
 main, nav {
   animation: flicker 0.15s infinite;
 }

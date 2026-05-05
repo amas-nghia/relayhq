@@ -13,7 +13,7 @@ export function NewProjectDialog({
 }: {
   open: boolean
   onClose: () => void
-  onCreated: (projectId: string) => Promise<void>
+  onCreated: (projectId: string, boardId: string) => Promise<void>
 }) {
   const [name, setName] = useState('')
   const [codebaseRoot, setCodebaseRoot] = useState('')
@@ -27,7 +27,7 @@ export function NewProjectDialog({
         name,
         codebaseRoot: codebaseRoot.trim().length > 0 ? codebaseRoot.trim() : null,
       })
-      await onCreated(result.project.id)
+      await onCreated(result.project.id, result.board.id)
       setName('')
       setCodebaseRoot('')
       onClose()
@@ -39,7 +39,7 @@ export function NewProjectDialog({
   if (!open) return null
 
   return (
-    <Dialog open>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogOverlay onClick={onClose} />
       <DialogContent>
         <DialogPanel className="max-w-lg">

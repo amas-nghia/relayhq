@@ -1,16 +1,16 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './components/layout/Shell';
 import { Toaster } from './components/ui/toaster';
+import { applyTheme, readStoredTheme } from './lib/theme';
 
 const DesktopView = lazy(async () => ({ default: (await import('./pages/DesktopView')).DesktopView }));
-const WorkspaceView = lazy(async () => ({ default: (await import('./pages/WorkspaceView')).default }));
 const ApprovalsView = lazy(async () => ({ default: (await import('./pages/ApprovalsView')).ApprovalsView }));
 const AgentsView = lazy(async () => ({ default: (await import('./pages/AgentsView')).AgentsView }));
 const DocsView = lazy(async () => ({ default: (await import('./pages/DocsView')).DocsView }));
-const ProjectView = lazy(async () => ({ default: (await import('./pages/ProjectView')).ProjectView }));
 const TaskDetailPage = lazy(async () => ({ default: (await import('./pages/TaskDetailPage')).TaskDetailPage }));
 const AuditView = lazy(async () => ({ default: (await import('./pages/AuditView')).AuditView }));
+const SchedulerView = lazy(async () => ({ default: (await import('./pages/SchedulerView')).SchedulerView }));
 
 function RouteFallback() {
   return (
@@ -21,22 +21,26 @@ function RouteFallback() {
 }
 
 export default function App() {
+  useEffect(() => {
+    applyTheme(readStoredTheme())
+  }, [])
+
   return (
     <BrowserRouter>
       <Toaster />
       <Routes>
-        <Route path="/desktop" element={<Suspense fallback={<RouteFallback />}><DesktopView /></Suspense>} />
+        <Route path="/" element={<Suspense fallback={<RouteFallback />}><DesktopView /></Suspense>} />
+        <Route path="/desktop" element={<Navigate to="/" replace />} />
         <Route element={<Shell />}>
-          <Route path="/boards/:id" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
-          <Route path="/projects/:id" element={<Suspense fallback={<RouteFallback />}><ProjectView /></Suspense>} />
+          <Route path="/boards/:id" element={<Navigate to="/" replace />} />
           <Route path="/tasks/:id" element={<Suspense fallback={<RouteFallback />}><TaskDetailPage /></Suspense>} />
           <Route path="/tasks" element={<Navigate to="/" replace />} />
           <Route path="/approvals" element={<Suspense fallback={<RouteFallback />}><ApprovalsView /></Suspense>} />
           <Route path="/agents" element={<Suspense fallback={<RouteFallback />}><AgentsView /></Suspense>} />
           <Route path="/docs" element={<Suspense fallback={<RouteFallback />}><DocsView /></Suspense>} />
           <Route path="/audit" element={<Suspense fallback={<RouteFallback />}><AuditView /></Suspense>} />
-          
-          <Route path="/" element={<Suspense fallback={<RouteFallback />}><WorkspaceView /></Suspense>} />
+          <Route path="/schedule" element={<Suspense fallback={<RouteFallback />}><SchedulerView /></Suspense>} />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

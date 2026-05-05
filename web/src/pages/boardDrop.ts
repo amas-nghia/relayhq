@@ -1,6 +1,6 @@
 import type { TaskStatus } from '../types';
 
-export type BoardLaneId = 'todo' | 'in-progress' | 'review' | 'scheduled' | 'done';
+export type BoardLaneId = 'todo' | 'in-progress' | 'review' | 'scheduled' | 'done' | 'failed';
 
 export interface BoardDropResult {
   readonly status: TaskStatus;
@@ -9,7 +9,7 @@ export interface BoardDropResult {
 }
 
 export function resolveBoardDrop(targetLane: BoardLaneId, currentStatus: TaskStatus): BoardDropResult | null {
-  if (targetLane === 'scheduled') {
+  if (targetLane === 'scheduled' || targetLane === 'failed') {
     return null;
   }
 
@@ -27,6 +27,11 @@ export function resolveBoardDrop(targetLane: BoardLaneId, currentStatus: TaskSta
 
   if (targetLane === 'in-progress') {
     return { status: 'in-progress', column: 'in-progress' };
+  }
+
+  // todo lane: allow retrying failed tasks
+  if (currentStatus === 'failed') {
+    return { status: 'todo', column: 'todo' };
   }
 
   return { status: 'todo', column: 'todo' };

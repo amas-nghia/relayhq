@@ -4,6 +4,7 @@ import { filterVaultReadModelByWorkspaceId, type VaultReadModel } from "../../..
 import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 import { launchAgentSession, type LaunchAgentSessionResult } from "../../../services/agents/launch";
+import { assertWorkPolicy } from "../../../services/policy/work-policy";
 
 export interface AgentRunRequestBody {
   readonly taskId: string;
@@ -63,9 +64,7 @@ export async function runAgentTask(
     throw createError({ statusCode: 404, statusMessage: `Task ${body.taskId} was not found.` });
   }
 
-  if (task.assignee !== agent.id && !agent.aliases.includes(task.assignee)) {
-    throw createError({ statusCode: 409, statusMessage: `Task ${task.id} is not assigned to agent ${agent.id}.` });
-  }
+  assertWorkPolicy({ actorId: agent.id, actorIntent: "agent", action: "execute", readModel: filteredReadModel, task })
 
   return await runLaunchAgentSession({
     agentId: agent.id,

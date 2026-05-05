@@ -1,5 +1,6 @@
 import { assertMethod, createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { resolveVaultWorkspaceRoot } from "../../../../services/vault/runtime";
 import { approveTaskLifecycle } from "../../../../services/vault/task-lifecycle";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -20,5 +21,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
-  return await approveTaskLifecycle({ taskId, actorId: body.actorId });
+  const vaultRoot = resolveVaultWorkspaceRoot();
+  return await approveTaskLifecycle({ taskId, actorId: body.actorId, vaultRoot });
 });

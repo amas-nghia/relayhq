@@ -21,12 +21,13 @@ const identities = {
   approval: { type: "approval", id: "approval-alpha", workspace_id: "ws-alpha", project_id: "project-alpha", board_id: "board-alpha", task_id: "task-alpha" },
   auditNote: { type: "audit-note", id: "audit-alpha", task_id: "task-alpha" },
   agent: { type: "agent", id: "agent-alpha", workspace_id: "ws-alpha" },
+  coordinatorThread: { type: "coordinator-thread", id: "coordinator-thread-project-alpha", workspace_id: "ws-alpha", project_id: "project-alpha", coordinator_agent_id: "agent-alpha" },
 } satisfies VaultIdentityMap;
 
 describe("vault repository contracts", () => {
   test("keeps the canonical shared collection map in sync", () => {
-    expect(Object.keys(VAULT_COLLECTION_DIRECTORIES)).toEqual(["workspaces", "projects", "boards", "columns", "tasks", "issues", "docs", "approvals", "auditNotes", "agents"]);
-    expect(VAULT_RECORD_TYPES).toEqual(["workspace", "project", "board", "column", "task", "issue", "doc", "approval", "audit-note", "agent"]);
+    expect(Object.keys(VAULT_COLLECTION_DIRECTORIES)).toEqual(["workspaces", "projects", "boards", "columns", "tasks", "issues", "docs", "approvals", "auditNotes", "agents", "coordinatorThreads"]);
+    expect(VAULT_RECORD_TYPES).toEqual(["workspace", "project", "board", "column", "task", "issue", "doc", "approval", "audit-note", "agent", "coordinator-thread"]);
     expect(VAULT_RECORD_TYPES_BY_COLLECTION).toEqual({
       workspaces: "workspace",
       projects: "project",
@@ -38,6 +39,7 @@ describe("vault repository contracts", () => {
       approvals: "approval",
       auditNotes: "audit-note",
       agents: "agent",
+      coordinatorThreads: "coordinator-thread",
     });
     expect(VAULT_COLLECTIONS_BY_RECORD_TYPE).toEqual({
       workspace: "workspaces",
@@ -50,6 +52,7 @@ describe("vault repository contracts", () => {
       approval: "approvals",
       "audit-note": "auditNotes",
       agent: "agents",
+      "coordinator-thread": "coordinatorThreads",
     });
   });
 
@@ -60,6 +63,7 @@ describe("vault repository contracts", () => {
     expect(getVaultCollectionName("issue")).toBe("issues");
     expect(getVaultCollectionName("audit-note")).toBe("auditNotes");
     expect(getVaultCollectionName("agent")).toBe("agents");
+    expect(getVaultCollectionName("coordinator-thread")).toBe("coordinatorThreads");
   });
 
   test("models identity links through the shared contract", () => {
@@ -69,5 +73,6 @@ describe("vault repository contracts", () => {
     expect(identities.approval.task_id).toBe("task-alpha");
     expect(identities.auditNote.task_id).toBe("task-alpha");
     expect(identities.agent.workspace_id).toBe("ws-alpha");
+    expect(identities.coordinatorThread.project_id).toBe("project-alpha");
   });
 });

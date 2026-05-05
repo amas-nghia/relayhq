@@ -3,7 +3,7 @@ import { releaseDueScheduledTasks } from "../services/vault/task-scheduler";
 const DEFAULT_SWEEP_INTERVAL_MS = 30_000;
 
 export default defineNitroPlugin(() => {
-  if (process.env.RELAYHQ_DISABLE_SCHEDULER === "true") {
+  if (process.env.RELAYHQ_DISABLE_AUTO_DISPATCH === "true" || process.env.RELAYHQ_DISABLE_SCHEDULER === "true") {
     return;
   }
 

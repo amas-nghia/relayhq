@@ -63,6 +63,28 @@ describe("vault docs API", () => {
     }
   });
 
+  test("POST /api/vault/docs accepts repo-map and capability-map doc types", async () => {
+    const root = await createRoot();
+    process.env.RELAYHQ_VAULT_ROOT = root;
+    try {
+      const repoMap = await createVaultDoc({
+        title: "RelayHQ repo map",
+        doc_type: "repo-map",
+        tags: ["codebase-brain"],
+      }, { vaultRoot: root, now: new Date("2026-04-24T00:00:00Z") });
+      const capabilityMap = await createVaultDoc({
+        title: "Task lifecycle capability map",
+        doc_type: "capability-map",
+        tags: ["task-lifecycle"],
+      }, { vaultRoot: root, now: new Date("2026-04-24T00:00:00Z") });
+
+      expect(repoMap.data.doc_type).toBe("repo-map");
+      expect(capabilityMap.data.doc_type).toBe("capability-map");
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+    }
+  });
+
   test("PATCH /api/vault/docs/[id] updates metadata and body", async () => {
     const root = await createRoot();
     process.env.RELAYHQ_VAULT_ROOT = root;

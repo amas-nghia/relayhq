@@ -1,22 +1,24 @@
 import { Bot, CheckSquare, Hourglass, KanbanSquare, Menu, Monitor } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { Button } from '../ui/button';
 
 export function TopBar() {
   const activeAgentsCount = useAppStore(state => state.agents.filter(a => a.state === 'active').length);
-  const navigate = useNavigate();
+  const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const desktopHref = selectedProjectId ? `/?project=${encodeURIComponent(selectedProjectId)}` : '/';
 
   const navItems = [
-    { name: 'Board', path: '/boards/main', icon: KanbanSquare },
+    { name: 'Board', path: '/', icon: KanbanSquare },
     { name: 'Tasks', path: '/tasks', icon: CheckSquare },
     { name: 'Approvals', path: '/approvals', icon: Hourglass },
     { name: 'Agents', path: '/agents', icon: Bot, badge: activeAgentsCount },
   ];
+  const outlineLinkClass = 'lcd-button inline-flex items-center justify-center gap-2 rounded-none border border-accent bg-transparent font-medium uppercase tracking-[0.14em] text-accent transition-all hover:border-brand-bright hover:bg-transparent hover:text-brand-bright hover:shadow-[0_0_12px_rgba(255,215,0,0.4)]';
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -37,23 +39,22 @@ export function TopBar() {
             <Menu className="w-4 h-4" />
           </Button>
 
-          <button className="flex min-w-0 items-center gap-2 text-left" onClick={() => navigate('/')}>
-            <img src="/favicon.svg" className="h-9 w-9 shrink-0" alt="RelayHQ" />
+          <Link to="/" className="flex min-w-0 items-center gap-2 text-left">
+            <img src="/favicon.svg" width={36} height={36} className="h-9 w-9 shrink-0" alt="RelayHQ" />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-text-primary sm:text-base">RelayHQ</span>
               <span className="hidden text-xs text-text-secondary sm:block">Vault-first control plane</span>
             </span>
-          </button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 px-3 text-[9px] tracking-[0.18em]"
-            onClick={() => navigate('/desktop')}
-          >
-            <Monitor className="h-4 w-4" />
-            DESKTOP
-          </Button>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to={desktopHref}
+              className={clsx(outlineLinkClass, 'h-8 px-3 text-[9px] tracking-[0.18em]')}
+            >
+              <Monitor className="h-4 w-4" />
+              DESKTOP
+            </Link>
+          </div>
         </div>
 
       </div>

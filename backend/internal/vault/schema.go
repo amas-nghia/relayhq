@@ -450,11 +450,13 @@ const (
 	DocTypeSOP            DocType = "sop"
 	DocTypePolicy         DocType = "policy"
 	DocTypeADR            DocType = "adr"
+	DocTypeRepoMap        DocType = "repo-map"
+	DocTypeCapabilityMap  DocType = "capability-map"
 )
 
 func (d DocType) Valid() bool {
 	switch d {
-	case DocTypeFeatureSpec, DocTypeDesign, DocTypeRunbook, DocTypeGeneral, DocTypeFeature, DocTypeDecision, DocTypeResearch, DocTypeRetro, DocTypeBrief, DocTypePlan, DocTypeMeetingMinutes, DocTypeBudget, DocTypeExpense, DocTypeSOP, DocTypePolicy, DocTypeADR:
+	case DocTypeFeatureSpec, DocTypeDesign, DocTypeRunbook, DocTypeGeneral, DocTypeFeature, DocTypeDecision, DocTypeResearch, DocTypeRetro, DocTypeBrief, DocTypePlan, DocTypeMeetingMinutes, DocTypeBudget, DocTypeExpense, DocTypeSOP, DocTypePolicy, DocTypeADR, DocTypeRepoMap, DocTypeCapabilityMap:
 		return true
 	default:
 		return false

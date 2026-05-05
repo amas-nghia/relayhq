@@ -9,7 +9,7 @@ export interface SearchCodeHit {
   readonly summary: string;
   readonly sourcePath: string;
   readonly score: number;
-  readonly codebaseName?: string | null;
+  readonly codebaseName: string | null;
 }
 
 export interface SearchCodeResponse {
@@ -67,7 +67,7 @@ export function searchCodeIndex(
           codebaseName: document.codebaseName ?? null,
         } satisfies SearchCodeHit;
     })
-    .filter((hit): hit is SearchCodeHit => hit !== null)
+    .filter((hit): hit is NonNullable<typeof hit> => hit !== null)
     .slice(0, 10);
 
   return { query: trimmedQuery, hits };

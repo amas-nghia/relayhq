@@ -3,8 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 import { join } from "node:path";
 
+import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { deleteProjectDocuments, readProjectDocument, syncProjectDocument } from "../../../services/vault/project-write";
 import { resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
+import { openCoordinatorThread } from "../../../services/vault/coordinator-thread";
+import { isCoordinatorAgent } from "../../../services/agents/coordinator";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function readOptionalString(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
@@ -16,6 +23,12 @@ function readOptionalString(value: unknown): string | null | undefined {
 function readOptionalProjectStatus(value: unknown): string | null | undefined {
   const normalized = readOptionalString(value)
   return typeof normalized === 'string' ? normalized.toLowerCase() : normalized
+}
+
+function readOptionalCoordinatorAgentId(value: unknown): string | null | undefined {
+  const normalized = readOptionalString(value)
+  if (normalized === undefined || normalized === null) return normalized
+  return normalized.length > 0 ? normalized : null
 }
 
 function readOptionalCodebases(value: unknown) {
@@ -76,6 +89,39 @@ function readOptionalAttachments(value: unknown) {
   })
 }
 
+function readOptionalScene(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!isRecord(value)) {
+    throw createError({ statusCode: 400, statusMessage: "scene must be an object when provided." });
+  }
+
+  const background = value.background;
+  if (!isRecord(background)) {
+    throw createError({ statusCode: 400, statusMessage: "scene.background must be an object." });
+  }
+
+  const mode = typeof background.mode === "string" ? background.mode.trim().toLowerCase() : null;
+  if (mode !== "color" && mode !== "gradient" && mode !== "image") {
+    throw createError({ statusCode: 400, statusMessage: "scene.background.mode must be color, gradient, or image." });
+  }
+
+  const color = readOptionalString(background.color);
+  const gradientFrom = readOptionalString(background.gradientFrom);
+  const gradientTo = readOptionalString(background.gradientTo);
+  const imageUrl = readOptionalString(background.imageUrl);
+
+  return {
+    background: {
+      mode,
+      ...(color ? { color } : {}),
+      ...(gradientFrom ? { gradientFrom } : {}),
+      ...(gradientTo ? { gradientTo } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
+    },
+  };
+}
+
 function readSection(body: string, heading: string): string | null {
   const match = body.match(new RegExp(`(?:^|\\n)##\\s+${heading}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, "i"));
   const value = match?.[1]?.trim();
@@ -116,6 +162,43 @@ async function writeProjectAuditNote(projectId: string, actorId: string, message
   await writeFile(join(sharedRoot, "audit", `${auditId}.md`), document, "utf8");
 }
 
+async function readProjectById(projectId: string, options: { vaultRoot?: string } = {}) {
+  const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
+  const model = await readCanonicalVaultReadModel(vaultRoot);
+  const project = model.projects.find((entry) => entry.id === projectId);
+
+  if (!project) {
+    throw createError({ statusCode: 404, statusMessage: `Project ${projectId} was not found.` });
+  }
+
+  return {
+    id: project.id,
+    name: project.name,
+    boardId: project.boardIds[0],
+    coordinatorAgentId: project.coordinatorAgentId ?? null,
+    lastActive: model.tasks.some((task) => task.projectId === project.id && task.status !== 'done' && task.status !== 'cancelled'),
+    codebaseRoot: project.codebases[0]?.path ?? null,
+    description: project.description ?? null,
+    budget: project.budget ?? null,
+    deadline: project.deadline ?? null,
+    status: project.status ?? null,
+    scene: project.scene ?? null,
+    links: [...project.links],
+    attachments: [...project.attachments],
+    docs: model.docs
+      .filter((doc) => doc.projectId === project.id)
+      .map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        docType: doc.docType,
+        status: doc.status,
+        visibility: doc.visibility,
+        updatedAt: doc.updatedAt,
+        sourcePath: doc.sourcePath,
+      })),
+  };
+}
+
 export async function updateProjectMetadata(projectId: string, body: unknown, options: { vaultRoot?: string } = {}) {
   const patch = typeof body === "object" && body !== null && "patch" in body && typeof body.patch === "object" && body.patch !== null
     ? body.patch as Record<string, unknown>
@@ -127,26 +210,41 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
   const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
   const projectFilePath = join(resolveSharedVaultPath(vaultRoot), "projects", `${projectId}.md`);
   const current = await readProjectDocument(projectFilePath);
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
   const name = readOptionalString(patch.name);
   if (name !== undefined && name !== null && name.length === 0) {
     throw createError({ statusCode: 400, statusMessage: "name must not be empty when provided." });
   }
   const description = readOptionalString(patch.description);
+  const coordinatorAgentId = readOptionalCoordinatorAgentId(patch.coordinator_agent_id);
   const budget = readOptionalString(patch.budget);
   const deadline = readOptionalString(patch.deadline);
   const status = readOptionalProjectStatus(patch.status);
   const links = readOptionalLinks(patch.links);
   const attachments = readOptionalAttachments(patch.attachments);
+  const scene = readOptionalScene(patch.scene);
   const codebaseRoot = readOptionalString(patch.codebase_root);
   const codebases = readOptionalCodebases(patch.codebases);
 
+  if (coordinatorAgentId !== undefined && coordinatorAgentId !== null) {
+    const coordinator = readModel.agents.find((entry) => entry.id === coordinatorAgentId || entry.aliases.includes(coordinatorAgentId))
+    if (!coordinator) {
+      throw createError({ statusCode: 400, statusMessage: `Coordinator agent ${coordinatorAgentId} was not found.` })
+    }
+    if (!isCoordinatorAgent(coordinator)) {
+      throw createError({ statusCode: 400, statusMessage: `Agent ${coordinatorAgentId} is not registered with the coordinator role.` })
+    }
+  }
+
   const frontmatterPatch = {
     ...(name === undefined ? {} : { name: name ?? current.frontmatter.name }),
+    ...(coordinatorAgentId === undefined ? {} : { coordinator_agent_id: coordinatorAgentId }),
     ...(budget === undefined ? {} : { budget: budget ?? undefined }),
     ...(deadline === undefined ? {} : { deadline: deadline ?? undefined }),
     ...(status === undefined ? {} : { status: status ?? undefined }),
     ...(links === undefined ? {} : { links }),
     ...(attachments === undefined ? {} : { attachments }),
+    ...(scene === undefined ? {} : { scene: scene ?? undefined }),
     ...(codebaseRoot === undefined ? {} : { codebase_root: codebaseRoot }),
     ...(codebases === undefined ? {} : { codebases }),
   };
@@ -169,13 +267,24 @@ export async function updateProjectMetadata(projectId: string, body: unknown, op
 
   await writeProjectAuditNote(projectId, actorId, `Updated project metadata for ${result.frontmatter.name}`, vaultRoot, new Date());
 
+  const effectiveCoordinatorAgentId = result.frontmatter.coordinator_agent_id ?? null
+  if (effectiveCoordinatorAgentId) {
+    await openCoordinatorThread({
+      vaultRoot,
+      projectId: result.frontmatter.id,
+      coordinatorAgentId: effectiveCoordinatorAgentId,
+    })
+  }
+
   return {
     id: result.frontmatter.id,
     name: result.frontmatter.name,
+    coordinatorAgentId: result.frontmatter.coordinator_agent_id ?? null,
     budget: result.frontmatter.budget ?? null,
     deadline: result.frontmatter.deadline ?? null,
     links: result.frontmatter.links ?? [],
     attachments: result.frontmatter.attachments ?? [],
+    scene: result.frontmatter.scene ?? null,
     codebases: result.frontmatter.codebases ?? (result.frontmatter.codebase_root ? [{ name: "main", path: result.frontmatter.codebase_root, primary: true }] : []),
     description: readSection(result.body, "Description"),
     status: result.frontmatter.status ?? readSection(result.body, "Status"),
@@ -197,7 +306,7 @@ export async function deleteProject(projectId: string, options: { vaultRoot?: st
 }
 
 export default defineEventHandler(async (event) => {
-  if (event.method !== "PATCH" && event.method !== "DELETE") {
+  if (event.method !== "GET" && event.method !== "PATCH" && event.method !== "DELETE") {
     throw createError({ statusCode: 405, statusMessage: "Method not allowed." });
   }
 
@@ -207,6 +316,9 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    if (event.method === "GET") {
+      return await readProjectById(projectId);
+    }
     if (event.method === "DELETE") {
       return await deleteProject(projectId);
     }

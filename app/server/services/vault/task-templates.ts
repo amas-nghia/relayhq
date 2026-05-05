@@ -198,7 +198,7 @@ export async function createTaskTemplate(body: unknown, options: { vaultRoot?: s
   const filePath = join(templatesDir, fileName);
 
   await mkdir(templatesDir, { recursive: true });
-  await writeFile(filePath, serializeTaskTemplate(body), "utf8");
+  await writeFile(filePath, serializeTaskTemplate(body as unknown as TaskTemplateInput), "utf8");
 
   return {
     success: true,

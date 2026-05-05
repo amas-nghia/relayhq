@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-codebase-brain",
+  "version": "1.0.0",
+  "description": "Codebase second brain skill for RelayHQ agents",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "codebase", "memory", "docs", "retrieval"],
+  "license": "MIT"
+}

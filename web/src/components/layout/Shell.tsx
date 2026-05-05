@@ -10,12 +10,12 @@ import { toast } from 'sonner'
 import { SidebarInset, SidebarProvider } from '../ui/sidebar';
 
 export function Shell() {
+  const mainContentId = 'main-content';
   const startRealtime = useAppStore(state => state.startRealtime);
   const stopRealtime = useAppStore(state => state.stopRealtime);
   const mutationError = useAppStore(state => state.mutationError)
   const location = useLocation();
-  const isBoardRoute = location.pathname.startsWith('/boards/');
-  const isWorkspaceRoute = location.pathname === '/' || isBoardRoute;
+  const isDocsRoute = location.pathname === '/docs';
 
   useEffect(() => {
     startRealtime();
@@ -30,14 +30,20 @@ export function Shell() {
   return (
     <SidebarProvider>
       <div className="relative flex h-screen overflow-hidden bg-surface-secondary">
+        <a
+          href={`#${mainContentId}`}
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:border focus:border-accent focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:uppercase focus:tracking-[0.08em] focus:text-text-primary"
+        >
+          Skip to main content
+        </a>
         <div className="relative z-10 flex h-full w-full">
           <Sidebar />
-          <SidebarInset>
+          <SidebarInset id={mainContentId} tabIndex={-1}>
             <AlertStrip />
             <div className={clsx(
               'flex min-h-0 flex-1',
-              isWorkspaceRoute ? 'px-3 py-4 md:px-4 md:py-4' : 'px-4 py-4 md:px-6 md:py-6',
-              isWorkspaceRoute ? 'overflow-hidden' : 'overflow-y-auto',
+              'px-4 py-4 md:px-6 md:py-6',
+              isDocsRoute ? 'overflow-hidden' : 'overflow-y-auto',
             )}>
               <Outlet />
             </div>

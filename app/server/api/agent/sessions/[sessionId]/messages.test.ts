@@ -16,6 +16,7 @@ describe("POST /api/agent/sessions/[sessionId]/messages", () => {
         runtimeKind: 'opencode',
         launchMode: 'fresh',
         resumedFromSessionId: null,
+        launchSurface: 'background',
         status: 'running',
         command: 'opencode',
         args: [],

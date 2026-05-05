@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, Repeat2, ShieldAlert, SquareCheckBig, User, X } from 'lucide-react'
+import { Bot, Check, CheckCircle2, Clock3, ExternalLink, FileText, Link2, Lock, ShieldAlert, SquareCheckBig, Trash2, User, X } from 'lucide-react'
 import clsx from 'clsx'
 
 import { relayhqApi } from '../../api/client'
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader } from '../ui/card'
 import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Textarea } from '../ui/textarea'
+import { getTaskDispatchSummary, getTaskSurfaceLabel, getTaskSurfaceState, isTaskRunning } from '../../lib/taskPresentation'
 
 function readSection(body: string | undefined, heading: string): string | null {
   if (!body) return null
@@ -91,18 +92,6 @@ function formatHistoryLabel(entry: { action: string; actor: string }): string {
   }
 }
 
-function toDateTimeLocalValue(value: string | null | undefined): string {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  const hours = `${date.getHours()}`.padStart(2, '0')
-  const minutes = `${date.getMinutes()}`.padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Card>
@@ -120,6 +109,10 @@ function EmptyCopy({ children }: { children: ReactNode }) {
 
 const statusClasses: Record<string, string> = {
   'in-progress': 'border-status-active/20 bg-brand-muted text-status-active',
+  waiting: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+  queued: 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+  'dispatch-blocked': 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
+  'dispatch-failed': 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
   review: 'border-status-active/20 bg-brand-muted text-status-active',
   'waiting-approval': 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
   blocked: 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked',
@@ -158,6 +151,10 @@ const RUNTIME_OPTIONS = [
 
 const statusLabels: Record<string, string> = {
   'in-progress': 'in progress',
+  waiting: 'waiting',
+  queued: 'queued',
+  'dispatch-blocked': 'dispatch blocked',
+  'dispatch-failed': 'dispatch failed',
   review: 'in review',
   'waiting-approval': 'awaiting approval',
   blocked: 'blocked',
@@ -195,12 +192,12 @@ export function DetailPanel({
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsSaving, setCommentsSaving] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
-  const [nextRunAtInput, setNextRunAtInput] = useState('')
-  const [cronScheduleInput, setCronScheduleInput] = useState('')
   const [selectedAssigneeId, setSelectedAssigneeId] = useState(task?.assigneeId ?? '')
   const [selectedRuntimeId, setSelectedRuntimeId] = useState('opencode')
   const [launchState, setLaunchState] = useState<'idle' | 'working'>('idle')
   const [agentControlError, setAgentControlError] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const sections = useMemo(() => {
     const body = task?.description
@@ -227,12 +224,6 @@ export function DetailPanel({
     [tasks, taskId],
   )
 
-  const recurringRootId = task?.parentTaskId ?? task?.id ?? taskId
-  const recurringRunCount = useMemo(
-    () => tasks.filter(entry => (entry.parentTaskId ?? entry.id) === recurringRootId && entry.cronSchedule === task?.cronSchedule).length,
-    [recurringRootId, task?.cronSchedule, tasks],
-  )
-
   const loadComments = useCallback(async () => {
     setCommentsLoading(true)
     setCommentsError(null)
@@ -255,10 +246,6 @@ export function DetailPanel({
       void fetchReadModel()
     }
   }, [fetchReadModel, isLoading, task])
-
-  useEffect(() => {
-    setCronScheduleInput(task?.cronSchedule ?? '')
-  }, [task?.cronSchedule])
 
   useEffect(() => {
     setSelectedAssigneeId(task?.assigneeId ?? '')
@@ -290,6 +277,28 @@ export function DetailPanel({
   const dependsOn = task.dependsOn ?? []
   const approvalIds = task.approvalIds ?? []
   const tags = task.tags ?? []
+  const surfaceState = getTaskSurfaceState(task)
+  const surfaceLabel = getTaskSurfaceLabel(task)
+  const dispatchSummary = getTaskDispatchSummary(task)
+  const taskIsRunning = isTaskRunning(task)
+
+  const handleDeleteTask = async () => {
+    setIsDeleting(true)
+    try {
+      await relayhqApi.deleteTask(task.id, 'human-user')
+      await fetchReadModel()
+      if (mode === 'page') {
+        navigate('/tasks')
+      } else {
+        closeDetail()
+      }
+    } catch (error) {
+      console.error('Failed to delete task:', error)
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
 
   const submitComment = async () => {
     if (commentBody.trim().length === 0) return
@@ -307,29 +316,6 @@ export function DetailPanel({
     }
   }
 
-  const scheduleTask = async (nextRunAt: string, reason: string) => {
-    await relayhqApi.scheduleTask(task.id, { actorId: 'relayhq-web', nextRunAt, reason })
-    await fetchReadModel()
-  }
-
-  const unscheduleTask = async () => {
-    await relayhqApi.patchTask(task.id, {
-      actorId: 'relayhq-web',
-      patch: { status: 'todo', column: 'todo', next_run_at: null, blocked_reason: null },
-    })
-    await fetchReadModel()
-  }
-
-  const saveRecurringSchedule = async () => {
-    await relayhqApi.patchTask(task.id, {
-      actorId: 'relayhq-web',
-      patch: {
-        cron_schedule: cronScheduleInput.trim().length > 0 ? cronScheduleInput.trim() : null,
-      },
-    })
-    await fetchReadModel()
-  }
-
   const assignAgent = async () => {
     if (!task) return
     setLaunchState('working')
@@ -344,6 +330,25 @@ export function DetailPanel({
       await fetchReadModel()
     } catch (error) {
       setAgentControlError(error instanceof Error ? error.message : 'Unable to assign agent.')
+    } finally {
+      setLaunchState('idle')
+    }
+  }
+
+  const autoAssignAgent = async () => {
+    if (!task) return
+    setLaunchState('working')
+    setAgentControlError(null)
+    try {
+      await relayhqApi.patchTask(task.id, {
+        actorId: 'human-user',
+        patch: {
+          assignee: 'unassigned',
+        },
+      })
+      await fetchReadModel()
+    } catch (error) {
+      setAgentControlError(error instanceof Error ? error.message : 'Unable to auto-assign agent.')
     } finally {
       setLaunchState('idle')
     }
@@ -392,14 +397,14 @@ export function DetailPanel({
       <div className="flex items-center justify-between border-b border-border bg-surface p-4">
         <div className="flex items-center gap-2 text-sm text-text-tertiary">
           {mode === 'preview' && (
-            <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={closeDetail}>
+            <Button variant="ghost" size="icon" aria-label="Close task details" className="hidden md:inline-flex" onClick={closeDetail}>
               <X className="w-4 h-4" />
             </Button>
           )}
           <span>{task.id}</span>
         </div>
         {mode === 'preview' && (
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={closeDetail}>
+          <Button variant="ghost" size="icon" aria-label="Close task details" className="md:hidden" onClick={closeDetail}>
             <X className="w-5 h-5 text-text-secondary" />
           </Button>
         )}
@@ -412,8 +417,8 @@ export function DetailPanel({
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-text-primary">{task.title}</h2>
                 <div className="flex flex-wrap gap-2">
-                  <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', statusClasses[task.status] ?? 'border-border bg-surface-secondary text-text-secondary')}>
-                    {statusLabels[task.status] ?? task.status.replace('-', ' ')}
+                  <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', statusClasses[surfaceState] ?? 'border-border bg-surface-secondary text-text-secondary')}>
+                    {statusLabels[surfaceState] ?? surfaceLabel}
                   </span>
                   <span className={clsx('rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider', priorityClasses[task.priority] ?? 'border-status-active/20 bg-brand-muted text-status-active')}>
                     {task.priority}
@@ -440,6 +445,18 @@ export function DetailPanel({
               </div>
             </div>
 
+            {dispatchSummary && !taskIsRunning && (
+              <div className={clsx(
+                'mt-3 rounded-lg border px-3 py-2 text-sm',
+                surfaceState === 'dispatch-blocked' || surfaceState === 'dispatch-failed'
+                  ? 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked'
+                  : 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+              )}>
+                <span className="font-semibold text-text-primary">Work has not started yet.</span>{' '}
+                <span>{dispatchSummary.message}</span>
+              </div>
+            )}
+
             <div className="grid gap-3 text-sm text-text-secondary sm:grid-cols-2">
               <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
                 <span>Assignee</span>
@@ -454,7 +471,7 @@ export function DetailPanel({
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
                 <span>Started</span>
-                <span className="font-medium text-text-primary">{formatTimestamp(task.executionStartedAt)}</span>
+                <span className="font-medium text-text-primary">{taskIsRunning ? formatTimestamp(task.executionStartedAt) : 'Not started'}</span>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary px-3 py-2">
                 <span>Last heartbeat</span>
@@ -609,7 +626,7 @@ export function DetailPanel({
 
           <Section title="Agent Control">
             <div className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                 <Select value={selectedAssigneeId} onChange={(event) => setSelectedAssigneeId(event.target.value)}>
                   <option value="">Unassigned</option>
                   {agents.map((entry) => (
@@ -619,53 +636,16 @@ export function DetailPanel({
                 <Button type="button" variant="outline" onClick={() => void assignAgent()} disabled={launchState === 'working'}>
                   Assign
                 </Button>
+                <Button type="button" variant="outline" onClick={() => void autoAssignAgent()} disabled={launchState === 'working' || agents.length === 0}>
+                  Auto assign
+                </Button>
               </div>
 
               {agentControlError ? (
                 <p className="text-sm text-status-blocked">{agentControlError}</p>
               ) : (
-                <p className="text-sm text-text-tertiary">Assign an agent to let RelayHQ auto-dispatch work and open chat from the agent surface when you want to follow along.</p>
+                <p className="text-sm text-text-tertiary">Assign manually or use auto assign to let RelayHQ route the task, auto-dispatch work, and open chat from the agent surface when you want to follow along.</p>
               )}
-            </div>
-          </Section>
-
-          <Section title="Schedule">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => void scheduleTask(new Date(Date.now() + 60 * 60 * 1000).toISOString(), 'Scheduled for 1 hour later')}>In 1h</Button>
-                <Button variant="outline" size="sm" onClick={() => void scheduleTask(new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), 'Scheduled for 4 hours later')}>In 4h</Button>
-                <Button variant="outline" size="sm" onClick={() => {
-                  const next = new Date()
-                  next.setDate(next.getDate() + 1)
-                  next.setHours(9, 0, 0, 0)
-                  void scheduleTask(next.toISOString(), 'Scheduled for tomorrow 9am')
-                }}>Tomorrow 9am</Button>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input type="datetime-local" value={nextRunAtInput || toDateTimeLocalValue(task.nextRunAt)} onChange={(event) => setNextRunAtInput(event.target.value)} />
-                <Button variant="outline" onClick={() => {
-                  if (nextRunAtInput.trim().length === 0) return
-                  void scheduleTask(new Date(nextRunAtInput).toISOString(), 'Scheduled for custom time')
-                }}>Schedule</Button>
-                {task.status === 'scheduled' && <Button variant="ghost" onClick={() => void unscheduleTask()}>Cancel scheduled</Button>}
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Recurring">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <Repeat2 className="h-4 w-4 text-brand" />
-                <span>{task.cronSchedule ? 'Recurring task enabled' : 'No recurrence configured'}</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                <Input value={cronScheduleInput} onChange={(event) => setCronScheduleInput(event.target.value)} placeholder="0 9 * * 1-5" />
-                <Button variant="outline" onClick={() => void saveRecurringSchedule()}>Save recurrence</Button>
-              </div>
-              <div className="flex flex-wrap gap-3 text-xs text-text-tertiary">
-                <span>Next run: {task.nextRunAt ? formatTimestamp(task.nextRunAt) : '—'}</span>
-                <span>Run history: {recurringRunCount}</span>
-              </div>
             </div>
           </Section>
 
@@ -695,11 +675,16 @@ export function DetailPanel({
               )}
 
               <div className="space-y-3 rounded-lg border border-border bg-surface-secondary p-3">
+                <label htmlFor="task-comment-body" className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                  Comment
+                </label>
                 <Textarea
+                  id="task-comment-body"
                   value={commentBody}
                   onChange={(event) => setCommentBody(event.target.value)}
                   rows={3}
                   placeholder="Add a task comment or coordination note"
+                  aria-label="Task comment"
                 />
                 <div className="flex items-center justify-between gap-3">
                   {commentsError ? <p className="text-sm text-status-blocked">{commentsError}</p> : <span />}
@@ -739,7 +724,19 @@ export function DetailPanel({
                     <Clock3 className="w-4 h-4" />
                     Waiting for approval
                   </div>
-                  <Textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} rows={3} placeholder="Reason for rejection" />
+                  <div className="space-y-1">
+                    <label htmlFor="task-reject-reason" className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                      Rejection reason
+                    </label>
+                    <Textarea
+                      id="task-reject-reason"
+                      value={rejectReason}
+                      onChange={event => setRejectReason(event.target.value)}
+                      rows={3}
+                      placeholder="Reason for rejection"
+                      aria-label="Reason for rejection"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={() => void approveTask(task.id)} disabled={isMutating} className="flex-1 bg-status-done text-white hover:bg-status-done/90 disabled:opacity-60">
                       Approve
@@ -808,6 +805,18 @@ export function DetailPanel({
                 <span className="inline-flex items-center gap-1.5 font-medium text-text-primary">
                   {task.lockedBy ? <Lock className="h-4 w-4 text-text-tertiary" /> : null}
                   {task.lockedBy || 'Unlocked'}
+                  {task.lockedBy ? (
+                    <button
+                      type="button"
+                      className="ml-1 text-[10px] uppercase tracking-wide text-status-blocked hover:text-text-primary underline"
+                      onClick={async () => {
+                        await relayhqApi.patchTask(task.id, { actorId: 'human-user', patch: { status: 'todo', column: 'todo' } })
+                        useAppStore.getState().loadData()
+                      }}
+                    >
+                      Force unlock
+                    </button>
+                  ) : null}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
@@ -832,20 +841,53 @@ export function DetailPanel({
             </Badge>
           )) : <span className="text-xs text-text-tertiary">No tags</span>}
         </div>
-        {mode === 'preview' ? (
-          <button type="button" onClick={() => {
-            if (onTaskSelect) {
-              onTaskSelect(task.id)
-              return
-            }
+        <div className="flex items-center justify-between gap-3">
+          {mode === 'preview' ? (
+            <button type="button" onClick={() => {
+              if (onTaskSelect) {
+                onTaskSelect(task.id)
+                return
+              }
 
-            navigate(`/tasks/${task.id}`)
-          }} className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
-            Open full record <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <span className="text-sm text-text-tertiary">Full task record</span>
-        )}
+              navigate(`/tasks/${task.id}`)
+            }} className="inline-flex items-center gap-1 text-sm font-medium text-brand transition-colors hover:text-brand-dark">
+              Open full record <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <span className="text-sm text-text-tertiary">Full task record</span>
+          )}
+
+          {showDeleteConfirm ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-secondary">Delete this task?</span>
+              <Button
+                variant="ghost"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="h-7 px-2 text-xs"
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void handleDeleteTask()}
+                disabled={isDeleting}
+                className="h-7 px-2 text-xs bg-status-blocked text-white hover:bg-status-blocked/90 disabled:opacity-60"
+              >
+                {isDeleting ? 'Deleting…' : 'Confirm delete'}
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-status-blocked"
+              title="Delete task"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

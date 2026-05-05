@@ -134,7 +134,7 @@ function createReadModel(): VaultReadModel {
       },
     ],
     agents: [],
-  };
+  } as unknown as VaultReadModel;
 }
 
 describe("Kioku indexing bridge", () => {

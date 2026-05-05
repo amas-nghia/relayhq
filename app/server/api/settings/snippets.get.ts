@@ -5,9 +5,14 @@ import { readConfiguredVaultRoot, resolveVaultWorkspaceRoot } from "../../servic
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:44210";
 
-function readString(queryValue: string | string[] | undefined): string | undefined {
+function readString(queryValue: unknown): string | undefined {
   if (typeof queryValue === "string" && queryValue.trim().length > 0) {
     return queryValue.trim();
+  }
+
+  if (Array.isArray(queryValue)) {
+    const first = queryValue.find((value): value is string => typeof value === "string" && value.trim().length > 0);
+    return first?.trim();
   }
 
   return undefined;

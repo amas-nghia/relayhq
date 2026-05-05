@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { getTaskDispatchSummary, isTaskRunning } from '../../lib/taskPresentation';
 
 function resolveDeferredTime(input: string): string | null {
   const normalized = input.trim().toLowerCase()
@@ -24,13 +25,27 @@ function resolveDeferredTime(input: string): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | number; onTaskSelect?: (taskId: string) => void }) {
+export function TaskCard({
+  task,
+  onTaskSelect,
+  selectionMode = false,
+  selected = false,
+  onToggleSelected,
+}: {
+  task: Task;
+  key?: string | number;
+  onTaskSelect?: (taskId: string) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: (taskId: string) => void;
+}) {
   const navigate = useNavigate()
   const agent = useAppStore(state => state.agents.find(a => a.id === task.assigneeId));
   const fetchReadModel = useAppStore(state => state.fetchReadModel);
-  const startAutoRun = useAppStore(state => state.startAutoRun);
   const isMutating = useAppStore(state => state.isMutating);
   const [, setNow] = useState(Date.now());
+  const dispatchSummary = getTaskDispatchSummary(task)
+  const taskIsRunning = isTaskRunning(task)
 
   useEffect(() => {
     if (task.status !== 'scheduled' || !task.nextRunAt) return;
@@ -113,6 +128,19 @@ export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | nu
       )}
       title={task.status === 'scheduled' && task.nextRunAt ? `${task.blockedReason || 'Scheduled'} • ${new Date(task.nextRunAt).toLocaleString()}` : undefined}
     >
+      {selectionMode && (
+        <label
+          className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-1 text-[10px] text-text-secondary"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelected?.(task.id)}
+          />
+          Select
+        </label>
+      )}
       <div className="flex items-start gap-2 mb-2">
         {priorityDot && (
           <div className={clsx("w-2 h-2 rounded-full mt-1.5 shrink-0", priorityDot)} />
@@ -129,6 +157,18 @@ export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | nu
           {task.title}
         </span>
       </div>
+
+      {dispatchSummary && (
+        <div className="mb-2 text-[11px] leading-4 text-text-tertiary">
+          <span className={clsx(
+            'font-semibold uppercase tracking-[0.14em]',
+            dispatchSummary.label === 'Dispatch blocked' || dispatchSummary.label === 'Dispatch failed'
+              ? 'text-status-blocked'
+              : 'text-status-waiting',
+          )}>{dispatchSummary.label}</span>
+          <span>{` · ${dispatchSummary.message}`}</span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-auto">
         <div className="flex items-center gap-1.5">
@@ -154,9 +194,27 @@ export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | nu
               Cancel
             </Button>
           )}
+          {task.status === 'scheduled' && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={(event) => { event.stopPropagation(); navigate('/schedule'); }}>
+              Open Scheduler
+            </Button>
+          )}
           {task.status === 'blocked' && (
             <Badge variant="secondary" className="shrink-0 border-status-blocked/20 bg-status-blocked/10 text-status-blocked">
               BLOCKED
+            </Badge>
+          )}
+          {dispatchSummary && task.status !== 'blocked' && (
+            <Badge
+              variant="secondary"
+              className={clsx(
+                'shrink-0',
+                dispatchSummary.label === 'Dispatch blocked' || dispatchSummary.label === 'Dispatch failed'
+                  ? 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked'
+                  : 'border-status-waiting/20 bg-status-waiting/10 text-status-waiting',
+              )}
+            >
+              {dispatchSummary.label.toUpperCase()}
             </Badge>
           )}
           
@@ -169,17 +227,6 @@ export function TaskCard({ task, onTaskSelect }: { task: Task; key?: string | nu
         </div>
 
         <div className="flex items-center gap-2">
-          {task.assigneeId && task.assigneeId !== 'unassigned' && task.status !== 'review' && task.status !== 'done' && task.status !== 'cancelled' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-[11px]"
-              onClick={(event) => { event.stopPropagation(); void startAutoRun(task.id); }}
-              disabled={isMutating}
-            >
-              {isMutating ? 'Starting…' : 'Run'}
-            </Button>
-          )}
           {typeof task.costUsd === 'number' && task.costUsd > 0 && (
             <Badge variant="secondary" className="border-brand/15 bg-brand-muted text-brand">
               ${task.costUsd.toFixed(2)}

@@ -18,7 +18,6 @@ function createFixtureReadModel(): VaultReadModel {
         type: "project",
         workspaceId: "ws-demo",
         name: "Kioku Delivery",
-        codebases: [],
         boardIds: ["board-kioku"],
         columnIds: ["todo"],
         taskIds: ["task-search"],
@@ -142,7 +141,7 @@ function createFixtureReadModel(): VaultReadModel {
       },
     ],
     agents: [],
-  };
+  } as unknown as VaultReadModel;
 }
 
 const storages: Array<ReturnType<typeof createKiokuStorage>> = [];

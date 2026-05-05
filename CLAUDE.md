@@ -6,70 +6,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RelayHQ is a **vault-first Kanban control plane** for coordinating humans and agents across projects. It coordinates work; it does not execute work. The vault (Markdown files + YAML frontmatter + Git) is the canonical source of truth — not a cache.
 
-Current branch `vault-first-rebuild` now contains a seeded Phase 1 implementation: the Nuxt app reads and writes canonical vault state, the task lifecycle APIs are live, and the shared demo vault is committed for verification.
-
 ## Repository layout
 
 ```
 RelayHQ-vault-first/
 ├── app/                        # Nuxt 3 API server (Bun) — port 44210
-│   ├── components/             # UI surfaces: board, approvals, tasks, nav, empty states
-│   ├── data/                   # UI selectors/projections over the canonical read model
-│   ├── pages/                  # overview, project, board, task, approvals, agents
 │   ├── server/
 │   │   ├── api/
-│   │   │   ├── vault/          # vault task lifecycle routes (read-model, tasks, claim, etc.)
-│   │   │   └── agent/          # agent session, context, search, planner-context, bootstrap
-│   │   ├── models/             # canonical read model projection
-│   │   └── services/           # vault read/write, agents, security, kioku integration
-│   ├── shared/vault/           # TS schema + layout helpers for vault records
-│   ├── test/                   # seeded-vault regression coverage
-│   ├── nuxt.config.ts
-│   └── package.json
-├── web/                        # React 19 + Vite board UI (Bun) — port 44211
-│   ├── src/
-│   │   ├── pages/              # TasksView, BoardView, ApprovalsView, AgentsView, AuditView
-│   │   ├── components/         # layout (Shell, Sidebar, TopBar), ui, task, live-world
-│   │   ├── store/              # Zustand app store
-│   │   ├── api/                # typed API client (calls app/ on port 44210)
-│   │   ├── mock/               # dev-time mock data for UI development
-│   │   └── types/              # shared TypeScript types for the web client
-│   └── package.json            # React 19, React Router, Tailwind CSS v4, PixiJS, Motion
+│   │   │   ├── vault/          # task lifecycle: read-model, tasks, claim, approve, agents, docs
+│   │   │   │   └── projects/[id]/  # coordinator-thread + coordinator-chat routes
+│   │   │   ├── agent/          # agent coordination: session, context, bootstrap, search, run, dispatch
+│   │   │   ├── runners/        # process manager routes: available-clis, active runners
+│   │   │   ├── analytics/      # activity, cost, velocity, summary, providers endpoints
+│   │   │   └── settings/       # settings r/w, agent scanning, registration, verify-key, skills
+│   │   ├── services/
+│   │   │   ├── agents/         # launch.ts, dispatch.ts, skills.ts, session-events.ts, autorun.ts, session-registry.ts, capacity.ts
+│   │   │   ├── runners/        # manager.ts — spawns and tracks agent subprocesses
+│   │   │   ├── vault/          # read.ts, write.ts, runtime.ts, coordinator-thread.ts, task/agent state normalizers
+│   │   │   ├── analytics/      # provider-usage.ts
+│   │   │   └── policy/         # work-policy.ts — coordinator/worker/human actor role enforcement
+│   │   └── models/             # read-model.ts — canonical in-memory projection
+│   ├── shared/vault/           # TS schema (ALLOWED_MODELS, assertAgentFrontmatter, etc.)
+│   ├── scripts/                # one-off vault migration scripts (migrate-task-dispatch-state, reset-agent-state, reset-task-columns-state)
+│   └── test/                   # seeded-vault regression tests
+├── web/                        # React 19 + Vite board UI — port 44211
+│   └── src/
+│       ├── pages/              # DesktopView (windowed OS shell), BoardView, TasksView, AgentsView, ApprovalsView, AuditView, DocsView
+│       ├── components/
+│       │   ├── live-world/     # DesktopAgentScene, WorldCanvas, agentMotion.ts — sprite physics layer
+│       │   ├── layout/         # Shell, Sidebar, AgentSetupWizard, OnboardingWizard
+│       │   └── task/           # DetailPanel and task UI primitives
+│       ├── store/appStore.ts   # Zustand store + SSE realtime sync
+│       └── api/client.ts       # typed API client (calls port 44210)
+├── packages/
+│   ├── agent-sdk/              # @relayhq/agent-sdk — typed helpers for agent lifecycle APIs
+│   └── relayhq-mcp/            # MCP server (relayhq-mcp) — exposes RelayHQ tools to Claude/agents
 ├── backend/
-│   ├── go.mod                  # module: relayhq/backend
-│   └── internal/vault/
-│       ├── schema.go           # canonical Go types + validation helpers
-│       └── schema_test.go
-├── go.work                     # Go workspace: backend/ module
+│   └── internal/vault/         # schema.go — canonical Go types + validators (ground truth)
 ├── cli/
-│   └── relayhq.ts              # minimal agent CLI using the same local HTTP APIs as the UI
-├── docs/
-│   ├── index.md                # reading order and source-of-truth rules
-│   ├── architecture.md         # three-layer model + boundaries
-│   ├── phase-1-checklist.md    # implementation checklist used for current slice
-│   ├── ux-design.md            # current Phase 1 UX requirements
-│   ├── vault/
-│   │   ├── structure.md        # vault directory layout
-│   │   └── schema.md           # file schemas with YAML frontmatter examples
-│   ├── agents/
-│   │   ├── definitions.md      # agent registry format
-│   │   └── protocol.md         # how agents interact with RelayHQ
-│   └── roadmap.md              # phased growth plan
+│   └── relayhq.ts              # minimal agent CLI over local HTTP
+├── skills/                     # repo-local skill templates (skill-code-review, skill-bug-fix, etc.)
 ├── vault/
-│   ├── shared/                 # canonical committed Phase 1 demo records
-│   │   ├── workspaces/
-│   │   ├── projects/
-│   │   ├── boards/
-│   │   ├── columns/
-│   │   ├── tasks/
-│   │   ├── approvals/
-│   │   ├── agents/
-│   │   ├── audit/
-│   │   └── threads/
-│   ├── users/                  # private overlays, must stay gitignored
-│   └── system/                 # schema/template assets when introduced
-├── ecosystem.config.cjs        # PM2: relayhq-api (44210) + relayhq-web (44211)
-└── CLAUDE.md
+│   ├── shared/                 # committed coordination state — source of truth
+│   └── users/                  # private overlays — must stay gitignored
+└── ecosystem.config.cjs        # PM2: relayhq-api (44210) + relayhq-web (44211)
 ```
 
 ## Commands
@@ -79,12 +59,10 @@ RelayHQ-vault-first/
 ```bash
 cd app
 bun install
-bun run dev          # dev server on port 44210
-bun run build
-bun run preview
+bun run dev          # port 44210
 bun run typecheck
 bun test
-bun test --test-name-pattern "pattern"   # run a single test by name
+bun test --test-name-pattern "pattern"
 ```
 
 ### React web UI (web/)
@@ -92,8 +70,7 @@ bun test --test-name-pattern "pattern"   # run a single test by name
 ```bash
 cd web
 npm install
-npm run dev          # dev server on port 44211 (proxies API to port 44210)
-npm run build
+npm run dev          # port 44211, proxies API to 44210
 npm run lint         # tsc --noEmit
 ```
 
@@ -101,137 +78,196 @@ npm run lint         # tsc --noEmit
 
 ```bash
 cd backend
-go test ./...                          # all tests
-go test ./internal/vault/...           # vault package only
-go test -race ./...                    # with race detector
+go test ./...
+go test -race ./...
 ```
 
-> A `go.work` file at the repo root declares the Go workspace. Run Go commands from `backend/` or use `go work` from the root.
-
-### CLI (repo root)
+### CLI
 
 ```bash
-bun run ./cli/relayhq.ts tasks --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts claim task-001 --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-backend-dev
-bun run ./cli/relayhq.ts request-approval task-003 --assignee=agent-backend-dev --reason="Need sign-off"
-bun run ./cli/relayhq.ts update task-001 --assignee=agent-backend-dev --status=review --progress=100 --result="Completed"
+bun run ./cli/relayhq.ts tasks --assignee=<agentId>
+bun run ./cli/relayhq.ts claim <taskId> --assignee=<agentId>
+bun run ./cli/relayhq.ts heartbeat <taskId> --assignee=<agentId>
+bun run ./cli/relayhq.ts update <taskId> --assignee=<agentId> --status=review --progress=100 --result="..."
 ```
 
-CLI transport notes:
-- default base URL: `http://127.0.0.1:44210`
-- override with `RELAYHQ_BASE_URL`
-- or pass `--base-url=<url>`
+Default base URL `http://127.0.0.1:44210` — override with `RELAYHQ_BASE_URL` or `--base-url`.
 
-### PM2 (dev services)
+### Migration scripts (app/)
 
 ```bash
-pm2 start ecosystem.config.cjs && pm2 save   # first time
-pm2 start all / pm2 stop all / pm2 logs
+cd app
+bun run ./scripts/migrate-task-dispatch-state.ts   # normalize task dispatch fields
+bun run ./scripts/reset-agent-state.ts             # reset agent frontmatter state
+bun run ./scripts/reset-task-columns-state.ts      # reset task column assignments
 ```
 
-Claude commands: `/pm2-all`, `/pm2-3000`, `/pm2-logs`, `/pm2-status`
+### MCP server
+
+```bash
+cd packages/relayhq-mcp && npm install
+node bin/relayhq-mcp.mjs   # connects to RELAYHQ_BASE_URL (default 127.0.0.1:44210)
+```
+
+### PM2
+
+```bash
+pm2 start ecosystem.config.cjs && pm2 save
+pm2 restart relayhq-api    # after server-side changes
+```
+
+### Environment (app/.env)
+
+```
+RELAYHQ_VAULT_ROOT=/path/to/vault   # required when vault lives outside the repo
+CORS_ORIGIN=http://localhost:44211,http://127.0.0.1:44211
+```
 
 ## Architecture
 
 ### Three layers
 
-1. **Domain model** — workspace → project → board → column → task; plus assignment, approval, audit note
-2. **Vault-first storage** — `vault/shared/**` is committed Git state (authoritative); `vault/users/**` is per-user private overlay (must be gitignored); `vault/system/**` holds schema/template assets
-3. **API + UI** — Nuxt 3 (`app/`) serves the API and server-rendered pages; React (`web/`) is the board UI consuming that API
+1. **Domain model** — workspace → project → board → column → task; plus assignment, approval, audit note, doc
+2. **Vault-first storage** — `vault/shared/**` is committed Git state; `vault/users/**` is private overlay (gitignored); mutations go through API, never direct file writes
+3. **API + UI** — Nuxt 3 (`app/`) serves all API routes; React (`web/`) consumes them; SSE (`/api/vault/events` or equivalent) drives realtime updates in `appStore.ts`
 
 ### Core boundary
 
 RelayHQ owns coordination state (ownership, approval, traceability, progress). The agent runtime owns execution details. Never blur this boundary.
 
+### Vault root resolution (`app/server/services/vault/runtime.ts`)
+
+- `RELAYHQ_VAULT_ROOT` env var → use directly
+- running from `app/` → resolve repo root via `..`
+- otherwise → current working directory
+
+Shared files live at `vault/shared/{type}/*.md` relative to resolved root.
+
 ### Vault file shape
 
-Each vault object is one Markdown file with YAML frontmatter. Key fields for tasks:
-
-- `id`, `type: task`, `version: 1`
-- `workspace_id`, `project_id`, `board_id`
+Each vault object is one Markdown file with YAML frontmatter. Key task fields:
 - `column`: `todo | in-progress | review | done`
-- `status`: `todo | in-progress | blocked | review | waiting-approval | done | cancelled`
+- `status`: `todo | scheduled | in-progress | blocked | review | waiting-approval | done | cancelled`
 - `priority`: `critical | high | medium | low`
-- `approval_needed`, `approval_outcome`: `pending | approved | rejected`
-- Lock fields: `locked_by`, `locked_at`, `lock_expires_at`
+- `locked_by`, `locked_at`, `lock_expires_at` — optimistic locking for concurrent agents
+- `next_run_at`, `cron_schedule` — used for scheduled/recurring tasks
+- `api_key_ref` — must use `env:VAR`, `secret:name`, or `vault:path` prefix; never raw values
 
-Current shared demo vault includes:
-- 1 workspace
-- 1 project
-- 1 board
-- 4 columns
-- seeded tasks for todo, in-progress, and waiting-approval
-- 1 approval record
-- 1 agent registry record
+### Agent launch pipeline
+
+```
+POST /api/agent/:id/run
+  → dispatch.ts  (evaluateDispatch — checks readiness, runtime, active sessions)
+  → launch.ts    (resolveCommand → builds opencode/claude-code/codex args)
+  → manager.ts   (startRunner — spawns subprocess, pipes stdout/stderr)
+  → session-events.ts (appendAgentSessionEvent → vault/shared/threads/agent-session-*.jsonl)
+  → session-registry.ts (records session in vault/shared/threads/agent-task-sessions.json)
+```
+
+`launch.ts:makeLineStreamParser` parses JSON lines from agent stdout:
+- `{type:"text", part:{text}}` → `reasoning.summary`
+- `{type:"thinking", part:{thinking}}` → `reasoning.summary`
+- `{type:"tool_use"}` → `terminal.stdout [tool_use]`
+- `{type:"step_start/finish"}` → `terminal.stdout [raw]`
+
+OpenCode is launched with `--format json --thinking --dangerously-skip-permissions`. PTY wrapping (`script -qec`) is used for opencode background runs.
+
+### Work policy system (`app/server/services/policy/work-policy.ts`)
+
+Every agent action is gated by a work policy decision. Actors are resolved into one of three kinds:
+- `coordinator` — agent with `role: coordinator` (or `roles` array containing `"coordinator"`)
+- `worker` — all other registered agents
+- `human` — unregistered actor ID
+
+`assertWorkPolicy` throws HTTP 403 if the actor is not permitted for the requested action. `isCoordinatorAgent` / `isCoordinatorTask` are the fast-path helpers used by dispatch routes.
+
+### Coordinator chat flow (`app/server/api/vault/projects/[id]/coordinator-chat.post.ts`)
+
+Per-project coordinator threads allow human↔coordinator dialogue:
+- `POST /api/vault/projects/:id/coordinator-thread` — open/get the coordinator thread
+- `GET /api/vault/projects/:id/coordinator-thread` — read current thread state
+- `POST /api/vault/projects/:id/coordinator-chat` — send message or launch/resume coordinator session (`mode: fresh | resume | reset`)
+
+The coordinator chat endpoint de-duplicates concurrent launches via an in-memory map keyed by `projectId`.
+
+### Skills system
+
+Skills are `.md` files with YAML frontmatter loaded from `~/.relayhq/skills/` at runtime:
+```yaml
+---
+name: skill-name
+version: 1.0.0
+description: ...
+task_types: [feature-implementation, bug-fix]
+applies_to_tags: [tag1, tag2]
+---
+```
+Agent context API injects matching skills into the bootstrap pack. `skills/` in the repo contains templates; install them to `~/.relayhq/skills/` to activate.
+
+### Active HTTP routes
+
+**Vault (`/api/vault/`):**
+- `GET /read-model` — full workspace snapshot
+- `POST /tasks`, `PATCH /tasks/[id]`
+- `POST /tasks/[id]/claim|heartbeat|request-approval|approve|reject`
+- `GET /agents`, `POST /agents`
+- `PATCH /agents/[id]`
+- `POST /assets/agent-avatar` — upload agent avatar
+- `GET /projects`, `POST /projects`, `GET|PATCH /projects/[id]`
+- `GET|POST /projects/[id]/coordinator-thread`
+- `POST /projects/[id]/coordinator-chat`
+- `GET /docs`, `POST /docs`, `GET|PATCH /docs/[id]`
+- `GET /audit-notes`
+- `POST /init` — seed an empty vault
+- `GET /api/health`, `GET /api/metrics`
+
+**Agent (`/api/agent/`):**
+- `GET /session` — workspace context + task list for session start
+- `GET /context` — full bootstrap pack (skills injected here)
+- `GET /state` — lightweight current state
+- `GET /planner-context`
+- `POST /tasks`, `GET /tasks`
+- `POST /tasks/[id]/claim-next`
+- `POST /[id]/run` — dispatch and launch an agent session
+- `POST /[id]/resume` — resume a previous session
+- `GET /[id]/sessions` — list sessions for a specific agent
+- `GET /sessions`, `GET /sessions/[sessionId]`, `DELETE /sessions/[sessionId]`
+- `GET /sessions/[sessionId]/messages`
+- `GET /sessions/[sessionId]/usage` — token usage for a session
+- `POST /search`, `GET /search-code`, `POST /search-docs`
+- `GET /active`
+
+**Settings (`/api/settings/`):**
+- `GET /api-keys`, `GET /skills`
+- `POST /verify-key` — validate an API key against its provider (Anthropic, OpenAI, etc.)
+- `GET /shell-profile`, `POST /shell-profile`
+- `GET|POST /webhooks`
+
+**Runners:** `GET /api/runners/available-clis`
+
+**Analytics:** `GET /api/analytics/agents`, `/cost`, `/velocity`, `/summary`, `/activity`, `/providers`
+
+**API reference:** `GET /api/openapi.json` — OpenAPI spec; `GET /api/scalar` — Scalar UI (loads spec client-side)
+
+`app/server/api/contract-alignment.test.ts` — run this whenever changing any agent API response shape; it verifies the server response matches what `web/src/api/client.ts` expects.
 
 ### Go validation
 
-`backend/internal/vault/schema.go` contains all canonical types (`TaskFrontmatter`, `AgentFrontmatter`, `WorkspaceFrontmatter`, etc.) and validators (`ValidateTaskFrontmatter`, `ValidateAgentFrontmatter`, etc.). These are the ground truth for what constitutes a valid vault file. Always keep validators in sync with `docs/vault/schema.md`.
-
-### Vault Root Resolution
-
-Runtime vault resolution lives in `app/server/services/vault/runtime.ts`:
-- if `RELAYHQ_VAULT_ROOT` is set, use it directly
-- otherwise, if the process is running from `app/`, resolve the repo root via `..`
-- otherwise, use the current working directory as the repo root
-
-Shared task files live at `vault/shared/tasks/*.md` relative to the resolved root.
-
-### Active HTTP Routes
-
-Vault task lifecycle (`app/server/api/vault/`):
-- `GET /api/vault/read-model`
-- `POST /api/vault/tasks`, `PATCH /api/vault/tasks/[id]`
-- `POST /api/vault/tasks/[id]/claim|heartbeat|request-approval|approve|reject`
-- `GET /api/vault/audit-notes`
-- `GET /api/vault/agents`, `POST /api/vault/agents`
-- `GET /api/vault/projects`, `POST /api/vault/projects`, `GET/PATCH /api/vault/projects/[id]`
-- `GET /api/vault/docs`, `POST /api/vault/docs`, `GET/PATCH /api/vault/docs/[id]`
-- `POST /api/vault/init` — seed an empty vault with scaffolding
-- `GET /api/health`, `GET /api/metrics`
-- `GET /api/settings`, `POST /api/settings`
-
-Agent coordination (`app/server/api/agent/`):
-- `GET /api/agent/session` — workspace context + task list for session start
-- `GET /api/agent/context` — full task bootstrap pack
-- `GET /api/agent/planner-context` — planning-scoped context
-- `POST /api/agent/tasks`, `GET /api/agent/tasks` — create / list tasks as agent
-- `POST /api/agent/tasks/[id]/claim-next` — claim next available task
-- `POST /api/agent/search` — semantic search over vault
-- `GET /api/agent/search-code` — code-aware vault search
-- `GET /api/agent/active` — active agent sessions
-
-`app/server/api/contract-alignment.test.ts` verifies that agent API response shapes match the shapes the web client expects — run this when changing any API response structure.
-
-UI pages (Nuxt, `app/pages/`):
-- `/`, `/projects/[project]`, `/boards/[board]`, `/tasks/[task]`, `/approvals`, `/agents`
-
-React web UI pages (`web/src/pages/`):
-- TasksView, BoardView, ApprovalsView, AgentsView, AuditView
+`backend/internal/vault/schema.go` is the ground truth for valid vault files. Keep in sync with `docs/vault/schema.md`. TypeScript schema lives in `app/shared/vault/schema.ts` (`ALLOWED_MODELS`, `assertAgentFrontmatter`, etc.).
 
 ### Agent protocol (summary)
 
-Agents interact with the vault by:
-1. Claiming a task: set `status: in-progress`, `execution_started_at`, `heartbeat_at`
-2. During work: update `heartbeat_at`, `progress`, `execution_notes`
-3. Approval needed: set `approval_needed: true`, `status: waiting-approval`, stop
-4. Approval decision: keep task frontmatter and linked approval documents in sync
-5. Work complete: set `status: review`, `result`, `completed_at`, write audit note
-6. Blocked: set `status: blocked`, `blocked_reason`, `blocked_since`
-
-Phase 1 verification already covers:
-- seeded-vault dashboard/board/task selectors
-- task creation into the canonical vault
-- stale and contended lock handling
-- approval lifecycle state sync between task and approval documents
+1. Claim: `POST /api/vault/tasks/:id/claim` — sets `status: in-progress`, `execution_started_at`, `heartbeat_at`
+2. Heartbeat: `POST /api/vault/tasks/:id/heartbeat` every ~10 min; also PATCH `progress` + `execution_notes`
+3. Approval: `POST /api/vault/tasks/:id/request-approval` → `status: waiting-approval`, stop
+4. Done: PATCH `status: review`, `progress: 100`, `result`
+5. Blocked: PATCH `status: blocked`, `blocked_reason`, `blocked_since`
 
 ## Scope rules
 
-- Keep work within Phase 1: project registry, task board, column flow, assignment, approvals, audit notes
-- Do not build runtime features, marketplace, analytics, or billing
-- Private overlays (`vault/users/**`) must never appear in shared commits
-- Secrets are references only (`api_key_ref: env:ANTHROPIC_API_KEY`), never raw values
+- Phase 1 scope: project registry, task board, column flow, assignment, approvals, audit notes, agent dispatch
+- `vault/users/**` must never appear in shared commits
+- All API mutations go through HTTP routes — never write vault files directly from application code
 - If docs conflict, the more specific doc wins (`docs/vault/*` > `docs/architecture.md`)
 
 ## Source-of-truth hierarchy
@@ -239,6 +275,7 @@ Phase 1 verification already covers:
 | What | Where |
 |------|-------|
 | Vault file shape | `docs/vault/schema.md` + `backend/internal/vault/schema.go` |
+| TS schema / allowed models | `app/shared/vault/schema.ts` |
 | Agent behavior | `docs/agents/protocol.md` |
-| Product direction | `README.md`, `docs/vision.md`, `docs/architecture.md` |
-| Product direction | `docs/roadmap.md` |
+| API contract (server ↔ web) | `app/server/api/contract-alignment.test.ts` |
+| Product direction | `README.md`, `docs/architecture.md`, `docs/roadmap.md` |

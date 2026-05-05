@@ -1,25 +1,20 @@
-# RelayHQ
+# RelayHQ Docs
 
 ## Getting Started
 
-* [Introduction](README.md)
+* [What is RelayHQ](README.md)
 * [Quick Start](getting-started.md)
 
-## Concepts
+## How it works
 
-* [Vision](vision.md)
 * [Architecture](architecture.md)
 
 ## Vault
 
-* [Structure](vault/structure.md)
+* [Directory Structure](vault/structure.md)
 * [Schema Reference](vault/schema.md)
 
 ## Agents
 
-* [Agent Definitions](agents/definitions.md)
-* [Agent Protocol](agents/protocol.md)
-
-## Product
-
-* [Roadmap](roadmap.md)
+* [Configuring Agents](agents/definitions.md)
+* [Agent Session Protocol](agents/protocol.md)

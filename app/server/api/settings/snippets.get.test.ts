@@ -13,4 +13,11 @@ describe("GET /api/settings/snippets", () => {
     expect(response.snippet).toContain("RELAYHQ_VAULT_ROOT");
     expect(response.configFilePath).toContain(".claude/settings.json");
   });
+
+  test("rejects unsupported tools", () => {
+    expect(() => getSettingsSnippet("unsupported-tool", {
+      baseUrl: "http://127.0.0.1:44210",
+      vaultRoot: "/tmp/relayhq-vault",
+    })).toThrow("Unsupported tool id: unsupported-tool");
+  });
 });

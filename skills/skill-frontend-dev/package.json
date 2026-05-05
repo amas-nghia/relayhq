@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-frontend-dev",
+  "version": "1.0.0",
+  "description": "Frontend development skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "frontend", "ui", "react"],
+  "license": "MIT"
+}

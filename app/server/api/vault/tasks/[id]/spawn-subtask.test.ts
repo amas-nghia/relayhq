@@ -31,6 +31,7 @@ describe("POST /api/vault/tasks/:id/spawn-subtask", () => {
         objective: "Add focused regression tests for the spawned subtask flow without changing unrelated task lifecycle behavior.",
         acceptanceCriteria: ["Child task is written", "Parent link is preserved"],
         contextFiles: ["app/server/api/vault/tasks/[id]/spawn-subtask.ts"],
+        tags: ["bug-fix"],
       }, { vaultRoot: root });
 
       expect(response.parentTaskId).toBe("task-parent");

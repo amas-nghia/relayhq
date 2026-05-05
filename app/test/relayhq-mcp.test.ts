@@ -5,14 +5,16 @@ import { handleMcpMessage, RELAYHQ_MCP_TOOLS } from "../../packages/relayhq-mcp/
 describe("relayhq-mcp", () => {
   test("advertises the workflow tools", async () => {
     const response = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    expect(response?.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
+    const toolsResult = response?.result as { tools: Array<{ name: string }> } | undefined;
+    expect(toolsResult?.tools.map((tool) => tool.name)).toEqual([
       "relayhq_inbox",
       "relayhq_start",
       "relayhq_progress",
       "relayhq_done",
+      "relayhq_request_approval",
       "relayhq_blocked",
     ]);
-    expect(RELAYHQ_MCP_TOOLS).toHaveLength(5);
+    expect(RELAYHQ_MCP_TOOLS).toHaveLength(6);
   });
 
   test("starts a task by claiming and fetching bootstrap context", async () => {
@@ -36,8 +38,9 @@ describe("relayhq-mcp", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]?.url).toContain("/api/vault/tasks/task-1/claim");
     expect(calls[1]?.url).toContain("/api/agent/bootstrap/task-1");
-    expect(response?.result.content[0].text).toContain('"claimed": true');
-    expect(response?.result.content[0].text).toContain('"bootstrap": true');
+    const result = response?.result as { content: Array<{ text: string }> } | undefined;
+    expect(result?.content[0]?.text).toContain('"claimed": true');
+    expect(result?.content[0]?.text).toContain('"bootstrap": true');
   });
 
   test("reads inbox from the agent state endpoint", async () => {
@@ -73,7 +76,8 @@ describe("relayhq-mcp", () => {
 
     expect(calls[0]?.url).toContain("/api/vault/tasks/task-1");
     expect(calls[1]?.url).toContain("/api/vault/tasks/task-1/heartbeat");
-    expect(response?.result.content[0].text).toContain('"heartbeat"');
+    const result = response?.result as { content: Array<{ text: string }> } | undefined;
+    expect(result?.content[0]?.text).toContain('"heartbeat"');
   });
 
   test("marks completed work for review, not done", async () => {
@@ -92,5 +96,26 @@ describe("relayhq-mcp", () => {
 
     expect(calls[0]?.init?.body).toContain('"status":"review"');
     expect(calls[0]?.init?.body).toContain('"column":"review"');
+  });
+
+  test("requests approval through the task approval endpoint", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ status: "waiting-approval" }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+
+    const response = await handleMcpMessage({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: { name: "relayhq_request_approval", arguments: { agentId: "agent-1", taskId: "task-1", reason: "Need human decision" } },
+    }, { fetchFn, baseUrl: "http://relayhq.test" });
+
+    expect(calls[0]?.url).toContain("/api/vault/tasks/task-1/request-approval");
+    expect(calls[0]?.init?.body).toContain('"actorId":"agent-1"');
+    expect(calls[0]?.init?.body).toContain('"reason":"Need human decision"');
+    const result = response?.result as { content: Array<{ text: string }> } | undefined;
+    expect(result?.content[0]?.text).toContain("Approval request submitted");
   });
 });

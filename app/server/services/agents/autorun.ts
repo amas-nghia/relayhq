@@ -10,6 +10,7 @@ import { scheduleTaskLifecycle } from "../vault/task-lifecycle";
 import { resolveVaultWorkspaceRoot } from "../vault/runtime";
 import { readTaskDocument } from "../vault/write";
 import { readCanonicalVaultReadModel } from "../vault/read";
+import { assertWorkPolicy } from "../policy/work-policy";
 
 function readSection(body: string, heading: string): string | null {
   const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -56,6 +57,8 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
 
   const model = await readCanonicalVaultReadModel(vaultRoot)
   const agent = model.agents.find((entry) => entry.id === assignee)
+  const readModelTask = model.tasks.find((entry) => entry.id === taskId) ?? null
+  assertWorkPolicy({ actorId: assignee, actorIntent: "agent", action: "auto-dispatch", readModel: model, task: readModelTask })
   const provider = agent?.provider ?? (assignee.startsWith("claude") || assignee.includes("claude") ? "claude" : assignee)
   const command = providerCommand(provider)
 
@@ -93,7 +96,7 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
       if (!rateLimited && /\b429\b|rate limit|quota exceeded/i.test(text)) {
         rateLimited = true
         const nextRunAt = new Date(Date.now() + 3600 * 1000).toISOString()
-        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, reason: `Rate limited: ${text.slice(0, 160)}`, vaultRoot }).catch(() => undefined)
+        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, vaultRoot }).catch(() => undefined)
       }
       void writeAuditNote({ vaultRoot, taskId, source: assignee, message: `autorun stdout: ${text.slice(0, 500)}` }).catch(() => undefined)
     },
@@ -103,7 +106,7 @@ export async function startTaskAutorun(taskId: string): Promise<{ runnerId: stri
       if (!rateLimited && /\b429\b|rate limit|quota exceeded/i.test(text)) {
         rateLimited = true
         const nextRunAt = new Date(Date.now() + 3600 * 1000).toISOString()
-        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, reason: `Rate limited: ${text.slice(0, 160)}`, vaultRoot }).catch(() => undefined)
+        void scheduleTaskLifecycle({ taskId, actorId: assignee, nextRunAt, vaultRoot }).catch(() => undefined)
       }
       void writeAuditNote({ vaultRoot, taskId, source: assignee, message: `autorun stderr: ${text.slice(0, 500)}` }).catch(() => undefined)
     },

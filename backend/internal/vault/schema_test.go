@@ -295,6 +295,35 @@ func TestValidateDocFrontmatter(t *testing.T) {
 	}
 }
 
+func TestValidateDocFrontmatterAcceptsCodebaseBrainDocTypes(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC)
+	projectID := "project-docs"
+
+	for _, docType := range []DocType{DocTypeRepoMap, DocTypeCapabilityMap} {
+		doc := DocFrontmatter{
+			ID:          "doc-codebrain",
+			Type:        "doc",
+			DocType:     docType,
+			WorkspaceID: "ws-acme",
+			ProjectID:   &projectID,
+			Title:       "Codebase brain doc",
+			Status:      "active",
+			Visibility:  DocVisibilityProject,
+			AccessRoles: []string{"all"},
+			Sensitive:   false,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			Tags:        []string{"codebase-brain"},
+		}
+
+		if err := ValidateDocFrontmatter(doc); err != nil {
+			t.Fatalf("expected valid doc type %s, got error: %v", docType, err)
+		}
+	}
+}
+
 func TestValidateProjectFrontmatterWithExtendedFields(t *testing.T) {
 	t.Parallel()
 

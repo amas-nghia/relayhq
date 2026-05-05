@@ -29,6 +29,9 @@ function createReadModel(): VaultReadModel {
         executionNotes: null,
         progress: 0,
         history: [],
+        dispatchStatus: null,
+        dispatchReason: null,
+        lastDispatchAttemptAt: null,
         nextRunAt: null,
         cronSchedule: null,
         approvalNeeded: false,
@@ -98,6 +101,7 @@ function createReadModel(): VaultReadModel {
       skillFile: "skills/claude-code.md",
       skillFiles: [],
       status: "available",
+      projectId: null,
       createdAt: "2026-04-23T00:00:00Z",
       updatedAt: "2026-04-23T00:00:00Z",
       body: "",
@@ -156,6 +160,38 @@ describe("POST /api/agent/[id]/run", () => {
     expect(response.sessionId).toBe("runner-0")
   })
 
+  test("returns an existing live session instead of spawning a duplicate", async () => {
+    let launches = 0
+
+    const response = await runAgentTask("claude-code", {
+      taskId: "task-001",
+      mode: "resume",
+      previousSessionId: "runner-existing",
+    }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => createReadModel(),
+      workspaceIdReader: () => null,
+      launchAgentSession: async (request) => {
+        launches += 1
+        return {
+          sessionId: request.previousSessionId ?? "runner-new",
+          runnerId: "runner-new",
+          agentId: request.agentId,
+          taskId: request.taskId,
+          runtimeKind: "claude-code",
+          launchSurface: request.surface ?? "background",
+          launchMode: request.mode ?? "fresh",
+          command: "claude",
+          args: ["-p"],
+        }
+      },
+    })
+
+    expect(launches).toBe(1)
+    expect(response.sessionId).toBe("runner-existing")
+    expect(response.launchMode).toBe("resume")
+  })
+
   test("rejects tasks assigned to another agent", async () => {
     await expect(runAgentTask("claude-code", { taskId: "task-001" }, {
       resolveRoot: () => "/tmp/relayhq-vault",
@@ -164,4 +200,27 @@ describe("POST /api/agent/[id]/run", () => {
       launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
     })).rejects.toMatchObject({ statusCode: 409 });
   });
+
+  test("rejects coordinator launches for non-coordination tasks", async () => {
+    const model = {
+      ...createReadModel(),
+      agents: [{ ...createReadModel().agents[0], role: 'coordinator', roles: ['coordinator'] }],
+    }
+
+    await expect(runAgentTask("claude-code", { taskId: "task-001" }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => model,
+      workspaceIdReader: () => null,
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
+    })).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  test("rejects launches for unregistered agent ids", async () => {
+    await expect(runAgentTask("missing-agent", { taskId: "task-001" }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => ({ ...createReadModel(), tasks: [{ ...createReadModel().tasks[0], assignee: "missing-agent" }] }),
+      workspaceIdReader: () => null,
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "missing-agent", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
+    })).rejects.toMatchObject({ statusCode: 404 })
+  })
 });

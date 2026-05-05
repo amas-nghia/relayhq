@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
+import { agentRunnerManager } from "../../../services/runners/manager";
 import { publishRealtimeUpdate } from "../../../services/realtime/bus";
+import { readCanonicalVaultReadModel } from "../../../services/vault/read";
+import { clearCoordinatorThreadActiveSession } from "../../../services/vault/coordinator-thread";
 import { resolveSharedVaultPath, resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -32,7 +35,22 @@ function upsertFrontmatterLine(content: string, key: string, value: string | num
   return content.replace(/^name:\s.*$/m, (match) => `${match}\n${line}`)
 }
 
-export async function patchVaultAgent(agentId: string, body: unknown, options: { vaultRoot?: string } = {}) {
+function replaceDocumentBody(content: string, body: string): string {
+  const normalizedBody = body.replace(/^\n+/, "")
+  const closingFenceMatch = content.match(/^---[\s\S]*?\n---\n?/)
+  if (!closingFenceMatch) {
+    throw createError({ statusCode: 500, statusMessage: "Agent document frontmatter is malformed." })
+  }
+  return `${closingFenceMatch[0]}${normalizedBody.length > 0 ? `\n${normalizedBody}` : ""}`
+}
+
+interface PatchVaultAgentOptions {
+  readonly vaultRoot?: string
+  readonly runnerManager?: Pick<typeof agentRunnerManager, "getAgentRunners" | "stopRunner">
+}
+
+export async function patchVaultAgent(agentId: string, body: unknown, options: PatchVaultAgentOptions = {}) {
+  const runnerManager = options.runnerManager ?? agentRunnerManager
   if (!agentId) {
     throw createError({ statusCode: 400, statusMessage: "Agent id is required." })
   }
@@ -42,6 +60,16 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
 
   const patch = isPlainRecord(body.patch) ? body.patch : body
   const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot()
+  const shouldRestartLiveSessions = [
+    patch.model,
+    patch.provider,
+    patch.runtime_kind,
+    patch.run_command,
+    patch.command_template,
+    patch.run_mode,
+    patch.webhook_url,
+    patch.api_key_ref,
+  ].some((value) => value !== undefined)
   const filePath = join(resolveSharedVaultPath(vaultRoot), "agents", `${agentId}.md`)
 
   let content = ""
@@ -53,7 +81,10 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
 
   let next = content
     .replace(/^name:\s.*$/m, typeof patch.name === "string" && patch.name.trim().length > 0 ? `name: ${JSON.stringify(patch.name.trim())}` : "$&")
+    .replace(/^provider:\s.*$/m, typeof patch.provider === "string" && patch.provider.trim().length > 0 ? `provider: ${JSON.stringify(patch.provider.trim())}` : "$&")
+    .replace(/^model:\s.*$/m, typeof patch.model === "string" && patch.model.trim().length > 0 ? `model: ${JSON.stringify(patch.model.trim())}` : "$&")
     .replace(/^capabilities:\s.*$/m, patch.capabilities !== undefined ? `capabilities: ${JSON.stringify(normalizeStringArray(patch.capabilities, "capabilities"))}` : "$&")
+    .replace(/^task_types_accepted:\s.*$/m, patch.task_types_accepted !== undefined ? `task_types_accepted: ${JSON.stringify(normalizeStringArray(patch.task_types_accepted, "task_types_accepted"))}` : "$&")
     .replace(/^fallback_models:\s.*$/m, patch.fallback_models !== undefined ? `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}` : "$&")
     .replace(/^approval_required_for:\s.*$/m, patch.approval_required_for !== undefined ? `approval_required_for: ${JSON.stringify(normalizeStringArray(patch.approval_required_for, "approval_required_for"))}` : "$&")
     .replace(/^updated_at:\s.*$/m, `updated_at: ${JSON.stringify(new Date().toISOString())}`)
@@ -74,6 +105,12 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
   next = upsertFrontmatterLine(next, "supports_streaming", typeof patch.supports_streaming === "boolean" ? patch.supports_streaming : undefined)
   next = upsertFrontmatterLine(next, "bootstrap_strategy", typeof patch.bootstrap_strategy === "string" && patch.bootstrap_strategy.trim().length > 0 ? patch.bootstrap_strategy.trim() : undefined)
   next = upsertFrontmatterLine(next, "verification_status", typeof patch.verification_status === "string" && patch.verification_status.trim().length > 0 ? patch.verification_status.trim() : undefined)
+  next = upsertFrontmatterLine(next, "skill_file", typeof patch.skill_file === "string" && patch.skill_file.trim().length > 0 ? patch.skill_file.trim() : undefined)
+  next = upsertFrontmatterLine(next, "skill_files", patch.skill_files !== undefined ? normalizeStringArray(patch.skill_files, "skill_files") : undefined)
+
+  if (typeof patch.body === "string") {
+    next = replaceDocumentBody(next, patch.body)
+  }
 
   if (patch.fallback_models !== undefined) {
     const line = `fallback_models: ${JSON.stringify(normalizeStringArray(patch.fallback_models, "fallback_models"))}`
@@ -93,6 +130,26 @@ export async function patchVaultAgent(agentId: string, body: unknown, options: {
     source: agentId,
     timestamp: new Date().toISOString(),
   });
+
+  if (shouldRestartLiveSessions) {
+    console.info('[RelayHQ][agent-patch] restart launch-affecting sessions', {
+      agentId,
+      shouldRestartLiveSessions,
+      patchKeys: Object.keys(patch),
+    })
+    for (const runner of runnerManager.getAgentRunners(agentId)) {
+      console.info('[RelayHQ][agent-patch] stopping runner', { agentId, sessionId: runner.sessionId, status: runner.status })
+      runnerManager.stopRunner(runner.sessionId, "Agent configuration changed; restarting sessions to apply the updated model.")
+    }
+
+    const readModel = await readCanonicalVaultReadModel(vaultRoot)
+    const coordinatorProjects = readModel.projects.filter((project) => project.coordinatorAgentId === agentId)
+    for (const project of coordinatorProjects) {
+      const threadPath = join(resolveSharedVaultPath(vaultRoot), "coordinator-threads", `coordinator-thread-${project.id}.md`)
+      console.info('[RelayHQ][agent-patch] clearing coordinator thread active session', { agentId, projectId: project.id, threadPath })
+      await clearCoordinatorThreadActiveSession(threadPath)
+    }
+  }
 
   return { success: true, agentId }
 }

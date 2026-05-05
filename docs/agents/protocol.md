@@ -1,81 +1,158 @@
 # Agent Protocol
 
-This protocol tells any agent how to work with RelayHQ.
+How an agent interacts with RelayHQ during a session.
 
 ## Session start
-1. Load the RelayHQ skill or project instructions.
-2. Find tasks assigned to the agent or user.
-3. Pick a task that is ready to start.
 
-## Task selection rule
-Only return tasks that are:
-- assigned to the agent/user
-- not blocked by dependencies
-- not already done or cancelled
-
-For the MVP, task selection must stay within a single user's registry scope and must not surface team-only or placeholder agents.
-
-## Claiming a task
-When the agent starts work, update the task:
-- `status: in-progress`
-- `execution_started_at: <timestamp>`
-- `heartbeat_at: <timestamp>`
-
-## During work
-The agent should periodically update:
-- `heartbeat_at`
-- `progress`
-- `execution_notes`
-
-## Approval flow
-If an action is risky:
-- set `approval_needed: true`
-- record `approval_reason`
-- set `status: waiting-approval`
-- stop until human approval is recorded
-
-Approval-required actions must be visible in the agent registry and reflected in the task workflow.
-
-Use `waiting-approval` only when the agent cannot continue without explicit human sign-off.
-
-## Completion flow
-When done, write:
-- `status: review`
-- `result`
-- `completed_at`
-- audit note or summary
-
-Use `review` when implementation work is complete and the task is ready for human verification.
-
-Only move a task to `done` after the human review step has finished.
-
-Token reporting is optional but recommended when the runtime can provide it. Include any of:
-- `tokens_used`
-- `model`
-- `cost_usd`
-
-## Failure flow
-If blocked or failed, write:
-- `status: blocked` or `status: cancelled`
-- `blocked_reason`
-- `blocked_since`
-
-## Stale detection
-If `heartbeat_at` is too old, RelayHQ should mark the task as stale and surface it for recovery.
-
-The minimal CLI talks to the same local HTTP write APIs as the UI. By default it uses `http://127.0.0.1:44210`, and agents can override that with `RELAYHQ_BASE_URL` or `--base-url=<url>`.
-
-## CLI expectation
-Any runtime agent should be able to call a CLI or writeback protocol such as:
+When an agent session launches, RelayHQ injects a bootstrap pack via the context API. The agent should read this at the start of every session.
 
 ```bash
-bun run ./cli/relayhq.ts tasks --assignee=me
-bun run ./cli/relayhq.ts claim task-001 --assignee=me
-bun run ./cli/relayhq.ts heartbeat task-001 --assignee=me
-bun run ./cli/relayhq.ts request-approval task-001 --assignee=me --reason="Need prod access"
-bun run ./cli/relayhq.ts update task-001 --assignee=me --status=review --result="PR #42 created" --tokens-used=18420 --model="claude-sonnet-4-6" --cost-usd=0.11
+GET /api/agent/context
+# Returns: task list, workspace context, matched skill files, agent config
 ```
 
-## Design rule
-Agents are responsible for reporting.
-RelayHQ is responsible for coordination, visibility, and audit.
+Or use the MCP server — `relayhq_session_start(agentId="your-agent-id")` returns the same context.
+
+## Task lifecycle
+
+### 1. Claim
+
+Before starting work, claim the task to prevent other agents from picking it up.
+
+```bash
+POST /api/vault/tasks/:id/claim
+{ "actorId": "agent-my-dev" }
+```
+
+This sets `status: in-progress`, `execution_started_at`, and `heartbeat_at`. The task is now locked to this agent.
+
+CLI:
+```bash
+bun run ./cli/relayhq.ts claim task-001 --assignee=agent-my-dev
+```
+
+### 2. Heartbeat (every ~10 minutes during work)
+
+```bash
+POST /api/vault/tasks/:id/heartbeat
+{ "actorId": "agent-my-dev" }
+```
+
+Also PATCH `progress` and `execution_notes` to keep the board current:
+
+```bash
+curl -X PATCH http://localhost:44210/api/vault/tasks/task-001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actorId": "agent-my-dev",
+    "patch": {
+      "progress": 60,
+      "execution_notes": "Auth module done, working on tests"
+    }
+  }'
+```
+
+CLI:
+```bash
+bun run ./cli/relayhq.ts heartbeat task-001 --assignee=agent-my-dev
+```
+
+### 3a. Complete (normal path)
+
+```bash
+curl -X PATCH http://localhost:44210/api/vault/tasks/task-001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actorId": "agent-my-dev",
+    "patch": {
+      "status": "review",
+      "progress": 100,
+      "result": "Implemented feature. Tests pass. PR #42."
+    }
+  }'
+```
+
+CLI:
+```bash
+bun run ./cli/relayhq.ts update task-001 \
+  --assignee=agent-my-dev \
+  --status=review \
+  --result="Implemented feature. Tests pass. PR #42." \
+  --tokens-used=18420 \
+  --model="claude-sonnet-4-6" \
+  --cost-usd=0.11
+```
+
+Use `review` (not `done`) — a human verifies before the task moves to `done`.
+
+### 3b. Request approval (when action is risky)
+
+```bash
+POST /api/vault/tasks/:id/request-approval
+{
+  "actorId": "agent-my-dev",
+  "reason": "About to delete 10,000 rows from the production database"
+}
+```
+
+This sets `status: waiting-approval` and stops the agent. The human sees the approval request in the UI and either approves or rejects.
+
+CLI:
+```bash
+bun run ./cli/relayhq.ts request-approval task-001 \
+  --assignee=agent-my-dev \
+  --reason="About to delete 10,000 rows"
+```
+
+### 3c. Blocked
+
+If the agent cannot continue:
+
+```bash
+curl -X PATCH http://localhost:44210/api/vault/tasks/task-001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actorId": "agent-my-dev",
+    "patch": {
+      "status": "blocked",
+      "blocked_reason": "Missing credentials for the staging database",
+      "blocked_since": "2026-05-05T10:00:00Z"
+    }
+  }'
+```
+
+## Token and cost reporting
+
+Include these optional fields in the final PATCH or CLI update. They feed into the analytics dashboard.
+
+```bash
+bun run ./cli/relayhq.ts update task-001 \
+  --assignee=agent-my-dev \
+  --status=review \
+  --result="Done" \
+  --tokens-used=25000 \
+  --model="claude-sonnet-4-6" \
+  --cost-usd=0.14
+```
+
+## Using the MCP server
+
+If running inside Claude Code, the `relayhq-mcp` server exposes all the above as MCP tools:
+
+```
+relayhq_session_start    — load workspace context and task list
+relayhq_claim_task       — claim a specific task
+relayhq_heartbeat        — send heartbeat
+relayhq_update_task      — update status/progress/result
+relayhq_request_approval — request human sign-off
+```
+
+## Summary
+
+| Step | Status | When |
+|------|--------|------|
+| Claim | `in-progress` | Before starting |
+| Heartbeat | `in-progress` | Every ~10 min |
+| Complete | `review` | Work done, needs human check |
+| Approval needed | `waiting-approval` | Before risky action |
+| Blocked | `blocked` | Cannot continue |

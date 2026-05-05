@@ -22,7 +22,7 @@ describe("GET /api/agent/help", () => {
         runtime: "opencode",
         launch: {
           command: "opencode",
-          args: ["run", "<prompt>", "--format", "json", "--dangerously-skip-permissions", "--dir", "<repo-root>"],
+          args: ["run", "<prompt>", "--title", "RelayHQ <agent-id>", "--format", "json", "--dangerously-skip-permissions", "--dir", "<repo-root>"],
           cwdStrategy: "pty-wrapper",
           outputMode: "json",
         },

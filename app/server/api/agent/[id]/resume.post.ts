@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, getRouterParam, readBody } from "h3";
 
-import { launchAgentSession } from "../../../services/agents/launch";
+import { runAgentTask } from "./run.post";
 
 export default defineEventHandler(async (event) => {
   const agentId = getRouterParam(event, "id") ?? "";
@@ -10,8 +10,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "taskId is required." });
   }
 
-  return await launchAgentSession({
-    agentId,
+  return await runAgentTask(agentId, {
     taskId: body.taskId.trim(),
     mode: "resume",
     surface: body?.surface === 'visible-terminal' ? 'visible-terminal' : 'background',

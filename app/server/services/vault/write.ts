@@ -15,6 +15,7 @@ import {
   claimTaskLock,
   DEFAULT_LOCK_TTL_MS,
   DEFAULT_STALE_AFTER_MS,
+  VaultLockError,
   VaultStaleWriteError,
 } from "./lock";
 import { validateTaskWrite } from "./validation";
@@ -76,6 +77,7 @@ export interface SyncTaskRequest {
   readonly lockTtlMs?: number;
   readonly staleAfterMs?: number;
   readonly recoverStaleLock?: boolean;
+  readonly recoverActiveLock?: boolean;
   readonly releaseLock?: boolean;
   readonly historyEntry?: TaskHistoryEntry;
 }
@@ -289,7 +291,9 @@ export async function syncTaskDocument(request: SyncTaskRequest): Promise<SyncTa
     try {
       assertTaskWriteable(current.frontmatter, request.actorId, now, staleAfterMs);
     } catch (error) {
-      if (!(request.recoverStaleLock && error instanceof VaultStaleWriteError)) {
+      const isStaleAndRecoverable = request.recoverStaleLock && error instanceof VaultStaleWriteError;
+      const isActiveAndRecoverable = request.recoverActiveLock && error instanceof VaultLockError;
+      if (!isStaleAndRecoverable && !isActiveAndRecoverable) {
         throw error;
       }
     }

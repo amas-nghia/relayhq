@@ -1,5 +1,6 @@
 import { defineEventHandler } from "h3";
 
+import { describeRuntimeCapacity, readConfiguredMaxConcurrentRuntimeInstances, type RuntimeCapacitySnapshot } from "../services/agents/capacity";
 import { readCanonicalVaultReadModel } from "../services/vault/read";
 import {
   normalizeConfiguredWorkspaceId,
@@ -8,6 +9,7 @@ import {
   resolveVaultWorkspaceRoot,
   validateVaultWorkspaceRoot,
 } from "../services/vault/runtime";
+import { readTaskRoutingConfig, type TaskRoutingConfig } from "../services/settings/task-routing";
 
 export interface WorkspaceOption {
   readonly id: string;
@@ -22,7 +24,10 @@ export interface SettingsResponse {
   readonly activeWorkspaceId: string | null;
   readonly activeWorkspaceName: string | null;
   readonly availableWorkspaces: ReadonlyArray<WorkspaceOption>;
+  readonly maxConcurrentRuntimeInstances: number;
+  readonly runtimeCapacity: RuntimeCapacitySnapshot;
   readonly platform: string;
+  readonly taskRouting: TaskRoutingConfig;
 }
 
 export async function readSettingsState(options: {
@@ -33,6 +38,7 @@ export async function readSettingsState(options: {
   const resolvedRoot = resolveVaultWorkspaceRoot(options.cwd ?? process.cwd(), env);
   const validation = await validateVaultWorkspaceRoot(resolvedRoot);
   const activeWorkspaceId = readConfiguredWorkspaceId(env);
+  const maxConcurrentRuntimeInstances = readConfiguredMaxConcurrentRuntimeInstances(env);
 
   if (!validation.valid) {
     return {
@@ -43,7 +49,15 @@ export async function readSettingsState(options: {
       activeWorkspaceId,
       activeWorkspaceName: null,
       availableWorkspaces: [],
+        maxConcurrentRuntimeInstances,
+        runtimeCapacity: {
+          maxConcurrentRuntimeInstances,
+          activeRuntimeInstances: 0,
+          availableRuntimeSlots: maxConcurrentRuntimeInstances,
+          capacityBlockedTaskCount: 0,
+        },
       platform: process.platform,
+      taskRouting: await readTaskRoutingConfig(resolvedRoot),
     };
   }
 
@@ -54,6 +68,10 @@ export async function readSettingsState(options: {
   }));
   const normalizedActiveWorkspaceId = normalizeConfiguredWorkspaceId(activeWorkspaceId, availableWorkspaces);
   const activeWorkspace = availableWorkspaces.find((workspace) => workspace.id === normalizedActiveWorkspaceId) ?? null;
+  const runtimeCapacity = describeRuntimeCapacity({
+    readModel,
+    maxConcurrentRuntimeInstances,
+  });
 
   return {
     vaultRoot: readConfiguredVaultRoot(env),
@@ -63,7 +81,10 @@ export async function readSettingsState(options: {
     activeWorkspaceId: normalizedActiveWorkspaceId,
     activeWorkspaceName: activeWorkspace?.name ?? null,
     availableWorkspaces,
+    maxConcurrentRuntimeInstances,
+    runtimeCapacity,
     platform: process.platform,
+    taskRouting: await readTaskRoutingConfig(resolvedRoot),
   };
 }
 

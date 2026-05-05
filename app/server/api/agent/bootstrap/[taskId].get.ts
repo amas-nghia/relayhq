@@ -256,10 +256,15 @@ export async function readTaskBootstrapPack(
   const assignedAgent = task.assignee
     ? filteredReadModel.agents.find((agent) => agent.id === task.assignee) ?? null
     : null;
-  const agentSkillFiles = dependencies.agentId === undefined || dependencies.agentId === null
-    ? []
-    : filteredReadModel.agents.find((agent) => agent.id === dependencies.agentId)?.skillFiles ?? [];
-  const matchedSkills = matchInstalledSkills({ skills: installedSkills, task: { type: task.type, tags: task.tags }, agentSkillFiles });
+  const agentRecord = dependencies.agentId === undefined || dependencies.agentId === null
+    ? null
+    : filteredReadModel.agents.find((agent) => agent.id === dependencies.agentId) ?? null
+  const matchedSkills = matchInstalledSkills({
+    skills: installedSkills,
+    task: { type: task.type, tags: task.tags },
+    agentPrimarySkillFile: agentRecord?.skillFile ?? null,
+    agentSkillFiles: agentRecord?.skillFiles ?? [],
+  });
 
   const enforcedModel = assignedAgent?.model ?? null;
   const expensiveModelWarning = enforcedModel !== null && isExpensiveModel(enforcedModel)

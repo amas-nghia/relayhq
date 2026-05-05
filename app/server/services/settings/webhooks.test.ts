@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -6,6 +6,16 @@ import { tmpdir } from "node:os";
 import { readWebhookSettings, saveWebhookSettings, sendWebhookTest } from "./webhooks";
 
 const roots: string[] = [];
+
+function createAsyncMock<TArgs extends unknown[], TResult>(implementation: (...args: TArgs) => Promise<TResult>) {
+  const calls: TArgs[] = [];
+  const fn = (async (...args: TArgs) => {
+    calls.push(args);
+    return implementation(...args);
+  }) as ((...args: TArgs) => Promise<TResult>) & { calls: TArgs[] };
+  fn.calls = calls;
+  return fn;
+}
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -30,11 +40,13 @@ describe("webhook settings", () => {
   });
 
   test("retries with backoff when webhook responds with retryable statuses", async () => {
-    const fetchImpl = mock(async () => {
-      const count = fetchImpl.mock.calls.length;
-      return new Response(null, { status: count < 3 ? 500 : 200 });
-    }) as unknown as typeof fetch;
-    const sleep = mock(async () => undefined) as (durationMs: number) => Promise<void>;
+    let attempts = 0;
+    const fetchMock = createAsyncMock(async () => {
+      attempts += 1;
+      return new Response(null, { status: attempts < 3 ? 500 : 200 });
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
+    const sleep = createAsyncMock(async (_durationMs: number) => undefined);
 
     const delivery = await sendWebhookTest({
       id: "webhook-1",
@@ -50,8 +62,8 @@ describe("webhook settings", () => {
       boardUrl: "http://127.0.0.1:44211/boards/board-demo",
     }, { fetchImpl, sleep });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(fetchMock.calls).toHaveLength(3);
+    expect(sleep.calls).toHaveLength(2);
     expect(delivery.status).toBe("success");
     expect(delivery.attemptCount).toBe(3);
   });
@@ -59,10 +71,11 @@ describe("webhook settings", () => {
   test("records failed deliveries after the expanded retry policy", async () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-webhooks-"));
     roots.push(root);
-    const fetchImpl = mock(async () => {
+    const fetchMock = createAsyncMock(async () => {
       throw new Error("network down");
-    }) as unknown as typeof fetch;
-    const sleep = mock(async () => undefined) as (durationMs: number) => Promise<void>;
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
+    const sleep = createAsyncMock(async (_durationMs: number) => undefined);
 
     await expect(sendWebhookTest({
       id: "webhook-1",
@@ -79,8 +92,8 @@ describe("webhook settings", () => {
     }, { fetchImpl, sleep, vaultRoot: root })).rejects.toThrow("network down");
 
     const loaded = await readWebhookSettings(root);
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
-    expect(sleep).toHaveBeenCalledTimes(3);
+    expect(fetchMock.calls).toHaveLength(4);
+    expect(sleep.calls).toHaveLength(3);
     expect(loaded.deliveries[0]?.attemptCount).toBe(4);
     expect(loaded.deliveries[0]?.status).toBe("failed");
   });
@@ -91,7 +104,7 @@ describe("webhook settings", () => {
     process.env.RELAYHQ_WEBHOOK_SECRET = "top-secret";
 
     try {
-      const fetchImpl = mock(async (_url: string, init?: RequestInit) => {
+      const fetchMock = createAsyncMock(async (_url: RequestInfo | URL, init?: RequestInit) => {
         expect(init?.headers).toMatchObject({
           "content-type": "application/json",
           "x-relayhq-event": "task.done",
@@ -100,7 +113,8 @@ describe("webhook settings", () => {
         expect(headers["x-relayhq-signature"]).toMatch(/^sha256=/);
         expect(String(init?.body)).toContain('"text":"[RelayHQ] task.done • Demo"');
         return new Response(null, { status: 202 });
-      }) as unknown as typeof fetch;
+      });
+      const fetchImpl = fetchMock as unknown as typeof fetch;
 
       const delivery = await sendWebhookTest({
         id: "webhook-1",

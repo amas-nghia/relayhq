@@ -1,3 +1,5 @@
+import { createError } from "h3";
+
 import type { TaskFrontmatter } from "./repository";
 import { queueTaskWebhookNotification, type WebhookEvent } from "../settings/webhooks";
 import { publishRealtimeUpdate } from "../realtime/bus";
@@ -7,6 +9,9 @@ import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
 import { spawnRecurringTaskInstance } from "./task-scheduler";
 import { nextCronOccurrence } from "../../../shared/vault/cron";
 import type { TaskHistoryEntry } from "../../../shared/vault/schema";
+import { readCanonicalVaultReadModel } from "./read";
+import { createRuntimeCapacityError, findRuntimeCapacityBlocker, runWithRuntimeCapacityGuard } from "../agents/capacity";
+import { assertWorkPolicy, findPolicyAgent } from "../policy/work-policy";
 
 export interface TaskLifecycleRequest {
   readonly taskId: string;
@@ -19,11 +24,14 @@ export interface TaskLifecycleRequest {
 export interface PatchTaskLifecycleRequest extends TaskLifecycleRequest {
   readonly patch: Readonly<Partial<TaskFrontmatter>>;
   readonly recoverStaleLock?: boolean;
+  readonly recoverActiveLock?: boolean;
   readonly releaseLock?: boolean;
 }
 
 export interface ClaimTaskLifecycleRequest extends TaskLifecycleRequest {
   readonly assignee?: string;
+  readonly canClaim?: (task: TaskFrontmatter) => void;
+  readonly skipCapacityGuard?: boolean;
 }
 
 export interface RequestApprovalLifecycleRequest extends TaskLifecycleRequest {
@@ -74,6 +82,30 @@ function statusAction(status: TaskFrontmatter["status"]): string {
   return `moved-to-${status}`;
 }
 
+function defaultColumnForStatus(
+  status: TaskFrontmatter["status"],
+  currentColumn: TaskFrontmatter["column"],
+): TaskFrontmatter["column"] {
+  switch (status) {
+    case "todo":
+      return "todo";
+    case "scheduled":
+      return "todo";
+    case "in-progress":
+      return "in-progress";
+    case "review":
+    case "waiting-approval":
+    case "blocked":
+      return "review";
+    case "done":
+    case "cancelled":
+      return "done";
+    case "failed":
+    default:
+      return currentColumn;
+  }
+}
+
 function isCompletedStatus(status: TaskFrontmatter["status"]): boolean {
   return status === "review" || status === "done";
 }
@@ -84,6 +116,12 @@ function withLifecycleDefaults(
   now: Date,
 ): Readonly<Partial<TaskFrontmatter>> {
   const next: Partial<TaskFrontmatter> = { ...patch };
+
+  if (next.status !== undefined && next.column === undefined) {
+    return {
+      ...withLifecycleDefaults({ ...next, column: defaultColumnForStatus(next.status, current.column) }, current, now),
+    };
+  }
 
   if (next.status !== undefined && isCompletedStatus(next.status) && next.completed_at === undefined) {
     return { ...next, completed_at: now.toISOString() };
@@ -115,7 +153,7 @@ function withLifecycleDefaults(
 async function runTaskLifecycleMutation(
   request: TaskLifecycleRequest,
   mutate: (task: TaskFrontmatter, now: Date) => Readonly<Partial<TaskFrontmatter>>,
-  options: { recoverStaleLock?: boolean; releaseLock?: boolean } = {},
+  options: { recoverStaleLock?: boolean; recoverActiveLock?: boolean; releaseLock?: boolean } = {},
 ): Promise<SyncTaskResult> {
   const now = request.now ?? new Date();
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
@@ -125,6 +163,7 @@ async function runTaskLifecycleMutation(
     actorId: request.actorId,
     now,
     recoverStaleLock: options.recoverStaleLock,
+    recoverActiveLock: options.recoverActiveLock,
     releaseLock: options.releaseLock,
     historyEntry: request.historyEntry,
     mutate: (task) => withLifecycleDefaults(mutate(task, now), task, now),
@@ -212,14 +251,29 @@ export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Pr
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
   const patch = applyCronScheduleDefaults(request.patch, request.now ?? new Date());
+  if (patch.status === "done" || patch.status === "todo" || patch.assignee !== undefined) {
+    const readModel = await readCanonicalVaultReadModel(vaultRoot);
+    const task = readModel.tasks.find((entry) => entry.id === request.taskId) ?? null;
+    if (patch.status === "done") {
+      assertWorkPolicy({ actorId: request.actorId, action: "finalize", readModel, task })
+    }
+    if (task?.status === "review" && patch.status === "todo") {
+      assertWorkPolicy({ actorId: request.actorId, action: "finalize", readModel, task })
+    }
+    if (typeof patch.assignee === "string" && patch.assignee !== "unassigned") {
+      assertWorkPolicy({ actorId: request.actorId, action: "assign", readModel, task, assigneeId: patch.assignee, assignee: findPolicyAgent(readModel, patch.assignee) })
+    }
+  }
   const historyEntry = typeof patch.status === "string"
     ? buildHistoryEntry(request.actorId, request.now ?? new Date(), statusAction(patch.status), undefined, patch.status)
     : undefined;
+  const isHumanFinalization = request.patch.status === "done" || request.patch.status === "review";
   const result = await runTaskLifecycleMutation(
     { ...request, vaultRoot, historyEntry },
     () => patch,
     {
       recoverStaleLock: request.recoverStaleLock ?? (request.patch.status !== undefined && (request.patch.status === "review" || request.patch.status === "done")),
+      recoverActiveLock: isHumanFinalization,
       releaseLock: request.releaseLock ?? (
         request.patch.status !== undefined && (
           request.patch.status === "review"
@@ -248,26 +302,63 @@ export async function patchTaskLifecycle(request: PatchTaskLifecycleRequest): Pr
 export async function claimTaskLifecycle(request: ClaimTaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
-  const result = await runTaskLifecycleMutation(
-    {
-      ...request,
-      vaultRoot,
-      historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "claimed", undefined, "in-progress"),
-    },
-    (_task, now) => ({
-      assignee: request.assignee ?? request.actorId,
-      status: "in-progress",
-      column: "in-progress",
-      execution_started_at: now.toISOString(),
-      next_run_at: null,
-      blocked_reason: null,
-      blocked_since: null,
-    }),
-    { recoverStaleLock: true },
-  );
-  const reason = notifyTaskLifecycle(result.previous, result.frontmatter, timestamp, vaultRoot) ?? "task.claimed";
-  publishTaskRealtimeUpdate(result.frontmatter, timestamp, reason);
-  return result;
+  const assignee = request.assignee ?? request.actorId;
+
+  // skipCapacityGuard is used when called from within runWithRuntimeCapacityGuard (e.g. launchAgentSession)
+  // to avoid a deadlock: the outer guard must complete before the inner guard can run.
+  const execute = async () => {
+    const readModel = await readCanonicalVaultReadModel(vaultRoot);
+    const task = readModel.tasks.find((entry) => entry.id === request.taskId) ?? null;
+    assertWorkPolicy({ actorId: request.actorId, action: "execute", readModel, task })
+
+    const blocker = findRuntimeCapacityBlocker({
+      readModel,
+      taskId: request.taskId,
+      allowCurrentTaskSession: true,
+    });
+
+    if (blocker) {
+      throw createRuntimeCapacityError({ taskId: request.taskId, blocker });
+    }
+
+    const result = await runTaskLifecycleMutation(
+      {
+        ...request,
+        vaultRoot,
+        historyEntry: buildHistoryEntry(request.actorId, request.now ?? new Date(), "claimed", undefined, "in-progress"),
+      },
+      (task, now) => {
+        request.canClaim?.(task)
+        if (task.status !== "todo") {
+          throw createError({ statusCode: 409, statusMessage: `Task ${task.id} is ${task.status}, not todo.` })
+        }
+        const currentAssignee = task.assignee?.trim() === "unassigned" ? "" : (task.assignee?.trim() ?? "")
+
+        if (task.assignee !== assignee && currentAssignee.length > 0) {
+          throw createError({ statusCode: 409, statusMessage: `Task ${task.id} is assigned to ${task.assignee}, not ${assignee}.` })
+        }
+
+        return {
+          assignee,
+          status: "in-progress",
+          column: "in-progress",
+          execution_started_at: now.toISOString(),
+          dispatch_status: "started",
+          dispatch_reason: "Execution claimed by the assigned agent.",
+          last_dispatch_attempt_at: now.toISOString(),
+          next_run_at: null,
+          blocked_reason: null,
+          blocked_since: null,
+        }
+      },
+      { recoverStaleLock: true },
+    );
+    const reason = notifyTaskLifecycle(result.previous, result.frontmatter, timestamp, vaultRoot) ?? "task.claimed";
+    publishTaskRealtimeUpdate(result.frontmatter, timestamp, reason);
+    return result;
+  };
+
+  return request.skipCapacityGuard ? execute() : runWithRuntimeCapacityGuard(execute);
 }
 
 export async function heartbeatTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
@@ -311,6 +402,9 @@ export async function scheduleTaskLifecycle(request: ScheduleTaskLifecycleReques
 export async function requestTaskApprovalLifecycle(request: RequestApprovalLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
+  const task = readModel.tasks.find((entry) => entry.id === request.taskId) ?? null;
+    assertWorkPolicy({ actorId: request.actorId, actorIntent: "agent", action: "request-approval", readModel, task })
   const result = await runTaskLifecycleMutation(
     {
       ...request,
@@ -351,6 +445,10 @@ export async function requestTaskApprovalLifecycle(request: RequestApprovalLifec
 export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
+  const task = readModel.tasks.find((entry) => entry.id === request.taskId) ?? null;
+  assertWorkPolicy({ actorId: request.actorId, action: "approve", readModel, task })
+
   const result = await runTaskLifecycleMutation(
     {
       ...request,
@@ -391,6 +489,10 @@ export async function approveTaskLifecycle(request: TaskLifecycleRequest): Promi
 export async function rejectTaskLifecycle(request: RejectTaskLifecycleRequest): Promise<SyncTaskResult> {
   const vaultRoot = request.vaultRoot ?? resolveVaultWorkspaceRoot();
   const timestamp = request.now?.toISOString() ?? new Date().toISOString();
+  const readModel = await readCanonicalVaultReadModel(vaultRoot);
+  const task = readModel.tasks.find((entry) => entry.id === request.taskId) ?? null;
+  assertWorkPolicy({ actorId: request.actorId, action: "reject", readModel, task })
+
   const result = await runTaskLifecycleMutation(
     {
       ...request,

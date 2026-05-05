@@ -3,13 +3,9 @@ import { createError, defineEventHandler, getQuery } from "h3";
 import { buildKiokuGraph } from "../../services/kioku/graph";
 import { getKiokuStorage } from "../../services/kioku/storage";
 
-function readThreshold(value: string | string[] | undefined): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
+function readThreshold(value: unknown): number | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
-  if (raw === undefined || raw.trim().length === 0) {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
     return undefined;
   }
 
@@ -21,10 +17,14 @@ function readThreshold(value: string | string[] | undefined): number | undefined
   return parsed;
 }
 
-export default defineEventHandler((event) => {
-  const query = getQuery(event);
+export function getKiokuGraphResponse(
+  query: { projectId?: unknown; threshold?: unknown },
+  storage = getKiokuStorage(),
+) {
   const projectId = typeof query.projectId === "string" && query.projectId.trim().length > 0 ? query.projectId.trim() : undefined;
   const threshold = readThreshold(query.threshold);
 
-  return buildKiokuGraph(getKiokuStorage(), { projectId, threshold });
-});
+  return buildKiokuGraph(storage, { projectId, threshold });
+}
+
+export default defineEventHandler((event) => getKiokuGraphResponse(getQuery(event)));

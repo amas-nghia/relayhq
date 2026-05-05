@@ -174,6 +174,7 @@ export function NewTaskModal() {
       acceptanceCriteria: parseList(acceptanceCriteria),
       contextFiles: parseList(contextFiles),
       constraints: parseList(constraints),
+      ...(selectedTemplateId ? { templateId: selectedTemplateId } : {}),
       projectId,
       boardId: selectedProject?.boardId,
       ...(routingMode === 'manual' ? { assigneeId } : {}),
@@ -246,7 +247,7 @@ export function NewTaskModal() {
   })
 
   return (
-    <Dialog open={isNewTaskModalOpen}>
+    <Dialog open={isNewTaskModalOpen} onOpenChange={(open) => { if (!open) closeNewTaskModal() }}>
       <DialogOverlay onClick={closeNewTaskModal} />
       <DialogContent>
         <DialogPanel className="max-w-lg">
@@ -460,7 +461,7 @@ export function NewTaskModal() {
         </DialogPanel>
       </DialogContent>
       {isVaultFilePickerOpen && (
-        <Dialog open>
+        <Dialog open onOpenChange={(open) => { if (!open) setIsVaultFilePickerOpen(false) }}>
           <DialogOverlay onClick={() => setIsVaultFilePickerOpen(false)} />
           <DialogContent>
             <DialogPanel className="max-w-3xl">

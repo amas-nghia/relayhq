@@ -1,24 +1,35 @@
-import { type DragEvent, useRef, useState } from 'react';
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 
+import { relayhqApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
 import { TaskCard } from '../components/task/TaskCard';
-import { Plus } from 'lucide-react';
+import { ArrowRight, CalendarClock, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Select } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { resolveBoardDrop, type BoardLaneId } from './boardDrop';
+import { getBoardLaneFromSearchParams, withBoardLane } from './boardLaneUrl';
+import { getTaskBoardLane } from '../lib/taskPresentation';
 
 const COLUMNS: { id: BoardLaneId; label: string }[] = [
   { id: 'todo', label: 'TODO' },
-  { id: 'scheduled', label: 'SCHEDULED' },
   { id: 'in-progress', label: 'IN PROGRESS' },
   { id: 'review', label: 'REVIEW' },
-  { id: 'done', label: 'DONE' }
+  { id: 'done', label: 'DONE' },
+  { id: 'failed', label: 'FAILED' },
 ];
 
-export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) => void } = {}) {
+export function BoardView({
+  onTaskSelect,
+  onProjectSelect,
+}: {
+  onTaskSelect?: (taskId: string) => void;
+  onProjectSelect?: (projectId: string | null) => void;
+} = {}) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const tasks = useAppStore(state => state.tasks);
   const isLoading = useAppStore(state => state.isLoading);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
@@ -26,11 +37,45 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
   const projects = useAppStore(state => state.projects);
   const openNewTaskModal = useAppStore(state => state.openNewTaskModal);
   const moveTaskToStatus = useAppStore(state => state.moveTaskToStatus);
-  const [activeLane, setActiveLane] = useState<BoardLaneId>('in-progress');
+  const fetchReadModel = useAppStore(state => state.fetchReadModel);
+  const activeLane = getBoardLaneFromSearchParams(searchParams);
   const [dragOverLane, setDragOverLane] = useState<BoardLaneId | null>(null);
   const [dropHint, setDropHint] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
-  const laneRefs = useRef<Record<BoardLaneId, HTMLDivElement | null>>({ todo: null, 'in-progress': null, review: null, scheduled: null, done: null });
+  const [selectedDoneTaskIds, setSelectedDoneTaskIds] = useState<ReadonlyArray<string>>([]);
+  const laneRefs = useRef<Record<BoardLaneId, HTMLDivElement | null>>({ todo: null, 'in-progress': null, review: null, scheduled: null, done: null, failed: null });
+  const scheduledCount = tasks.filter(task => getTaskBoardLane(task) === 'scheduled' && (!selectedProjectId || task.projectId === selectedProjectId)).length;
+
+  useEffect(() => {
+    const nextSearchParams = withBoardLane(searchParams, activeLane);
+    if (nextSearchParams.toString() === searchParams.toString()) return;
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [activeLane, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 1279px)').matches) return;
+    const lane = laneRefs.current[activeLane];
+    if (!lane) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      lane.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeLane]);
+
+  const selectLane = (lane: BoardLaneId) => {
+    setSearchParams(withBoardLane(searchParams, lane));
+  };
+
+  const handleProjectChange = (projectId: string | null) => {
+    if (onProjectSelect) {
+      onProjectSelect(projectId);
+      return;
+    }
+
+    setSelectedProjectId(projectId);
+  };
 
   const getTasksByStatus = (status: BoardLaneId) => {
     let filteredTasks = tasks;
@@ -38,27 +83,51 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
       filteredTasks = filteredTasks.filter(t => t.projectId === selectedProjectId);
     }
 
-    if (status === 'in-progress') {
-      return filteredTasks
-        .filter(t => t.status === 'in-progress' || t.status === 'blocked')
-        .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
-    }
+    const laneTasks = filteredTasks.filter(task => getTaskBoardLane(task) === status)
 
     if (status === 'review') {
-      return filteredTasks
-        .filter(t => t.status === 'review' || t.status === 'waiting-approval')
+      return laneTasks
         .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
     }
 
-    if (status === 'scheduled') {
-      return filteredTasks
-        .filter(t => t.status === 'scheduled')
-        .sort((left, right) => (left.nextRunAt ?? '').localeCompare(right.nextRunAt ?? '') || right.id.localeCompare(left.id));
-    }
-
-    return filteredTasks
-      .filter(t => t.status === status)
+    return laneTasks
       .sort((left, right) => (right.createdAt ?? '').localeCompare(left.createdAt ?? '') || right.id.localeCompare(left.id));
+  };
+
+  const doneTasks = useMemo(() => getTasksByStatus('done'), [tasks, selectedProjectId]);
+
+  useEffect(() => {
+    const doneTaskIdSet = new Set(doneTasks.map((task) => task.id));
+    setSelectedDoneTaskIds((current) => current.filter((taskId) => doneTaskIdSet.has(taskId)));
+  }, [doneTasks]);
+
+  const toggleDoneTaskSelection = (taskId: string) => {
+    setSelectedDoneTaskIds((current) => current.includes(taskId)
+      ? current.filter((id) => id !== taskId)
+      : [...current, taskId]);
+  };
+
+  const selectAllDoneTasks = () => {
+    setSelectedDoneTaskIds(doneTasks.map((task) => task.id));
+  };
+
+  const clearDoneTaskSelection = () => {
+    setSelectedDoneTaskIds([]);
+  };
+
+  const bulkDeleteDoneTasks = async () => {
+    if (selectedDoneTaskIds.length === 0) return;
+    const confirmed = window.confirm(`Delete ${selectedDoneTaskIds.length} done task(s)? This will remove them from the vault.`);
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(selectedDoneTaskIds.map((taskId) => relayhqApi.deleteTask(taskId, 'human-user')));
+      setSelectedDoneTaskIds([]);
+      await fetchReadModel();
+    } catch (error) {
+      setDropError(error instanceof Error ? error.message : 'Failed to delete done tasks.');
+      window.setTimeout(() => setDropError(null), 5000);
+    }
   };
 
   const handleDrop = async (laneId: BoardLaneId, event: DragEvent<HTMLDivElement>) => {
@@ -78,6 +147,8 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
         setDropHint('This task is waiting approval. Approve it first, then move it to Done.');
       } else if (laneId === 'done') {
         setDropHint('Only review tasks can be dropped into Done.');
+      } else if (laneId === 'failed') {
+        setDropHint('Drag to TODO to retry a failed task.');
       }
       return;
     }
@@ -101,10 +172,10 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
             <span className="hidden text-text-tertiary sm:inline-block">•</span>
             <Select
               value={selectedProjectId ?? ''}
-              onChange={(event) => setSelectedProjectId(event.target.value || null)}
+              onChange={(event) => handleProjectChange(event.target.value || null)}
               className="w-auto min-w-48"
             >
-              <option value="">All Projects</option>
+              {!onProjectSelect ? <option value="">All Projects</option> : null}
               {projects.map(project => (
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
@@ -142,10 +213,7 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
             size="sm"
             variant={activeLane === column.id ? 'secondary' : 'ghost'}
             className="whitespace-nowrap"
-            onClick={() => {
-              setActiveLane(column.id)
-              laneRefs.current[column.id]?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
-            }}
+            onClick={() => selectLane(column.id)}
           >
             {column.label}
           </Button>
@@ -155,6 +223,7 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
       <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto snap-x snap-mandatory xl:grid xl:auto-rows-[minmax(0,1fr)] xl:grid-cols-5 xl:overflow-visible">
           {COLUMNS.map(col => {
             const colTasks = getTasksByStatus(col.id);
+            const isFailed = col.id === 'failed';
             return (
                 <Card
                   key={col.id}
@@ -169,13 +238,17 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
                   onDragLeave={() => setDragOverLane((current) => (current === col.id ? null : current))}
                   onDrop={(event) => void handleDrop(col.id, event)}
                   className={
-                    `flex h-full min-h-0 min-w-full snap-start flex-col overflow-hidden p-4 md:min-w-[calc(50%-0.5rem)] xl:min-w-0 ${dragOverLane === col.id ? (col.id === 'done' ? 'border-status-done/50 bg-status-done/10 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]' : 'border-brand/40 bg-brand-muted/20') : ''}`
+                    `flex h-full min-h-0 min-w-full snap-start flex-col overflow-hidden p-4 md:min-w-[calc(50%-0.5rem)] xl:min-w-0 ${
+                      isFailed ? 'border-status-blocked/20 bg-status-blocked/5' : ''
+                    } ${dragOverLane === col.id ? (col.id === 'done' ? 'border-status-done/50 bg-status-done/10 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]' : 'border-brand/40 bg-brand-muted/20') : ''}`
                   }
                 >
                 <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
-                  <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                    {col.label} <Badge variant="secondary" className="ml-1 border-brand/15 bg-brand-muted text-text-tertiary">{colTasks.length}</Badge>
-                  </h3>
+                  <div>
+                    <h3 className={`text-xs font-bold uppercase tracking-wider ${isFailed ? 'text-status-blocked' : 'text-text-secondary'}`}>
+                      {col.label} <Badge variant="secondary" className={`ml-1 ${isFailed ? 'border-status-blocked/20 bg-status-blocked/10 text-status-blocked' : 'border-brand/15 bg-brand-muted text-text-tertiary'}`}>{colTasks.length}</Badge>
+                    </h3>
+                  </div>
                   {dragOverLane === 'done' && col.id === 'done' && (
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-status-done">Drop to finish</span>
                   )}
@@ -189,6 +262,26 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
                     >
                       <Plus className="h-3.5 w-3.5" /> Add
                     </Button>
+                  )}
+                  {isFailed && colTasks.length > 0 && (
+                    <span className="text-[10px] text-status-blocked/70">drag to TODO to retry</span>
+                  )}
+                  {col.id === 'done' && colTasks.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={selectAllDoneTasks}>
+                        Select all
+                      </Button>
+                      {selectedDoneTaskIds.length > 0 && (
+                        <>
+                          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={clearDoneTaskSelection}>
+                            Clear
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" className="h-8 px-2 text-xs text-status-blocked" onClick={() => void bulkDeleteDoneTasks()}>
+                            Delete {selectedDoneTaskIds.length}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -224,7 +317,13 @@ export function BoardView({ onTaskSelect }: { onTaskSelect?: (taskId: string) =>
                           exit={{ opacity: 0, scale: 0.9, x: 20 }}
                           transition={{ duration: 0.25, ease: 'easeOut' }}
                         >
-                          <TaskCard task={task} onTaskSelect={onTaskSelect} />
+                          <TaskCard
+                            task={task}
+                            onTaskSelect={onTaskSelect}
+                            selectionMode={col.id === 'done'}
+                            selected={selectedDoneTaskIds.includes(task.id)}
+                            onToggleSelected={toggleDoneTaskSelection}
+                          />
                         </motion.div>
                       ))}
                     </AnimatePresence>

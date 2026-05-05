@@ -7,8 +7,9 @@ import { describe, expect, test } from "bun:test";
 
 import { readSettingsState } from "./settings.get";
 import readModelHandler from "./vault/read-model.get";
-import { saveVaultRootSetting } from "./settings.post";
+import { readRequestedMaxConcurrentRuntimeInstances, saveVaultRootSetting } from "./settings.post";
 import { validateSettingsPathBody } from "./settings/validate.post";
+import { DEFAULT_TASK_ROUTING_CONFIG } from "../services/settings/task-routing";
 
 async function createWorkspaceRoot(workspaceId: string, workspaceName: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `relayhq-settings-${randomUUID()}-`));
@@ -70,7 +71,7 @@ describe("settings endpoints", () => {
     try {
       const configuredState = await readSettingsState({
         cwd: join(unconfiguredRoot, "app"),
-        env: { ...process.env, RELAYHQ_VAULT_ROOT: configuredRoot, RELAYHQ_WORKSPACE_ID: "ws-configured" },
+        env: { ...process.env, RELAYHQ_VAULT_ROOT: configuredRoot, RELAYHQ_WORKSPACE_ID: "ws-configured", RELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES: "5" },
       });
 
       expect(configuredState).toEqual({
@@ -81,12 +82,20 @@ describe("settings endpoints", () => {
         activeWorkspaceId: "ws-configured",
         activeWorkspaceName: "Configured Workspace",
         availableWorkspaces: [{ id: "ws-configured", name: "Configured Workspace" }],
+        maxConcurrentRuntimeInstances: 5,
+        runtimeCapacity: {
+          maxConcurrentRuntimeInstances: 5,
+          activeRuntimeInstances: 0,
+          availableRuntimeSlots: 5,
+          capacityBlockedTaskCount: 0,
+        },
         platform: process.platform,
+        taskRouting: DEFAULT_TASK_ROUTING_CONFIG,
       });
 
       const unconfiguredState = await readSettingsState({
         cwd: join(unconfiguredRoot, "app"),
-        env: { ...process.env, RELAYHQ_VAULT_ROOT: undefined },
+        env: { ...process.env, RELAYHQ_VAULT_ROOT: undefined, RELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES: "5" },
       });
 
       expect(unconfiguredState).toEqual({
@@ -97,7 +106,15 @@ describe("settings endpoints", () => {
         activeWorkspaceId: null,
         activeWorkspaceName: null,
         availableWorkspaces: [{ id: "ws-default", name: "Default Workspace" }],
+        maxConcurrentRuntimeInstances: 5,
+        runtimeCapacity: {
+          maxConcurrentRuntimeInstances: 5,
+          activeRuntimeInstances: 0,
+          availableRuntimeSlots: 5,
+          capacityBlockedTaskCount: 0,
+        },
         platform: process.platform,
+        taskRouting: DEFAULT_TASK_ROUTING_CONFIG,
       });
     } finally {
       await Promise.all([
@@ -145,26 +162,31 @@ describe("settings endpoints", () => {
     process.env.RELAYHQ_VAULT_ROOT = firstRoot;
 
     try {
-      await expect(saveVaultRootSetting(invalidRoot, null, { envPath })).rejects.toMatchObject({ statusCode: 422 });
+      await expect(saveVaultRootSetting(invalidRoot, null, 5, DEFAULT_TASK_ROUTING_CONFIG, { envPath })).rejects.toMatchObject({ statusCode: 422 });
       await expect(readFile(envPath, "utf8")).resolves.toBe(previousEnvContent);
       expect(process.env.RELAYHQ_VAULT_ROOT).toBe(firstRoot);
 
-      await expect(saveVaultRootSetting(secondRoot, null, { envPath })).resolves.toEqual({
+      await expect(saveVaultRootSetting(secondRoot, null, 3, DEFAULT_TASK_ROUTING_CONFIG, { envPath })).resolves.toEqual({
         success: true,
         vaultRoot: secondRoot,
         workspaceId: null,
+        maxConcurrentRuntimeInstances: 3,
+        taskRouting: DEFAULT_TASK_ROUTING_CONFIG,
       });
 
-      await expect(readFile(envPath, "utf8")).resolves.toBe(`${previousEnvContent}RELAYHQ_VAULT_ROOT=${secondRoot}\n`);
+      await expect(readFile(envPath, "utf8")).resolves.toBe(`${previousEnvContent}RELAYHQ_VAULT_ROOT=${secondRoot}\nRELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES=3\n`);
       expect(process.env.RELAYHQ_VAULT_ROOT).toBe(secondRoot);
+      expect(process.env.RELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES).toBe("3");
 
-      await expect(saveVaultRootSetting(secondRoot, "ws-second", { envPath })).resolves.toEqual({
+      await expect(saveVaultRootSetting(secondRoot, "ws-second", 5, DEFAULT_TASK_ROUTING_CONFIG, { envPath })).resolves.toEqual({
         success: true,
         vaultRoot: secondRoot,
         workspaceId: "ws-second",
+        maxConcurrentRuntimeInstances: 5,
+        taskRouting: DEFAULT_TASK_ROUTING_CONFIG,
       });
 
-      await expect(readFile(envPath, "utf8")).resolves.toBe(`${previousEnvContent}RELAYHQ_VAULT_ROOT=${secondRoot}\nRELAYHQ_WORKSPACE_ID=ws-second\n`);
+      await expect(readFile(envPath, "utf8")).resolves.toBe(`${previousEnvContent}RELAYHQ_VAULT_ROOT=${secondRoot}\nRELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES=5\nRELAYHQ_WORKSPACE_ID=ws-second\n`);
       expect(process.env.RELAYHQ_WORKSPACE_ID).toBe("ws-second");
 
       const readModel = await readModelHandler({} as never);
@@ -172,7 +194,7 @@ describe("settings endpoints", () => {
         expect.objectContaining({ id: "ws-second", name: "Second Workspace" }),
       ]);
 
-      await expect(saveVaultRootSetting(secondRoot, "missing-workspace", { envPath })).rejects.toMatchObject({ statusCode: 422 });
+      await expect(saveVaultRootSetting(secondRoot, "missing-workspace", 5, DEFAULT_TASK_ROUTING_CONFIG, { envPath })).rejects.toMatchObject({ statusCode: 422 });
     } finally {
       if (originalVaultRoot === undefined) {
         delete process.env.RELAYHQ_VAULT_ROOT;
@@ -181,6 +203,7 @@ describe("settings endpoints", () => {
       }
 
       delete process.env.RELAYHQ_WORKSPACE_ID;
+      delete process.env.RELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES;
 
       await Promise.all([
         rm(invalidRoot, { recursive: true, force: true }),
@@ -210,6 +233,7 @@ describe("settings endpoints", () => {
       ]);
       expect(settings.activeWorkspaceId).toBe("ws-beta");
       expect(settings.activeWorkspaceName).toBe("Beta Workspace");
+      expect(settings.maxConcurrentRuntimeInstances).toBe(5);
 
       const readModel = await readModelHandler({} as never);
       expect(readModel.workspaces).toEqual([
@@ -230,5 +254,12 @@ describe("settings endpoints", () => {
 
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  test("parses max concurrent runtime instances from settings payload", () => {
+    expect(readRequestedMaxConcurrentRuntimeInstances({})).toBe(5);
+    expect(readRequestedMaxConcurrentRuntimeInstances({ maxConcurrentRuntimeInstances: 4 })).toBe(4);
+    expect(readRequestedMaxConcurrentRuntimeInstances({ maxConcurrentRuntimeInstances: "7" })).toBe(7);
+    expect(() => readRequestedMaxConcurrentRuntimeInstances({ maxConcurrentRuntimeInstances: 0 })).toThrow();
   });
 });

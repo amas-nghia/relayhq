@@ -47,8 +47,18 @@ function parseClaimNextBody(body: unknown): ClaimNextRequestBody {
   };
 }
 
+function normalizeAssignee(assignee: string | null | undefined): string {
+  if (typeof assignee !== "string") {
+    return "";
+  }
+
+  const normalized = assignee.trim();
+  return normalized === "unassigned" ? "" : normalized;
+}
+
 function isClaimableByAgent(task: VaultReadModel["tasks"][number], agentId: string): boolean {
-  return task.status === "todo" && (task.assignee.trim().length === 0 || task.assignee === agentId);
+  const assignee = normalizeAssignee(task.assignee);
+  return task.status === "todo" && (assignee.length === 0 || assignee === agentId);
 }
 
 function sortClaimCandidates(left: VaultReadModel["tasks"][number], right: VaultReadModel["tasks"][number]): number {
@@ -92,7 +102,7 @@ export async function claimNextAgentTask(
         vaultRoot,
         now: options.now,
         canClaim: (task) => {
-          const currentAssignee = task.assignee.trim();
+          const currentAssignee = normalizeAssignee(task.assignee);
           const matchesBoard = request.boardId === undefined || task.board_id === request.boardId;
           const matchesPriority = request.priority === undefined || task.priority === request.priority;
 

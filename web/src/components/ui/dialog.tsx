@@ -9,7 +9,7 @@ export function DialogOverlay({ className, ...props }: ComponentPropsWithoutRef<
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
-        className={cn('fixed inset-0 z-50 bg-black/80', className)}
+        className={cn('fixed inset-0 z-[200] bg-black/80', className)}
         {...props}
       />
     </DialogPrimitive.Portal>
@@ -20,7 +20,7 @@ export function DialogContent({ className, ...props }: ComponentPropsWithoutRef<
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Content
-        className={cn('fixed inset-0 z-50 flex items-center justify-center p-4 outline-none', className)}
+        className={cn('fixed inset-0 z-[210] flex items-center justify-center p-4 outline-none', className)}
         {...props}
       />
     </DialogPrimitive.Portal>

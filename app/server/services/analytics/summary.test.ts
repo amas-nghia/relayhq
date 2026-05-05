@@ -295,7 +295,7 @@ function createReadModel(): VaultReadModel {
         monthlyBudgetUsd: 20,
       },
     ],
-  };
+  } as unknown as VaultReadModel;
 }
 
 describe("analytics summary aggregation", () => {

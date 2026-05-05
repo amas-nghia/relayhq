@@ -72,6 +72,22 @@ async function verifyOpenRouter(apiKey: string): Promise<VerifyKeyResponse> {
   return { valid: true, models }
 }
 
+export async function verifyProviderApiKey(provider: string, apiKey: string): Promise<VerifyKeyResponse> {
+  try {
+    switch (provider) {
+      case 'anthropic':   return await verifyAnthropic(apiKey)
+      case 'openai':      return await verifyOpenAI(apiKey)
+      case 'google':      return await verifyGoogle(apiKey)
+      case 'openrouter':  return await verifyOpenRouter(apiKey)
+      default:
+        return { valid: false, error: `Unknown provider: ${provider}` } satisfies VerifyKeyResponse
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Verification failed'
+    return { valid: false, error: msg } satisfies VerifyKeyResponse
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody<VerifyKeyRequest>(event)
 
@@ -82,17 +98,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing apiKey' })
   }
 
-  try {
-    switch (body.provider) {
-      case 'anthropic':   return await verifyAnthropic(body.apiKey)
-      case 'openai':      return await verifyOpenAI(body.apiKey)
-      case 'google':      return await verifyGoogle(body.apiKey)
-      case 'openrouter':  return await verifyOpenRouter(body.apiKey)
-      default:
-        return { valid: false, error: `Unknown provider: ${body.provider}` } satisfies VerifyKeyResponse
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Verification failed'
-    return { valid: false, error: msg } satisfies VerifyKeyResponse
-  }
+  return await verifyProviderApiKey(body.provider, body.apiKey)
 })

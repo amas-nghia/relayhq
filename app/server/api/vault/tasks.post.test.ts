@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, test } from "bun:test";
 
 import { createTaskTemplate } from "../../services/vault/task-templates";
+import { readTaskDocument } from "../../services/vault/write";
 import { createVaultTaskFromBody } from "./tasks.post";
 
 async function seedBoard(root: string) {
@@ -19,11 +20,17 @@ async function seedBoard(root: string) {
   await writeFile(join(root, "vault", "shared", "columns", "todo.md"), `---\nid: "todo"\ntype: "column"\nworkspace_id: "ws-demo"\nproject_id: "project-demo"\nboard_id: "board-demo"\nname: "Todo"\nposition: 0\ncreated_at: "2026-04-19T00:00:00Z"\nupdated_at: "2026-04-19T00:00:00Z"\n---\n`, "utf8");
 }
 
+async function seedCoordinatorAgent(root: string) {
+  await mkdir(join(root, "vault", "shared", "agents"), { recursive: true });
+  await writeFile(join(root, "vault", "shared", "agents", "agent-coordinator.md"), `---\nid: "agent-coordinator"\ntype: "agent"\nname: "Coordinator"\nrole: "coordinator"\nroles: ["coordinator"]\nprovider: "openai"\nmodel: "gpt-5.4"\ncapabilities: []\ntask_types_accepted: []\napproval_required_for: []\ncannot_do: []\naccessible_by: []\nskill_file: "skills/coordination.md"\nstatus: "available"\nworkspace_id: "ws-demo"\ncreated_at: "2026-04-19T00:00:00Z"\nupdated_at: "2026-04-19T00:00:00Z"\n---\n`, "utf8");
+}
+
 describe("POST /api/vault/tasks validation", () => {
   test("rejects under-specified tasks", async () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-input-"));
     try {
       process.env.RELAYHQ_VAULT_ROOT = root;
+      process.env.RELAYHQ_DISABLE_AUTO_DISPATCH = "false";
       await seedBoard(root);
 
       await expect(createVaultTaskFromBody({
@@ -36,12 +43,14 @@ describe("POST /api/vault/tasks validation", () => {
         objective: "too short",
         acceptanceCriteria: ["One item"],
         contextFiles: [],
+        tags: [],
       })).rejects.toMatchObject({
         statusCode: 400,
-        statusMessage: "objective: must be at least 50 characters, acceptanceCriteria: must contain at least 2 items, contextFiles: must contain at least 1 item",
+        statusMessage: "objective: must be at least 50 characters, acceptanceCriteria: must contain at least 2 items, contextFiles: must contain at least 1 item, tags: must contain at least 1 tag for agent routing",
       });
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
+      delete process.env.RELAYHQ_DISABLE_AUTO_DISPATCH;
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -50,6 +59,7 @@ describe("POST /api/vault/tasks validation", () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-template-"));
     try {
       process.env.RELAYHQ_VAULT_ROOT = root;
+      process.env.RELAYHQ_DISABLE_AUTO_DISPATCH = "false";
       await seedBoard(root);
       await createTaskTemplate({
         name: "Bug Fix",
@@ -68,12 +78,14 @@ describe("POST /api/vault/tasks validation", () => {
         priority: "high",
         assignee: "agent-claude-code",
         templateId: "bug-fix",
+        tags: ["bug-fix"],
       });
 
       expect(response.taskId).toStartWith("task-");
       await expect(readFile(join(root, response.sourcePath), "utf8")).resolves.toContain("## Acceptance Criteria");
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
+      delete process.env.RELAYHQ_DISABLE_AUTO_DISPATCH;
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -94,6 +106,7 @@ describe("POST /api/vault/tasks validation", () => {
         objective: "Generate the daily summary and keep the workflow scheduled for the next business day so the team receives a fresh run every morning.",
         acceptanceCriteria: ["Task is created", "Task is scheduled for the next run"],
         contextFiles: ["docs/standup.md"],
+        tags: ["automation"],
         cron_schedule: "0 9 * * 1-5",
       });
 
@@ -108,11 +121,12 @@ describe("POST /api/vault/tasks validation", () => {
   });
 
   test("auto-dispatches newly created assigned todo tasks", async () => {
-    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-autodispatch-"));
-    const dispatchPatches: Array<{ actorId: string; patch: Record<string, unknown> }> = [];
+      const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-autodispatch-"));
+      const dispatchPatches: Array<{ actorId: string; patch: Record<string, unknown> }> = [];
 
     try {
       process.env.RELAYHQ_VAULT_ROOT = root;
+      process.env.RELAYHQ_DISABLE_AUTO_DISPATCH = "false";
       await seedBoard(root);
 
       const response = await createVaultTaskFromBody({
@@ -125,6 +139,7 @@ describe("POST /api/vault/tasks validation", () => {
         objective: "Verify that creating an assigned todo task immediately runs dispatcher evaluation and records the background launch outcome for the assigned agent.",
         acceptanceCriteria: ["Dispatcher evaluates the new task", "Launch result is written back as dispatch metadata"],
         contextFiles: ["app/server/api/vault/tasks.post.ts"],
+        tags: ["feature-implementation"],
       }, {
         readCanonicalVaultReadModel: async () => ({ tasks: [], agents: [] }) as never,
         autoDispatchAssignedTask: async () => ({
@@ -154,19 +169,85 @@ describe("POST /api/vault/tasks validation", () => {
       expect(typeof dispatchPatches[0]?.patch.last_dispatch_attempt_at).toBe("string");
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
+      delete process.env.RELAYHQ_DISABLE_AUTO_DISPATCH;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("does not auto-dispatch when RELAYHQ_DISABLE_AUTO_DISPATCH=true", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-no-autodispatch-"));
+    let dispatchCalled = false;
+
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      process.env.RELAYHQ_DISABLE_AUTO_DISPATCH = "true";
+      await seedBoard(root);
+
+      const response = await createVaultTaskFromBody({
+        title: "Create task without background dispatch",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-claude-code",
+        objective: "Verify that creating an assigned todo task records the task but does not spawn a background agent when auto-dispatch is explicitly disabled.",
+        acceptanceCriteria: ["Task is created", "Dispatcher is not called when disabled"],
+        contextFiles: ["app/server/api/vault/tasks.post.ts"],
+        tags: ["feature-implementation"],
+      }, {
+        autoDispatchAssignedTask: async () => {
+          dispatchCalled = true;
+          return { launched: false, decision: { status: "blocked", reason: "should not run" } } as never;
+        },
+      });
+
+      expect(response.taskId).toStartWith("task-");
+      expect(response.autoDispatch).toBeUndefined();
+      expect(dispatchCalled).toBe(false);
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
+      delete process.env.RELAYHQ_DISABLE_AUTO_DISPATCH;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects create-time assignment of normal tasks to coordinators", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-coordinator-policy-"));
+    try {
+      process.env.RELAYHQ_VAULT_ROOT = root;
+      await seedBoard(root);
+      await seedCoordinatorAgent(root);
+
+      await expect(createVaultTaskFromBody({
+        title: "Implement coordinator policy gap",
+        projectId: "project-demo",
+        boardId: "board-demo",
+        columnId: "todo",
+        priority: "high",
+        assignee: "agent-coordinator",
+        objective: "Implement the requested backend behavior while preserving existing task lifecycle safety and dispatcher behavior across normal worker tasks.",
+        acceptanceCriteria: ["Normal task is rejected", "Coordinator tasks remain explicit"],
+        contextFiles: ["app/server/services/agents/work-policy.ts"],
+        tags: ["feature-implementation"],
+      })).rejects.toMatchObject({
+        statusCode: 409,
+        statusMessage: expect.stringContaining("cannot be assigned"),
+      });
+    } finally {
+      delete process.env.RELAYHQ_VAULT_ROOT;
       await rm(root, { recursive: true, force: true });
     }
   });
 
   test("releases the web lock when create-time dispatch is blocked", async () => {
     const root = await mkdtemp(join(tmpdir(), "relayhq-vault-task-blocked-dispatch-"));
-    const dispatchPatches: Array<{ actorId: string; patch: Record<string, unknown>; releaseLock?: boolean }> = [];
 
     try {
       process.env.RELAYHQ_VAULT_ROOT = root;
+      process.env.RELAYHQ_DISABLE_AUTO_DISPATCH = "false";
       await seedBoard(root);
 
-      await createVaultTaskFromBody({
+      const response = await createVaultTaskFromBody({
         title: "Blocked create-time dispatch should not keep task locked",
         projectId: "project-demo",
         boardId: "board-demo",
@@ -176,29 +257,24 @@ describe("POST /api/vault/tasks validation", () => {
         objective: "Verify that when create-time dispatcher evaluation is blocked, RelayHQ records the reason without leaving the todo task locked by the web actor.",
         acceptanceCriteria: ["Blocked reason is recorded", "Task remains claimable by the assigned agent afterwards"],
         contextFiles: ["app/server/api/vault/tasks.post.ts"],
+        tags: ["feature-implementation"],
       }, {
         readCanonicalVaultReadModel: async () => ({ tasks: [], agents: [] }) as never,
         autoDispatchAssignedTask: async () => ({
-          decision: { status: "blocked", reason: "Agent already has an active session (running)." },
+          decision: { status: "blocked", reason: "Runtime capacity exhausted (1/1 slots in use). Task queued until a runtime slot is free." },
           launched: false,
         }) as never,
-        patchTaskLifecycle: async ({ actorId, patch, releaseLock }) => {
-          dispatchPatches.push({ actorId, patch: patch as Record<string, unknown>, releaseLock });
-          return {} as never;
-        },
       });
 
-      expect(dispatchPatches).toHaveLength(1);
-      expect(dispatchPatches[0]).toMatchObject({
-        actorId: "@relayhq-web",
-        releaseLock: true,
-        patch: {
-          dispatch_status: "blocked",
-          dispatch_reason: "Agent already has an active session (running).",
-        },
-      });
+      const task = await readTaskDocument(join(root, response.sourcePath));
+      expect(task.frontmatter.status).toBe("todo");
+      expect(task.frontmatter.column).toBe("todo");
+      expect(task.frontmatter.locked_by).toBeNull();
+      expect(task.frontmatter.dispatch_status).toBe("blocked");
+      expect(task.frontmatter.dispatch_reason).toBe("Runtime capacity exhausted (1/1 slots in use). Task queued until a runtime slot is free.");
     } finally {
       delete process.env.RELAYHQ_VAULT_ROOT;
+      delete process.env.RELAYHQ_DISABLE_AUTO_DISPATCH;
       await rm(root, { recursive: true, force: true });
     }
   });

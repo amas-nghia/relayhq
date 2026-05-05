@@ -50,22 +50,51 @@ export interface ProjectCodebase {
   readonly primary?: boolean
 }
 
+export type ProjectSceneBackgroundMode = 'color' | 'gradient' | 'image'
+
+export interface ProjectSceneConfig {
+  readonly background: {
+    readonly mode: ProjectSceneBackgroundMode
+    readonly color?: string
+    readonly gradientFrom?: string
+    readonly gradientTo?: string
+    readonly imageUrl?: string
+  }
+}
+
 export interface ReadModelProject {
   readonly id: string
   readonly type: 'project'
   readonly workspaceId: string
   readonly name: string
+  readonly coordinatorAgentId?: string | null
   readonly description: string | null
   readonly budget: string | null
   readonly deadline: string | null
   readonly status: string | null
   readonly links: ReadonlyArray<{ label: string; url: string }>
   readonly attachments: ReadonlyArray<{ label: string; url: string; type: string; addedAt: string }>
+  readonly scene?: ProjectSceneConfig | null
   readonly codebases: ReadonlyArray<ProjectCodebase>
   readonly boardIds: ReadonlyArray<string>
   readonly columnIds: ReadonlyArray<string>
   readonly taskIds: ReadonlyArray<string>
   readonly approvalIds: ReadonlyArray<string>
+  readonly coordinatorThreadIds?: ReadonlyArray<string>
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly body: string
+  readonly sourcePath: string
+}
+
+export interface ReadModelCoordinatorThread {
+  readonly id: string
+  readonly type: 'coordinator-thread'
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly coordinatorAgentId: string
+  readonly activeSessionId: string | null
+  readonly status: 'active' | 'archived'
   readonly createdAt: string
   readonly updatedAt: string
   readonly body: string
@@ -118,6 +147,8 @@ export interface ReadModelTask {
   readonly updatedAt: string
   readonly heartbeatAt: string | null
   readonly executionStartedAt: string | null
+  readonly activeSessionId?: string | null
+  readonly activeSessionStatus?: 'active' | 'stopped' | null
   readonly executionNotes: string | null
   readonly progress: number
   readonly history: ReadonlyArray<ReadModelTaskHistoryEntry>
@@ -181,6 +212,12 @@ export interface ReadModelAuditNote {
   readonly message: string
   readonly source: string
   readonly confidence: number
+  readonly promptTokens: number | null
+  readonly completionTokens: number | null
+  readonly tokensUsed: number | null
+  readonly model: string | null
+  readonly costUsd: number | null
+  readonly usageSource: 'provider' | 'runtime' | 'estimated' | null
   readonly createdAt: string
   readonly sourcePath: string
 }
@@ -254,6 +291,7 @@ export interface ReadModelAgent {
   readonly skillFile: string
   readonly skillFiles?: ReadonlyArray<string>
   readonly status: string
+  readonly projectId: string | null
   readonly createdAt: string
   readonly updatedAt: string
   readonly body: string
@@ -293,12 +331,27 @@ export interface VaultReadModel {
   readonly auditNotes: ReadonlyArray<ReadModelAuditNote>
   readonly docs: ReadonlyArray<ReadModelDoc>
   readonly agents: ReadonlyArray<ReadModelAgent>
+  readonly coordinatorThreads?: ReadonlyArray<ReadModelCoordinatorThread>
 }
 
 export interface ActiveAgentSession {
+  readonly sessionId: string
+  readonly agentId?: string
   readonly agentName: string
   readonly lastSeenAt: string
   readonly idleSeconds: number
+  readonly taskId?: string
+  readonly provider?: string
+  readonly runtimeKind?: string
+  readonly launchSurface?: 'background' | 'visible-terminal' | 'attached'
+  readonly launchMode?: 'fresh' | 'resume' | 'attached'
+  readonly resumedFromSessionId?: string | null
+  readonly status?: 'running' | 'handed-off' | 'attached'
+  readonly command?: string
+  readonly cwd?: string | null
+  readonly pid?: number
+  readonly startTime?: string
+  readonly source?: 'runner' | 'attached'
 }
 
 export interface AgentContextProjectSummary {
@@ -331,6 +384,8 @@ export interface AgentContextResponse {
   readonly pendingApprovalCount: number
   readonly boardSummary: ReadonlyArray<AgentContextBoardSummary>
   readonly docs: ReadonlyArray<{ id: string; title: string; doc_type: string; status: string; visibility: string; updatedAt: string }>
+  readonly relevant_docs?: ReadonlyArray<{ taskId: string; docs: ReadonlyArray<{ id: string; title: string; doc_type: string; path: string; summary: string }> }>
+  readonly codebrain?: ReadonlyArray<{ id: string; title: string; doc_type: string; path: string; summary: string }>
   readonly skills: ReadonlyArray<AgentContextSkill>
   readonly activeSessions: ReadonlyArray<ActiveAgentSession>
 }

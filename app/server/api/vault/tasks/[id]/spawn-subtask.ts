@@ -35,6 +35,7 @@ export async function spawnSubtaskFromBody(taskId: string, body: unknown, option
     objective: typeof body.objective === "string" ? body.objective : undefined,
     acceptanceCriteria: body.acceptanceCriteria,
     contextFiles: body.contextFiles,
+    tags: body.tags,
   });
   if (issues.length > 0) {
     throw createError({ statusCode: 400, statusMessage: formatTaskInputIssues(issues) });

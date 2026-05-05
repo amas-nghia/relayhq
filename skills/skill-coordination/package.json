@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-coordination",
+  "version": "1.0.0",
+  "description": "Multi-agent coordination skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "coordination", "orchestration", "planning"],
+  "license": "MIT"
+}

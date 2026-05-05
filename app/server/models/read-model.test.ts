@@ -36,6 +36,7 @@ describe("buildVaultReadModel", () => {
       approvals: [],
       auditNotes: [],
       agents: [],
+      coordinatorThreads: [],
     };
 
     const model = buildVaultReadModel(collections);
@@ -60,4 +61,74 @@ describe("buildVaultReadModel", () => {
       },
     ]);
   });
+
+  test("includes active task session metadata on tasks", () => {
+    const collections: VaultReadCollections = {
+      workspaces: [],
+      projects: [],
+      boards: [],
+      columns: [],
+      tasks: [
+        {
+          sourcePath: "vault/shared/tasks/task-1.md",
+          body: "Task body",
+          frontmatter: {
+            id: "task-1",
+            type: "task",
+            version: 1,
+            workspace_id: "ws-alpha",
+            project_id: "project-alpha",
+            board_id: "board-alpha",
+            column: "todo",
+            status: "todo",
+            priority: "high",
+            title: "Task one",
+            assignee: "agent-1",
+            created_by: "@owner",
+            created_at: "2026-04-23T10:00:00Z",
+            updated_at: "2026-04-23T10:05:00Z",
+            heartbeat_at: null,
+            execution_started_at: null,
+            execution_notes: null,
+            progress: 0,
+            approval_needed: false,
+            approval_requested_by: null,
+            approval_reason: null,
+            approved_by: null,
+            approved_at: null,
+            approval_outcome: "pending",
+            blocked_reason: null,
+            blocked_since: null,
+            result: null,
+            completed_at: null,
+            parent_task_id: null,
+            depends_on: [],
+            tags: [],
+            links: [],
+            locked_by: null,
+            locked_at: null,
+            lock_expires_at: null,
+          },
+        } as never,
+      ],
+      issues: [],
+      docs: [],
+      approvals: [],
+      auditNotes: [],
+      agents: [],
+      coordinatorThreads: [],
+    }
+
+    const model = buildVaultReadModel(
+      collections,
+      new Date("2026-04-23T10:06:00Z"),
+      new Map([["task-1", { sessionId: "session-1", status: "active" as const }]]),
+    )
+
+    expect(model.tasks[0]).toMatchObject({
+      id: "task-1",
+      activeSessionId: "session-1",
+      activeSessionStatus: "active",
+    })
+  })
 });

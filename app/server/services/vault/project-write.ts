@@ -18,12 +18,14 @@ const PROJECT_FRONTMATTER_KEYS: ReadonlyArray<keyof ProjectFrontmatter> = [
   "type",
   "workspace_id",
   "name",
+  "coordinator_agent_id",
   "description",
   "budget",
   "deadline",
   "status",
   "links",
   "attachments",
+  "scene",
   "codebase_root",
   "codebases",
   "created_at",
@@ -193,6 +195,7 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
     type: "project",
     workspace_id: record.workspace_id,
     name: record.name,
+    ...((typeof record.coordinator_agent_id === "string" || record.coordinator_agent_id === null) ? { coordinator_agent_id: record.coordinator_agent_id as string | null } : {}),
     ...(typeof record.description === "string" ? { description: record.description } : {}),
     ...(typeof record.budget === "string" ? { budget: record.budget } : {}),
     ...(typeof record.deadline === "string" ? { deadline: record.deadline } : {}),
@@ -225,6 +228,7 @@ function parseProjectFrontmatter(frontmatter: string): ProjectFrontmatter {
           }),
         }
       : {}),
+    ...(typeof record.scene === "object" && record.scene !== null ? { scene: record.scene as ProjectFrontmatter["scene"] } : {}),
     codebase_root: typeof record.codebase_root === "string" ? record.codebase_root : null,
     codebases: Array.isArray(record.codebases)
       ? record.codebases.flatMap((entry) => {

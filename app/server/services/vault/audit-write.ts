@@ -8,6 +8,12 @@ export async function writeAuditNote(options: {
   source: string;
   message: string;
   confidence?: number;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  tokensUsed?: number | null;
+  model?: string | null;
+  costUsd?: number | null;
+  usageSource?: "provider" | "runtime" | "estimated" | null;
   now?: Date;
 }) {
   const now = options.now ?? new Date();
@@ -22,6 +28,12 @@ export async function writeAuditNote(options: {
     `message: ${JSON.stringify(options.message)}`,
     `source: ${JSON.stringify(options.source)}`,
     `confidence: ${options.confidence ?? 1}`,
+    ...(options.promptTokens === undefined ? [] : [`prompt_tokens: ${options.promptTokens === null ? "null" : options.promptTokens}`]),
+    ...(options.completionTokens === undefined ? [] : [`completion_tokens: ${options.completionTokens === null ? "null" : options.completionTokens}`]),
+    ...(options.tokensUsed === undefined ? [] : [`tokens_used: ${options.tokensUsed === null ? "null" : options.tokensUsed}`]),
+    ...(options.model === undefined ? [] : [`model: ${options.model === null ? "null" : JSON.stringify(options.model)}`]),
+    ...(options.costUsd === undefined ? [] : [`cost_usd: ${options.costUsd === null ? "null" : options.costUsd}`]),
+    ...(options.usageSource === undefined ? [] : [`usage_source: ${options.usageSource === null ? "null" : JSON.stringify(options.usageSource)}`]),
     `created_at: ${JSON.stringify(now.toISOString())}`,
     "---",
     "",

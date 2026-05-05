@@ -1,57 +1,8 @@
 # Vault Schema
 
-This document defines the canonical file schemas for RelayHQ.
+Every RelayHQ object is one Markdown file with YAML frontmatter. The frontmatter is machine-readable; the body is human-readable.
 
-## Common rules
-- one object per file
-- YAML frontmatter carries machine fields
-- Markdown body remains human-readable
-- shared files are the source of truth
-- private overlays are user-local and must stay out of shared commits
-- system files define versioned schema and template assets
-- use stable `id` values and explicit timestamps
-
-## Canonical layout
-
-```text
-vault/
-├─ shared/
-│  ├─ workspaces/
-│  ├─ projects/
-│  ├─ boards/
-│  ├─ columns/
-│  ├─ tasks/
-│  ├─ approvals/
-│  ├─ agents/
-│  ├─ audit/
-│  └─ threads/
-├─ users/
-│  └─ <user>/
-│     ├─ provider.md
-│     ├─ prefs.md
-│     └─ scratch/
-└─ system/
-   ├─ schemas/
-   └─ templates/
-```
-
-### Ownership rules
-- `vault/shared/**` is committed coordination state and the canonical team record
-- `vault/users/**` is private overlay data and must not be treated as shared truth
-- `vault/system/**` contains schema and template assets that define the contract
-
-### Versioning rule
-- task frontmatter uses `version: 1` today
-- later schema changes should bump the version intentionally and keep migration rules explicit
-
-### Validation helpers
-- `validateTaskFrontmatter`
-- `validateAgentFrontmatter`
-- `validateWorkspaceFrontmatter`
-- `validateProviderOverlayFrontmatter`
-- `validateAuditNoteFrontmatter`
-
-Each helper returns a validity result with field-level issues. Companion `assert*` helpers can throw a schema error when callers want fail-fast behavior.
+The canonical schema is defined in `backend/internal/vault/schema.go` (Go) and `app/shared/vault/schema.ts` (TypeScript). This document is the human-readable reference.
 
 ## Task file
 
@@ -65,81 +16,132 @@ version: 1
 workspace_id: ws-acme
 project_id: project-auth
 board_id: board-auth-main
-column: todo
-status: todo
-priority: high
+
+# Board position
+column: todo                    # todo | in-progress | review | done
+status: todo                    # see Status values below
+priority: high                  # critical | high | medium | low
+
 title: Implement password reset API
-assignee: agent-backend-dev
+assignee: agent-backend-dev     # agent ID or "unassigned"
 created_by: "@alice"
 created_at: 2026-04-14T10:00:00Z
 updated_at: 2026-04-14T10:00:00Z
 
+# Execution tracking
 heartbeat_at: null
 execution_started_at: null
 execution_notes: null
-progress: 0
-next_run_at: null
+progress: 0                     # 0–100
 
+# Scheduling
+next_run_at: null               # ISO timestamp — when set, task is scheduled
+cron_schedule: null             # cron expression for recurring tasks
+
+# Dispatch
+dispatch_status: idle           # idle | ready | started | blocked
+dispatch_reason: null
+last_dispatch_attempt_at: null
+
+# Approval
 approval_needed: false
 approval_requested_by: null
 approval_reason: null
 approved_by: null
 approved_at: null
-approval_outcome: pending
+approval_outcome: pending       # pending | approved | rejected
 
+# Blocking
 blocked_reason: null
 blocked_since: null
 
+# Completion
 result: null
 completed_at: null
 
+# Relationships
 parent_task_id: null
-depends_on: []
-tags: [auth, backend, api]
-links:
-  - project: project-auth
-    thread: thread-001
+source_issue_id: null
+github_issue_id: null
+depends_on: []                  # list of task IDs this task waits for
+
+# Routing — REQUIRED for auto-dispatch
+tags: [auth, backend, api]      # must match agent task_types_accepted or capabilities
+
+# Locking (optimistic concurrency)
+locked_by: null
+locked_at: null
+lock_expires_at: null
+
+links: []
+history: []
 ---
+
+## Objective
+
+What needs to be done and why.
+
+## Acceptance Criteria
+
+- Criterion one
+- Criterion two
+
+## Context Files
+
+- path/to/relevant/file.ts
 ```
 
 ### Status values
-- todo
-- scheduled
-- in-progress
-- blocked
-- review
-- waiting-approval
-- done
-- cancelled
 
-`review` means the work is finished and ready for human verification.
+| Status | Meaning |
+|--------|---------|
+| `todo` | Ready to be picked up |
+| `scheduled` | Waiting for `next_run_at` |
+| `in-progress` | Claimed and being worked on |
+| `blocked` | Cannot continue, waiting on something external |
+| `review` | Work done, waiting for human verification |
+| `waiting-approval` | Agent paused, waiting for explicit human sign-off |
+| `done` | Human verified and closed |
+| `cancelled` | Will not be done |
 
-`waiting-approval` means the agent is blocked pending an explicit sign-off before it can continue.
+### Tags — required
 
-`scheduled` means the task is intentionally deferred until `next_run_at`, after which the scheduler re-queues it to `todo`.
-
-### Column values
-- todo
-- in-progress
-- review
-- done
-
-### Recommended execution fields
-- `heartbeat_at`
-- `execution_started_at`
-- `execution_notes`
-- `progress`
-- `next_run_at`
-- `result`
-- `completed_at`
-
-### Locking
-If concurrent writes are possible, add lock fields:
+Tasks must have at least one tag for the auto-dispatcher to route them. Tags are matched against agent `task_types_accepted` and `capabilities`.
 
 ```yaml
-locked_by: agent-backend-dev
-locked_at: 2026-04-14T10:00:00Z
-lock_expires_at: 2026-04-14T10:05:00Z
+tags: [bug-fix, frontend]
+```
+
+## Agent file
+
+`vault/shared/agents/agent-{id}.md`
+
+```yaml
+---
+id: agent-backend-dev
+type: agent
+name: Backend Developer
+role: worker                    # worker | coordinator
+provider: anthropic             # anthropic | openai | google | openrouter
+model: claude-sonnet-4-6
+capabilities:
+  - write-go-code
+  - write-api-endpoints
+task_types_accepted:
+  - feature-implementation
+  - bug-fix
+approval_required_for:
+  - database-schema-change
+cannot_do:
+  - frontend-code
+accessible_by: []
+skill_file: null
+status: available               # available | paused | offline
+workspace_id: ws-acme
+api_key_ref: env:ANTHROPIC_API_KEY   # env: | secret: | vault: prefix required
+created_at: 2026-04-14T10:00:00Z
+updated_at: 2026-04-14T10:00:00Z
+---
 ```
 
 ## Project file
@@ -153,198 +155,101 @@ type: project
 workspace_id: ws-acme
 name: Authentication
 description: Core auth and account lifecycle workstream
-budget: $12,000/mo
-deadline: 2026-06-01T00:00:00Z
-status: active
-links: [{"label":"PRD","url":"https://notion.so/prd"}]
-attachments: [{"label":"Kickoff doc","url":"https://drive.google.com/doc","type":"doc","addedAt":"2026-04-14T10:00:00Z"}]
-codebases:
-  - name: frontend
-    path: /home/amas/code/auth-frontend
-    tech: Next.js
-    primary: true
-  - name: backend
-    path: /home/amas/code/auth-backend
-    tech: NestJS
+status: active                  # active | paused | done
 created_at: 2026-04-14T10:00:00Z
 updated_at: 2026-04-14T10:00:00Z
 ---
 ```
 
-Optional project metadata:
-- `description`: short project summary
-- `budget`: free-form budget string
-- `deadline`: ISO timestamp for target completion
-- `status`: `active | paused | done`
-- `links`: array of `{ label, url }`
-- `attachments`: array of `{ label, url, type, addedAt }`
+Optional fields: `budget`, `deadline`, `links`, `attachments`, `codebases`.
 
-Attachment types:
-- `doc`
-- `audio`
-- `video`
-- `sheet`
-- `image`
-- `link`
+## Board and column files
 
-Backward compatibility rule:
-- legacy `codebase_root` is still accepted by validators
-- when `codebases` is absent and `codebase_root` is present, normalize it to one entry named `main`
-
-Codebase entry rules:
-- `name` must be a lowercase slug
-- `path` may be absolute or repo-relative
-- `tech` is optional
-- `primary` is optional
-
-## Agent file
-
-`vault/shared/agents/backend-developer.md`
+`vault/shared/boards/board-{id}.md`
 
 ```yaml
 ---
-id: agent-backend-dev
-type: agent
-name: Backend Developer
-role: implementation
-provider: claude
-model: claude-sonnet-4-6
-capabilities:
-  - write-go-code
-  - write-python-code
-  - write-api-endpoints
-  - write-unit-tests
-  - review-backend-pr
-task_types_accepted:
-  - feature-implementation
-  - bug-fix
-  - api-design
-  - refactoring
-  - test-writing
-approval_required_for:
-  - database-schema-change
-  - breaking-api-change
-  - deploy-to-production
-  - delete-data
-cannot_do:
-  - frontend-code
-  - infrastructure-changes
-  - billing-logic
-accessible_by:
-  - "@alice"
-  - "@bob"
-skill_file: skills/relayhq-backend-dev.md
-status: available
-workspace_id: ws-acme
-created_at: 2026-04-14T10:00:00Z
-updated_at: 2026-04-14T10:00:00Z
----
-```
-
-## Doc file
-
-`vault/shared/docs/doc-{id}.md`
-
-```yaml
----
-id: doc-product-brief
-type: doc
-doc_type: brief
+id: board-auth-main
+type: board
 workspace_id: ws-acme
 project_id: project-auth
-title: Authentication rollout brief
-status: draft
-visibility: project
-access_roles: [all]
-sensitive: false
+name: Auth Board
 created_at: 2026-04-14T10:00:00Z
 updated_at: 2026-04-14T10:00:00Z
-tags: [auth, launch]
 ---
 ```
 
-### Supported doc types
-- feature
-- decision
-- research
-- runbook
-- retro
-- brief
-- plan
-- meeting-minutes
-- budget
-- expense
-- sop
-- policy
-- adr
-
-### Access control defaults
-- `visibility` defaults to `project`
-- `access_roles` defaults to `[all]`
-- `sensitive` defaults to `false`
-- `budget` and `expense` default to `sensitive: true` when scaffolded
-
-### Access control notes
-- `visibility` may be `project`, `workspace`, or `private`
-- `access_roles` is a flexible string array and can contain agent ids, role markers like `role:pm`, `all`, or `human-only`
-- older docs without these fields still load using the defaults above
-
-## Provider overlay file
-
-`vault/users/alice/provider.md`
+`vault/shared/columns/col-{id}.md`
 
 ```yaml
 ---
-type: provider-overlay
-user_id: "@alice"
-provider: claude
-model: claude-sonnet-4-6
-api_key_ref: env:ANTHROPIC_API_KEY
-routing:
-  default_agent: agent-backend-dev
-  prefer_agents:
-    - agent-backend-dev
-    - agent-backend-tester
-tool_policy:
-  allow_bash: true
-  allow_file_write: true
-  allow_network: false
-preferences:
-  language: vi
-  response_style: concise
-  auto_heartbeat: true
-  heartbeat_interval_seconds: 300
+id: col-todo
+type: column
+workspace_id: ws-acme
+project_id: project-auth
+board_id: board-auth-main
+name: To Do
+position: 0
+created_at: 2026-04-14T10:00:00Z
+updated_at: 2026-04-14T10:00:00Z
+---
+```
+
+## Coordinator thread file
+
+`vault/shared/coordinator-threads/coordinator-thread-{project_id}.md`
+
+One per project. Anchors the coordinator agent's session identity.
+
+```yaml
+---
+id: coordinator-thread-project-auth
+type: coordinator-thread
+workspace_id: ws-acme
+project_id: project-auth
+coordinator_agent_id: agent-coordinator
+active_session_id: null
+status: active
+created_at: 2026-04-14T10:00:00Z
 updated_at: 2026-04-14T10:00:00Z
 ---
 ```
 
 ## Workspace file
 
-`vault/shared/workspaces/{workspace_id}.md`
+`vault/shared/workspaces/ws-{id}.md`
 
-Suggested fields:
-- `id`
-- `type: workspace`
-- `name`
-- `owner_ids`
-- `member_ids`
-- `created_at`
-- `updated_at`
+```yaml
+---
+id: ws-acme
+type: workspace
+name: Acme Corp
+owner_ids: ["@alice"]
+member_ids: ["@alice", "@bob"]
+created_at: 2026-04-14T10:00:00Z
+updated_at: 2026-04-14T10:00:00Z
+---
+```
 
 ## Audit note file
 
-Suggested fields:
-- `id`
-- `type: audit-note`
-- `task_id`
-- `message`
-- `source`
-- `confidence`
-- `created_at`
+`vault/shared/audit/audit-{id}.md`
 
-## Validation rules
-- required fields must be present
-- enums must be valid
-- references must resolve where possible
-- private overlays must not be committed to shared Git
-- task status transitions must follow protocol
+Written automatically on every state change. Do not write these manually.
+
+```yaml
+---
+id: audit-001
+type: audit-note
+task_id: task-001
+message: Status changed from todo to in-progress
+source: agent-backend-dev
+created_at: 2026-04-14T10:00:00Z
+---
+```
+
+## Session event files
+
+`vault/shared/threads/agent-session-{session_id}.jsonl`
+
+One JSON line per event from an agent's stdout. Written by the launch pipeline. Do not write these manually.

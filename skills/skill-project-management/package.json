@@ -1,0 +1,9 @@
+{
+  "name": "@relayhq/skill-project-management",
+  "version": "1.0.0",
+  "description": "Project management skill for AI agents using RelayHQ",
+  "main": "SKILL.md",
+  "files": ["SKILL.md"],
+  "keywords": ["relayhq", "skill", "project-management", "planning", "sprint", "backlog"],
+  "license": "MIT"
+}

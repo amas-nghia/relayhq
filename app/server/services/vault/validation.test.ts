@@ -219,7 +219,7 @@ describe("vault project write validation", () => {
 
     const result = validateProjectWrite({
       current,
-      patch: { name: "Identity Platform" },
+      patch: { name: "Identity Platform", coordinator_agent_id: "agent-coordinator" },
       body: "# Project notes\nClean content.",
     });
 

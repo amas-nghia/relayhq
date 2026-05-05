@@ -10,10 +10,12 @@ import { nextCronOccurrence, validateCronSchedule } from "../../../shared/vault/
 import { containsSecretMaterial } from "../security/secrets";
 import { publishRealtimeUpdate } from "../realtime/bus";
 import { queueTaskWebhookNotification } from "../settings/webhooks";
+import { assertWorkPolicy, findPolicyAgent, isCoordinatorAgent } from "../policy/work-policy";
 import { readCanonicalVaultReadModel } from "./read";
 import { readSharedVaultCollections } from "./read";
 import { resolveTaskFilePath, resolveVaultWorkspaceRoot } from "./runtime";
 import { createTaskDocument, type CreateTaskDocumentResult } from "./write";
+import { DEFAULT_TASK_ROUTING_CONFIG, expandRoutingTags, readTaskRoutingConfig, type TaskRoutingConfig } from "../settings/task-routing";
 
 const DEFAULT_CREATED_BY = "@relayhq-web" as const;
 
@@ -60,6 +62,119 @@ export class TaskCreateError extends Error {
 export interface AutoAssignmentDecision {
   readonly assignee: string;
   readonly reason: string;
+}
+
+export interface AutoAssignmentContext {
+  readonly projectId: string;
+  readonly assignee?: string | null;
+  readonly requiredCapability?: string | null;
+  readonly tags?: ReadonlyArray<string>;
+}
+
+function buildActiveLoads(readModel: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>): Map<string, number> {
+  const activeLoads = new Map<string, number>();
+  for (const task of readModel.tasks) {
+    if (task.status === "in-progress" || task.status === "waiting-approval" || task.status === "blocked") {
+      activeLoads.set(task.assignee, (activeLoads.get(task.assignee) ?? 0) + 1);
+    }
+  }
+  return activeLoads;
+}
+
+function isAgentWithinBudget(
+  agent: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>["agents"][number],
+  readModel: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>,
+  now: Date,
+): boolean {
+  const budget = agent.monthlyBudgetUsd;
+  if (budget == null) return true;
+  const spent = readModel.tasks
+    .filter((task) => task.assignee === agent.id)
+    .filter((task) => task.status === "done")
+    .filter((task) => (task.completedAt ?? "").startsWith(now.toISOString().slice(0, 7)))
+    .reduce((sum, task) => sum + (task.costUsd ?? 0), 0);
+  return spent < budget;
+}
+
+function selectAgentByCapability(
+  capability: string,
+  readModel: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>,
+  now: Date,
+): string {
+  const activeLoads = buildActiveLoads(readModel);
+  const eligibleAgents = readModel.agents
+    .filter((agent) => agent.capabilities.includes(capability))
+    .filter((agent) => agent.status === "available")
+    .filter((agent) => !isCoordinatorAgent(agent))
+    .filter((agent) => isAgentWithinBudget(agent, readModel, now))
+    .sort((left, right) => (activeLoads.get(left.id) ?? 0) - (activeLoads.get(right.id) ?? 0) || left.id.localeCompare(right.id));
+
+  return eligibleAgents[0]?.id ?? "unassigned";
+}
+
+function selectAgentByTags(
+  projectId: string,
+  tags: ReadonlyArray<string>,
+  readModel: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>,
+  now: Date,
+): string {
+  const taskTags = new Set(tags.map((tag) => tag.toLowerCase()));
+  const activeLoads = buildActiveLoads(readModel);
+
+  const scored = readModel.agents
+    .filter((agent) => agent.status === "available")
+    .filter((agent) => !isCoordinatorAgent(agent))
+    .filter((agent) => isAgentWithinBudget(agent, readModel, now))
+    .map((agent) => {
+      let score = 0;
+      if (agent.projectId === projectId) score += 3;
+      for (const type of agent.taskTypesAccepted) {
+        if (taskTags.has(type.toLowerCase())) score += 2;
+      }
+      for (const cap of agent.capabilities) {
+        if (taskTags.has(cap.toLowerCase())) score += 1;
+      }
+      return { agent, score, load: activeLoads.get(agent.id) ?? 0 };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.load - right.load || left.agent.id.localeCompare(right.agent.id));
+
+  return scored[0]?.agent.id ?? "unassigned";
+}
+
+export function decideAutoAssignment(
+  context: AutoAssignmentContext,
+  readModel: Awaited<ReturnType<typeof readCanonicalVaultReadModel>>,
+  now: Date,
+  routingConfig: TaskRoutingConfig = DEFAULT_TASK_ROUTING_CONFIG,
+): AutoAssignmentDecision | null {
+  const explicitAssignee = typeof context.assignee === "string" && context.assignee.trim().length > 0
+    ? context.assignee.trim()
+    : null;
+  if (explicitAssignee !== null && explicitAssignee !== "unassigned") return null;
+
+  const requiredCapability = typeof context.requiredCapability === "string" && context.requiredCapability.trim().length > 0
+    ? context.requiredCapability.trim()
+    : null;
+  if (requiredCapability !== null) {
+    const assignee = selectAgentByCapability(requiredCapability, readModel, now);
+    return {
+      assignee,
+      reason: assignee === "unassigned"
+        ? `No eligible agent found for capability ${requiredCapability}.`
+        : `Auto-assigned from required capability ${requiredCapability}.`,
+    };
+  }
+
+  const tags = (context.tags ?? []).map((tag) => tag.trim()).filter((tag) => tag.length > 0);
+  if (tags.length === 0) return null;
+  const assignee = selectAgentByTags(context.projectId, [...expandRoutingTags(tags, routingConfig)], readModel, now);
+  return {
+    assignee,
+    reason: assignee === "unassigned"
+      ? `No eligible agent found for tags: ${tags.join(", ")}.`
+      : `Auto-assigned from routing tags: ${tags.join(", ")}.`,
+  };
 }
 
 function normalizeString(value: string, field: string): string {
@@ -184,6 +299,7 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
   const vaultRoot = input.vaultRoot ?? resolveVaultWorkspaceRoot();
   const collections = await readSharedVaultCollections(vaultRoot);
   const readModel = await readCanonicalVaultReadModel(vaultRoot);
+  const routingConfig = await readTaskRoutingConfig(vaultRoot);
 
   const project = collections.projects.find((entry) => entry.frontmatter.id === projectId)?.frontmatter;
   if (project === undefined) {
@@ -219,31 +335,14 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     ? normalizeString(input.assignee, "assignee")
     : "unassigned";
 
-  if (input.requiredCapability && input.requiredCapability.trim().length > 0) {
-    const capability = normalizeString(input.requiredCapability, "requiredCapability");
-    const activeLoads = new Map<string, number>();
-    for (const task of readModel.tasks) {
-      if (task.status === "in-progress" || task.status === "waiting-approval" || task.status === "blocked") {
-        activeLoads.set(task.assignee, (activeLoads.get(task.assignee) ?? 0) + 1);
-      }
-    }
-
-    const eligibleAgents = readModel.agents
-      .filter((agent) => agent.capabilities.includes(capability))
-      .filter((agent) => agent.status === "available")
-      .filter((agent) => {
-        const budget = agent.monthlyBudgetUsd;
-        if (budget == null) return true;
-        const spent = readModel.tasks
-          .filter((task) => task.assignee === agent.id)
-          .filter((task) => task.status === "done")
-          .filter((task) => (task.completedAt ?? "").startsWith(now.toISOString().slice(0, 7)))
-          .reduce((sum, task) => sum + (task.costUsd ?? 0), 0);
-        return spent < budget;
-      })
-      .sort((left, right) => (activeLoads.get(left.id) ?? 0) - (activeLoads.get(right.id) ?? 0) || left.id.localeCompare(right.id));
-
-    assignee = eligibleAgents[0]?.id ?? "unassigned";
+  const autoAssignment = decideAutoAssignment({
+    projectId: project.id,
+    assignee,
+    requiredCapability: input.requiredCapability ?? null,
+    tags,
+  }, readModel, now, routingConfig);
+  if (autoAssignment !== null) {
+    assignee = autoAssignment.assignee;
   }
 
   const taskId = `task-${randomUUID()}`;
@@ -265,6 +364,24 @@ export async function createVaultTask(input: CreateTaskInput): Promise<CreateTas
     githubIssueId: input.githubIssueId ?? null,
     cronSchedule,
   });
+
+  if (assignee !== "unassigned") {
+    assertWorkPolicy({
+      actorId: DEFAULT_CREATED_BY,
+      action: "assign",
+      readModel,
+      task: {
+        id: frontmatter.id,
+        tags: frontmatter.tags,
+        status: frontmatter.status,
+        assignee: frontmatter.assignee,
+        approvalNeeded: frontmatter.approval_needed,
+        approvalOutcome: frontmatter.approval_outcome,
+      },
+      assigneeId: assignee,
+      assignee: findPolicyAgent(readModel, assignee),
+    })
+  }
 
   const result = await createTaskDocument({
     filePath: resolveTaskFilePath(taskId, vaultRoot),

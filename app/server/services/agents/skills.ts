@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export interface InstalledSkill {
   readonly name: string;
@@ -21,6 +21,7 @@ export interface SkillMatchTask {
 export interface SkillMatchRequest {
   readonly skills: ReadonlyArray<InstalledSkill>;
   readonly task?: SkillMatchTask | null;
+  readonly agentPrimarySkillFile?: string | null;
   readonly agentSkillFiles?: ReadonlyArray<string>;
 }
 
@@ -129,6 +130,27 @@ function isSkillMatch(task: SkillMatchTask | null | undefined, skill: InstalledS
   return typeMatch || tagMatch;
 }
 
+function toSkillLookupKey(value: string): string {
+  return normalizeName(value.replace(/\\/g, "/"))
+}
+
+function buildSkillLookupSet(request: Pick<SkillMatchRequest, "agentPrimarySkillFile" | "agentSkillFiles">): Set<string> {
+  const values = [
+    ...(request.agentPrimarySkillFile ? [request.agentPrimarySkillFile] : []),
+    ...(request.agentSkillFiles ?? []),
+  ]
+
+  const lookup = new Set<string>()
+  for (const value of values) {
+    const normalized = toSkillLookupKey(value)
+    lookup.add(normalized)
+    lookup.add(toSkillLookupKey(basename(value)))
+    const withoutPrefix = value.startsWith("skills/") ? value.slice("skills/".length) : value
+    lookup.add(toSkillLookupKey(withoutPrefix))
+  }
+  return lookup
+}
+
 export function getRelayHQSkillDir(): string {
   return join(homedir(), ".relayhq", "skills");
 }
@@ -182,8 +204,13 @@ export async function loadInstalledSkills(skillDir: string = getRelayHQSkillDir(
 
 export function matchInstalledSkills(request: SkillMatchRequest): ReadonlyArray<InstalledSkill> {
   const task = request.task ?? null;
-  const agentSkillFiles = new Set((request.agentSkillFiles ?? []).map((value) => normalizeName(value)));
-  const matched = request.skills.filter((skill) => agentSkillFiles.has(normalizeName(skill.name)) || isSkillMatch(task, skill));
+  const agentSkillFiles = buildSkillLookupSet(request)
+  const matched = request.skills.filter((skill) => {
+    const sourcePathKey = toSkillLookupKey(skill.sourcePath)
+    const fileNameKey = toSkillLookupKey(basename(skill.sourcePath))
+    const nameKey = toSkillLookupKey(skill.name)
+    return agentSkillFiles.has(sourcePathKey) || agentSkillFiles.has(fileNameKey) || agentSkillFiles.has(nameKey) || isSkillMatch(task, skill)
+  });
   const deduped = new Map<string, InstalledSkill>();
 
   for (const skill of matched) {

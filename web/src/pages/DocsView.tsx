@@ -69,8 +69,8 @@ export function DocsView() {
   }
 
   return (
-    <div className="flex min-h-full gap-6">
-      <div className="flex min-w-[320px] flex-1 flex-col gap-4 rounded-xl border border-border bg-surface p-4">
+    <div className="flex h-full min-h-0 gap-6 overflow-hidden">
+      <div className="flex min-h-0 min-w-[320px] flex-1 flex-col gap-4 overflow-hidden rounded-xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Docs</h1>
@@ -78,7 +78,8 @@ export function DocsView() {
           </div>
           <Button type="button" onClick={() => setIsNewDocOpen(true)}><FilePlus2 className="h-4 w-4" /> New Document</Button>
         </div>
-        <div className="grid gap-3">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="grid gap-3">
           {docs.map(doc => (
             <button key={doc.id} type="button" onClick={() => setSelectedDocId(doc.id)} className="rounded-xl border border-border bg-surface-secondary p-4 text-left hover:bg-surface">
               <div className="mb-2 flex items-center gap-2">
@@ -89,25 +90,28 @@ export function DocsView() {
               <div className="text-xs text-text-tertiary">{doc.visibility}</div>
             </button>
           ))}
+          </div>
         </div>
       </div>
 
-      <div className="w-[420px] shrink-0 rounded-xl border border-border bg-surface p-4">
+      <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-surface p-4">
         {detail ? (
-          <div className="flex flex-col gap-4">
-            <div>
-              <div className="mb-2 flex items-center gap-2"><Badge variant="secondary">{detail.doc_type}</Badge>{detail.sensitive && <Badge variant="danger">sensitive</Badge>}</div>
-              <h2 className="text-xl font-semibold text-text-primary">{detail.title}</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-text-secondary">{detail.body}</p>
-            </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="mb-2 flex items-center gap-2"><Badge variant="secondary">{detail.doc_type}</Badge>{detail.sensitive && <Badge variant="danger">sensitive</Badge>}</div>
+                <h2 className="text-xl font-semibold text-text-primary">{detail.title}</h2>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-text-secondary">{detail.body}</p>
+              </div>
 
-            <div className="rounded-xl border border-border bg-surface-secondary p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary"><Shield className="h-4 w-4" /> Access Settings</div>
-              <div className="space-y-3">
-                <label className="flex flex-col gap-1.5 text-sm text-text-secondary">Visibility<Select value={visibility} onChange={event => setVisibility(event.target.value)}><option value="project">Project</option><option value="workspace">Workspace</option><option value="private">Private</option></Select></label>
-                <label className="flex flex-col gap-1.5 text-sm text-text-secondary">Roles<Textarea value={accessRoles} onChange={event => setAccessRoles(event.target.value)} rows={3} /></label>
-                <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" checked={sensitive} onChange={event => setSensitive(event.target.checked)} /> Sensitive document</label>
-                <Button type="button" onClick={() => void saveAccess()}>Save access</Button>
+              <div className="rounded-xl border border-border bg-surface-secondary p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary"><Shield className="h-4 w-4" /> Access Settings</div>
+                <div className="space-y-3">
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">Visibility<Select value={visibility} onChange={event => setVisibility(event.target.value)}><option value="project">Project</option><option value="workspace">Workspace</option><option value="private">Private</option></Select></label>
+                  <label className="flex flex-col gap-1.5 text-sm text-text-secondary">Roles<Textarea value={accessRoles} onChange={event => setAccessRoles(event.target.value)} rows={3} /></label>
+                  <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" checked={sensitive} onChange={event => setSensitive(event.target.checked)} /> Sensitive document</label>
+                  <Button type="button" onClick={() => void saveAccess()}>Save access</Button>
+                </div>
               </div>
             </div>
           </div>
@@ -117,7 +121,7 @@ export function DocsView() {
       </div>
 
       {isNewDocOpen && (
-        <Dialog open>
+        <Dialog open onOpenChange={(open) => { if (!open) setIsNewDocOpen(false) }}>
           <DialogOverlay onClick={() => setIsNewDocOpen(false)} />
           <DialogContent>
             <DialogPanel className="max-w-2xl">
