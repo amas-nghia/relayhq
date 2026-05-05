@@ -27,7 +27,7 @@
 <p align="center">
   <video src="docs/assets/demo.webm" width="720" controls playsinline muted></video>
   <br/>
-  <sub>▶ Watch the local demo recording or <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">open the Loom version</a></sub>
+  <sub>▶ Watch the local demo recording</sub>
 </p>
 
 ---
