@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { deleteProject, updateProjectMetadata } from "./[id]";
+import { deleteProject, readProjectById, updateProjectMetadata } from "./[id]";
 
 const roots: string[] = [];
 
@@ -18,6 +18,7 @@ async function createRoot() {
   await mkdir(join(root, "vault", "shared", "projects"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "boards"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "columns"), { recursive: true });
+  await mkdir(join(root, "vault", "shared", "tasks"), { recursive: true });
   await mkdir(join(root, "vault", "shared", "audit"), { recursive: true });
   await writeFile(join(root, "vault", "shared", "projects", "project-demo.md"), [
     "---",
@@ -68,6 +69,103 @@ async function createRoot() {
 }
 
 describe("PATCH /api/vault/projects/[id]", () => {
+  test("GET /api/vault/projects/[id] returns project metadata, docs, and active status", async () => {
+    const root = await createRoot();
+    await mkdir(join(root, "vault", "shared", "docs"), { recursive: true });
+    await writeFile(join(root, "vault", "shared", "tasks", "task-open.md"), [
+      "---",
+      'id: "task-open"',
+      'type: "task"',
+      'version: 1',
+      'workspace_id: "ws-demo"',
+      'project_id: "project-demo"',
+      'board_id: "board-demo"',
+      'column: "todo"',
+      'status: "in-progress"',
+      'priority: "high"',
+      'title: "Ship release tests"',
+      'assignee: "mary"',
+      'created_by: "@owner"',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-23T02:00:00Z"',
+      'heartbeat_at: null',
+      'execution_started_at: "2026-04-23T01:00:00Z"',
+      'execution_notes: null',
+      'progress: 50',
+      'next_run_at: null',
+      'approval_needed: false',
+      'approval_requested_by: null',
+      'approval_reason: null',
+      'approved_by: null',
+      'approved_at: null',
+      'approval_outcome: "pending"',
+      'blocked_reason: null',
+      'blocked_since: null',
+      'result: null',
+      'completed_at: null',
+      'parent_task_id: null',
+      'depends_on: []',
+      'tags: []',
+      'links: []',
+      'locked_by: null',
+      'locked_at: null',
+      'lock_expires_at: null',
+      'approval_ids: []',
+      "---",
+      "",
+    ].join("\n"), "utf8");
+    await writeFile(join(root, "vault", "shared", "docs", "doc-project.md"), [
+      "---",
+      'id: "doc-project"',
+      'type: "doc"',
+      'doc_type: "feature"',
+      'workspace_id: "ws-demo"',
+      'project_id: "project-demo"',
+      'title: "Project doc"',
+      'status: "active"',
+      'visibility: "workspace"',
+      'access_roles: ["all"]',
+      'sensitive: false',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-23T03:00:00Z"',
+      'tags: ["release"]',
+      "---",
+      "# Project doc",
+    ].join("\n"), "utf8");
+
+    const response = await readProjectById("project-demo", { vaultRoot: root });
+
+    expect(response).toEqual({
+      id: "project-demo",
+      name: "Demo Project",
+      boardId: "board-demo",
+      coordinatorAgentId: null,
+      lastActive: true,
+      codebaseRoot: null,
+      description: "Original description",
+      budget: null,
+      deadline: null,
+      status: null,
+      scene: null,
+      links: [],
+      attachments: [],
+      docs: [{
+        id: "doc-project",
+        title: "Project doc",
+        docType: "feature",
+        status: "active",
+        visibility: "workspace",
+        updatedAt: "2026-04-23T03:00:00Z",
+        sourcePath: "vault/shared/docs/doc-project.md",
+      }],
+    });
+  });
+
+  test("GET /api/vault/projects/[id] returns 404 for missing projects", async () => {
+    const root = await createRoot();
+    await expect(readProjectById("project-missing", { vaultRoot: root })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
   test("updates project metadata and writes an audit note", async () => {
     const root = await createRoot();
     const response = await updateProjectMetadata("project-demo", {
@@ -193,6 +291,85 @@ describe("PATCH /api/vault/projects/[id]", () => {
       patch: { coordinator_agent_id: "agent-worker" },
     }, { vaultRoot: root })).rejects.toMatchObject({ statusCode: 400 })
   })
+
+  test("GET /api/vault/projects/[id] returns docs, activity, and codebase summary", async () => {
+    const root = await createRoot();
+    await mkdir(join(root, "vault", "shared", "docs"), { recursive: true });
+    await mkdir(join(root, "vault", "shared", "tasks"), { recursive: true });
+    await writeFile(join(root, "vault", "shared", "docs", "doc-plan.md"), [
+      "---",
+      'id: "doc-plan"',
+      'type: "doc"',
+      'doc_type: "plan"',
+      'workspace_id: "ws-demo"',
+      'project_id: "project-demo"',
+      'title: "Project plan"',
+      'status: "published"',
+      'visibility: "project"',
+      'access_roles: ["all"]',
+      'sensitive: false',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-24T00:00:00Z"',
+      'tags: ["plan"]',
+      "---",
+      "Plan",
+    ].join("\n"), "utf8");
+    await writeFile(join(root, "vault", "shared", "tasks", "task-active.md"), [
+      "---",
+      'id: "task-active"',
+      'type: "task"',
+      'workspace_id: "ws-demo"',
+      'project_id: "project-demo"',
+      'board_id: "board-demo"',
+      'column: "in-progress"',
+      'status: "in-progress"',
+      'priority: "high"',
+      'title: "Ship release"',
+      'assignee: "agent-claude-code"',
+      'created_by: "@owner"',
+      'created_at: "2026-04-23T00:00:00Z"',
+      'updated_at: "2026-04-24T00:00:00Z"',
+      'approval_outcome: "pending"',
+      'depends_on: []',
+      'tags: []',
+      'links: []',
+      "---",
+      "",
+    ].join("\n"), "utf8");
+
+    const response = await readProjectById("project-demo", { vaultRoot: root });
+    expect(response).toEqual({
+      id: "project-demo",
+      name: "Demo Project",
+      boardId: "board-demo",
+      coordinatorAgentId: null,
+      lastActive: true,
+      codebaseRoot: null,
+      description: "Original description",
+      budget: null,
+      deadline: null,
+      status: null,
+      scene: null,
+      links: [],
+      attachments: [],
+      docs: [
+        {
+          id: "doc-plan",
+          title: "Project plan",
+          docType: "plan",
+          status: "published",
+          visibility: "project",
+          updatedAt: "2026-04-24T00:00:00Z",
+          sourcePath: "vault/shared/docs/doc-plan.md",
+        },
+      ],
+    });
+  });
+
+  test("GET /api/vault/projects/[id] returns 404 for missing projects", async () => {
+    const root = await createRoot();
+    await expect(readProjectById("missing-project", { vaultRoot: root })).rejects.toMatchObject({ statusCode: 404 });
+  });
 
   test("deletes the project and related board and column files", async () => {
     const root = await createRoot();

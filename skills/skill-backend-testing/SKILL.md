@@ -81,10 +81,10 @@ test('PATCH /tasks/:id updates status', async () => {
 
 ```ts
 // contract-alignment.test.ts pattern
-test('GET /api/vault/tasks returns expected shape', async () => {
-  const res = await request(app).get('/api/vault/tasks')
+test('GET /api/vault/read-model returns expected shape', async () => {
+  const res = await request(app).get('/api/vault/read-model')
   expect(res.body).toMatchObject({
-    data: expect.arrayContaining([
+    tasks: expect.arrayContaining([
       expect.objectContaining({
         id: expect.any(String),
         status: expect.any(String),

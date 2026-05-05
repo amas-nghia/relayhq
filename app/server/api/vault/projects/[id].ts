@@ -162,7 +162,7 @@ async function writeProjectAuditNote(projectId: string, actorId: string, message
   await writeFile(join(sharedRoot, "audit", `${auditId}.md`), document, "utf8");
 }
 
-async function readProjectById(projectId: string, options: { vaultRoot?: string } = {}) {
+export async function readProjectById(projectId: string, options: { vaultRoot?: string } = {}) {
   const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
   const model = await readCanonicalVaultReadModel(vaultRoot);
   const project = model.projects.find((entry) => entry.id === projectId);

@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, Fragment, Suspense, lazy, useMemo, type CSSProperties, type ComponentType, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
-import { KanbanSquare, List, Bot, ClipboardCheck, FileText, Activity, Settings, FolderOpen, FolderKanban, Check, AlertCircle, Copy, Eye, EyeOff, Play, CalendarClock, AlertTriangle, MessageSquare } from 'lucide-react';
+import { KanbanSquare, List, Bot, ClipboardCheck, FileText, Activity, Settings, FolderOpen, FolderKanban, Check, AlertCircle, Copy, Eye, EyeOff, Play, CalendarClock, AlertTriangle, MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { OnboardingWizard } from '../components/layout/OnboardingWizard';
-import { relayhqApi, type AgentActivityEvent, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AnalyticsDashboardResponse, type RelayHQApiKeyEntry } from '../api/client';
+import { relayhqApi, type AgentActivityEvent, type AgentRuntimeReadinessResponse, type AgentSessionEventRecord, type AgentSessionRecord, type AnalyticsDashboardResponse, type RelayHQApiKeyEntry, type RelayHQTaskRoutingConfig } from '../api/client';
 import type { ActiveAgentSession } from '../api/contract';
 import { useAppStore } from '../store/appStore';
 import { readStoredTheme, setTheme, THEME_CHANGE_EVENT, type AppTheme } from '../lib/theme';
@@ -349,6 +349,32 @@ function clampDesktopWindowPosition(x: number, y: number) {
   };
 }
 
+interface RoutingAliasRow {
+  id: string;
+  sourceTag: string;
+  targetTags: string;
+}
+
+function routingConfigToRows(config: RelayHQTaskRoutingConfig | null | undefined): RoutingAliasRow[] {
+  return Object.entries(config?.tagAliases ?? {}).map(([sourceTag, targetTags], index) => ({
+    id: `routing-${index}-${sourceTag}`,
+    sourceTag,
+    targetTags: targetTags.join(', '),
+  }));
+}
+
+function rowsToRoutingConfig(rows: ReadonlyArray<RoutingAliasRow>): RelayHQTaskRoutingConfig {
+  const pairs: Array<[string, ReadonlyArray<string>]> = [];
+  for (const row of rows) {
+    const sourceTag = row.sourceTag.trim().toLowerCase();
+    if (!sourceTag) continue;
+    const targets = [...new Set(row.targetTags.split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean))];
+    pairs.push([sourceTag, targets]);
+  }
+  const tagAliases = Object.fromEntries(pairs);
+  return { tagAliases };
+}
+
 // ─── Settings panel ────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
@@ -372,7 +398,7 @@ function SettingsPanel() {
   const [dirs,         setDirs]         = useState<string[]>([]);
   const [vaultStatus,  setVaultStatus]  = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [vaultError,   setVaultError]   = useState<string | null>(null);
-  const [taskRoutingText, setTaskRoutingText] = useState('')
+  const [taskRoutingRows, setTaskRoutingRows] = useState<RoutingAliasRow[]>([])
 
   // ── agent tab state ──
   const [providerId,   setProviderId]   = useState<string>('anthropic');
@@ -393,7 +419,7 @@ function SettingsPanel() {
   useEffect(() => {
     setVaultRoot(settings?.vaultRoot ?? settings?.resolvedRoot ?? '')
     setMaxConcurrentRuntimeInstances(String(settings?.maxConcurrentRuntimeInstances ?? 1))
-    setTaskRoutingText(JSON.stringify(settings?.taskRouting ?? { tagAliases: {} }, null, 2))
+    setTaskRoutingRows(routingConfigToRows(settings?.taskRouting))
   }, [settings?.maxConcurrentRuntimeInstances, settings?.resolvedRoot, settings?.taskRouting, settings?.vaultRoot])
 
   useEffect(() => {
@@ -416,14 +442,11 @@ function SettingsPanel() {
   const saveVault = async () => {
     setVaultStatus('saving'); setVaultError(null);
     try {
-      const parsedTaskRouting = JSON.parse(taskRoutingText) as { tagAliases?: Record<string, string[]> }
       await relayhqApi.saveSettings({
         vaultRoot,
         workspaceId: null,
         maxConcurrentRuntimeInstances: Number.parseInt(maxConcurrentRuntimeInstances, 10) || 1,
-        taskRouting: {
-          tagAliases: parsedTaskRouting?.tagAliases ?? {},
-        },
+        taskRouting: rowsToRoutingConfig(taskRoutingRows),
       });
       await loadData();
       setVaultStatus('saved');
@@ -718,18 +741,60 @@ function SettingsPanel() {
           <>
             <div>
               <div className="text-[9px] font-display text-text-tertiary uppercase tracking-widest mb-3">Task routing aliases</div>
-              <p className="mb-3 text-[11px] text-text-tertiary">Configure deterministic tag expansion for backend auto assignment. Example: <code>tests -&gt; run-tests, test-writing</code>.</p>
-              <Textarea
-                value={taskRoutingText}
-                onChange={(event) => setTaskRoutingText(event.target.value)}
-                rows={18}
-                className="min-h-[24rem] font-mono text-[12px]"
-                placeholder={JSON.stringify({ tagAliases: { backend: ['feature-implementation', 'bug-fix', 'write-code'] } }, null, 2)}
-              />
+              <p className="mb-3 text-[11px] text-text-tertiary">Teach RelayHQ how everyday tags should map to agent routing skills. Example: when a task has <code>tests</code>, also treat it like <code>run-tests</code> and <code>test-writing</code>.</p>
+              <div className="space-y-3">
+                {taskRoutingRows.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-4 text-[11px] text-text-tertiary">No routing aliases yet. Add one below to help RelayHQ understand your team’s task labels.</div>
+                ) : taskRoutingRows.map((row) => (
+                  <div key={row.id} className="grid gap-2 rounded-lg border border-border bg-surface-secondary p-3 md:grid-cols-[minmax(0,180px)_1fr_auto]">
+                    <label className="text-[10px] font-display uppercase tracking-widest text-text-tertiary">
+                      When task has tag
+                      <Input
+                        value={row.sourceTag}
+                        onChange={(event) => setTaskRoutingRows((current) => current.map((entry) => entry.id === row.id ? { ...entry, sourceTag: event.target.value } : entry))}
+                        placeholder="backend"
+                        className="mt-1"
+                      />
+                    </label>
+                    <label className="text-[10px] font-display uppercase tracking-widest text-text-tertiary">
+                      Also treat it like
+                      <Input
+                        value={row.targetTags}
+                        onChange={(event) => setTaskRoutingRows((current) => current.map((entry) => entry.id === row.id ? { ...entry, targetTags: event.target.value } : entry))}
+                        placeholder="feature-implementation, bug-fix, write-code"
+                        className="mt-1"
+                      />
+                    </label>
+                    <div className="flex items-end">
+                      <Button type="button" variant="outline" size="sm" className="w-full md:w-auto" onClick={() => setTaskRoutingRows((current) => current.filter((entry) => entry.id !== row.id))}>
+                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTaskRoutingRows((current) => [...current, { id: `routing-${Date.now()}-${current.length}`, sourceTag: '', targetTags: '' }])}
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" /> Add alias
+                </Button>
+              </div>
             </div>
             <div className="rounded-lg border border-border bg-surface px-3 py-3 text-[11px] text-text-tertiary">
-              Save from this tab uses the same Settings save action and persists to the workspace routing config file.
+              Examples: <code>backend -&gt; feature-implementation, bug-fix</code>, <code>docs -&gt; documentation, tech-writing</code>. Save from this tab uses the same Settings save action and persists to the workspace routing config file.
             </div>
+            {vaultError && (
+              <div className="border border-status-blocked/40 bg-status-blocked/5 px-3 py-2 text-[10px] text-status-blocked font-display">{vaultError}</div>
+            )}
+            <button onClick={() => void saveVault()} disabled={vaultStatus === 'saving' || !vaultRoot.trim()}
+              className="lcd-button self-start flex items-center gap-2 px-4 py-2 border border-brand bg-brand-muted text-brand text-[10px] font-display uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed">
+              {vaultStatus === 'saving' && <span className="animate-pulse">···</span>}
+              {vaultStatus === 'saved' && <Check className="h-3.5 w-3.5" />}
+              {vaultStatus === 'saved' ? 'Saved' : vaultStatus === 'saving' ? 'Saving' : 'Save routing'}
+            </button>
           </>
         )}
       </div>

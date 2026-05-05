@@ -124,6 +124,38 @@ describe("settings endpoints", () => {
     }
   });
 
+  test("GET /api/settings reports invalid configured roots without reading the vault", async () => {
+    const invalidRoot = await mkdtemp(join(tmpdir(), `relayhq-settings-invalid-root-${randomUUID()}-`));
+
+    try {
+      const state = await readSettingsState({
+        cwd: join(invalidRoot, "app"),
+        env: { ...process.env, RELAYHQ_VAULT_ROOT: invalidRoot, RELAYHQ_WORKSPACE_ID: undefined, RELAYHQ_MAX_CONCURRENT_RUNTIME_INSTANCES: "2" },
+      });
+
+      expect(state).toEqual({
+        vaultRoot: invalidRoot,
+        resolvedRoot: invalidRoot,
+        isValid: false,
+        invalidReason: `Expected an accessible vault/shared directory at ${join(invalidRoot, "vault", "shared")}.`,
+        activeWorkspaceId: null,
+        activeWorkspaceName: null,
+        availableWorkspaces: [],
+        maxConcurrentRuntimeInstances: 2,
+        runtimeCapacity: {
+          maxConcurrentRuntimeInstances: 2,
+          activeRuntimeInstances: 0,
+          availableRuntimeSlots: 2,
+          capacityBlockedTaskCount: 0,
+        },
+        platform: process.platform,
+        taskRouting: DEFAULT_TASK_ROUTING_CONFIG,
+      });
+    } finally {
+      await rm(invalidRoot, { recursive: true, force: true });
+    }
+  });
+
   test("POST /api/settings/validate returns valid and invalid responses", async () => {
     const validRoot = await createWorkspaceRoot("ws-valid", "Valid Workspace");
     const invalidRoot = await mkdtemp(join(tmpdir(), `relayhq-settings-invalid-${randomUUID()}-`));

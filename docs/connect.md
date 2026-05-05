@@ -35,10 +35,12 @@ Add to `~/.claude/settings.json` (one-time, applies to all sessions):
 Restart Claude Code. You now have `relayhq_*` tools in every session:
 
 ```
-relayhq_session_start    → task list + workspace context
-relayhq_update_task      → report progress and move work to review
-relayhq_heartbeat        → stay visible while working
+relayhq_inbox            → task list + workspace context
+relayhq_start            → claim a task and load its full context
+relayhq_progress         → send heartbeat and update progress
+relayhq_done             → move work to review with a result
 relayhq_request_approval → ask a human before risky actions
+relayhq_blocked          → stop and describe what is missing
 ```
 
 **Recommended `CLAUDE.md` snippet** — add to any project that uses RelayHQ:
@@ -46,9 +48,10 @@ relayhq_request_approval → ask a human before risky actions
 ```markdown
 ## RelayHQ
 
-At session start: `relayhq_session_start(agentId="claude-code")`
-Heartbeat every ~10 min: `relayhq_heartbeat(taskId, agentId)`
-When implementation is complete: `relayhq_update_task(taskId, agentId, status="review", result="...")`
+At session start: `relayhq_inbox(agentId="claude-code")`
+Claim a task: `relayhq_start(agentId, taskId)`
+Heartbeat every ~10 min: `relayhq_progress(agentId, taskId)`
+When implementation is complete: `relayhq_done(agentId, taskId, result="...")`
 ```
 
 ---
@@ -117,7 +120,7 @@ Or call the HTTP API directly — no CLI required:
 ```bash
 curl -X POST http://127.0.0.1:44210/api/vault/tasks/task-001/claim \
   -H "content-type: application/json" \
-  -d '{"assignee":"my-agent"}'
+  -d '{"actorId":"my-agent","assignee":"my-agent"}'
 ```
 
 ---

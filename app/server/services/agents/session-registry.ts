@@ -11,6 +11,16 @@ export interface AgentTaskSessionRecord {
   readonly status: "active" | "stopped"
   readonly updatedAt: string
   readonly projectId?: string | null
+  readonly pid?: number | null
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }
 
 interface SessionRegistryDocument {
@@ -118,6 +128,8 @@ export async function cleanupStaleAgentTaskSessionRecords(vaultRoot: string, now
       if (entry.status !== "active") return entry
       const runner = agentRunnerManager.getRunner(entry.sessionId)
       if (runner && isRunnerSessionReusable(runner)) return entry
+      // Runner not in memory (e.g. server restarted) — check if the detached process is still alive by PID
+      if (entry.pid != null && isProcessAlive(entry.pid)) return entry
       updated += 1
       return {
         ...entry,

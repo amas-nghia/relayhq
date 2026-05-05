@@ -355,7 +355,7 @@ describe("GET /api/agent/session", () => {
         sessionStore,
         workspaceIdReader: () => null,
         now: () => new Date("2026-04-23T12:00:00Z"),
-        env: { ...process.env, USER: "Relay Tester", CLAUDE_CODE_SESSION: "session-1" },
+        env: { ...process.env, RELAYHQ_WORKSPACE_ID: "", USER: "Relay Tester", CLAUDE_CODE_SESSION: "session-1" },
       });
 
       await expect(readFile(join(root, "vault", "shared", "agents", "agent-claude-code.md"), "utf8")).resolves.toContain("portrait:");

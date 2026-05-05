@@ -10,11 +10,29 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export default defineEventHandler(async (event) => {
-  assertMethod(event, "POST");
+export interface ClaimTaskBody {
+  readonly actorId: string;
+  readonly assignee?: string;
+}
 
-  const taskId = getRouterParam(event, "id");
-  const body = await readBody(event);
+export interface ClaimVaultTaskDependencies {
+  readonly claimTaskLifecycle?: typeof claimTaskLifecycle;
+  readonly resolveVaultWorkspaceRoot?: typeof resolveVaultWorkspaceRoot;
+  readonly readSharedVaultCollections?: typeof readSharedVaultCollections;
+  readonly buildVaultReadModel?: typeof buildVaultReadModel;
+  readonly getRelevantDocsForTask?: typeof getRelevantDocsForTask;
+}
+
+export async function claimVaultTask(
+  taskId: string,
+  body: unknown,
+  dependencies: ClaimVaultTaskDependencies = {},
+) {
+  const runClaimTaskLifecycle = dependencies.claimTaskLifecycle ?? claimTaskLifecycle;
+  const runResolveVaultWorkspaceRoot = dependencies.resolveVaultWorkspaceRoot ?? resolveVaultWorkspaceRoot;
+  const runReadSharedVaultCollections = dependencies.readSharedVaultCollections ?? readSharedVaultCollections;
+  const runBuildVaultReadModel = dependencies.buildVaultReadModel ?? buildVaultReadModel;
+  const runGetRelevantDocsForTask = dependencies.getRelevantDocsForTask ?? getRelevantDocsForTask;
 
   if (!taskId) {
     throw createError({ statusCode: 400, statusMessage: "Task id is required." });
@@ -24,11 +42,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
-  const vaultRoot = resolveVaultWorkspaceRoot();
-  const readModel = buildVaultReadModel(await readSharedVaultCollections(vaultRoot));
+  const vaultRoot = runResolveVaultWorkspaceRoot();
+  const readModel = runBuildVaultReadModel(await runReadSharedVaultCollections(vaultRoot));
   const task = readModel.tasks.find((entry) => entry.id === taskId);
 
-  const result = await claimTaskLifecycle({
+  const result = await runClaimTaskLifecycle({
     taskId,
     actorId: body.actorId,
     assignee: typeof body.assignee === "string" && body.assignee.trim().length > 0 ? body.assignee : undefined,
@@ -37,6 +55,12 @@ export default defineEventHandler(async (event) => {
 
   return {
     ...result,
-    relevant_docs: task ? getRelevantDocsForTask(readModel, task, { agentId: body.actorId }) : [],
+    relevant_docs: task ? runGetRelevantDocsForTask(readModel, task, { agentId: body.actorId }) : [],
   };
+}
+
+export default defineEventHandler(async (event) => {
+  assertMethod(event, "POST");
+
+  return await claimVaultTask(getRouterParam(event, "id") ?? "", await readBody(event));
 });

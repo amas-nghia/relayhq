@@ -390,6 +390,50 @@ describe("PATCH /api/vault/tasks/[id]", () => {
     expect(result).toMatchObject({ frontmatter: {}, body: "" })
   });
 
+  test("writes an audit note with session usage when moving a task to review", async () => {
+    const auditCalls: Array<Record<string, unknown>> = [];
+
+    const result = await patchVaultTask(
+      "task-001",
+      { actorId: "agent-backend-dev", patch: { status: "review", progress: 100, result: "Ready for human review" } },
+      {
+        patchTaskLifecycle: async () => ({
+          previous: {} as never,
+          frontmatter: { tokens_used: 12, model: "claude-test", cost_usd: 0.01 } as never,
+          body: "",
+          filePath: "",
+          sourcePath: "",
+        }),
+        readCanonicalVaultReadModel: async () => ({
+          workspaces: [], projects: [], boards: [], columns: [], issues: [], approvals: [], auditNotes: [], docs: [],
+          tasks: [{ id: "task-001", status: "in-progress", lockedBy: "agent-backend-dev", assignee: "agent-backend-dev", tags: ["feature-implementation"] }],
+          agents: [{ id: "agent-backend-dev", aliases: [], role: "implementation", roles: ["implementation"] }],
+        } as never),
+        resolveVaultWorkspaceRoot: () => "/tmp/relayhq-vault",
+        listRunners: () => [{ taskId: "task-001", sessionId: "session-1", startTime: "2026-04-15T10:00:00Z" }] as never,
+        readAgentSessionUsage: async () => ({ promptTokens: 10, completionTokens: 5, totalTokens: 15, model: "claude-sonnet-4-6", costUsd: 0.05, usageSource: "session-events" }),
+        writeAuditNote: async (request) => {
+          auditCalls.push(request as unknown as Record<string, unknown>);
+          return {} as never;
+        },
+      },
+    );
+
+    expect(result.frontmatter).toMatchObject({ tokens_used: 12, model: "claude-test", cost_usd: 0.01 });
+    expect(auditCalls).toHaveLength(1);
+    expect(auditCalls[0]).toMatchObject({
+      taskId: "task-001",
+      source: "agent-backend-dev",
+      message: "task moved to review",
+      promptTokens: 10,
+      completionTokens: 5,
+      tokensUsed: 15,
+      model: "claude-sonnet-4-6",
+      costUsd: 0.05,
+      usageSource: "session-events",
+    });
+  });
+
   test("deletes a task document", async () => {
     const root = await createVaultRootWithTask();
 

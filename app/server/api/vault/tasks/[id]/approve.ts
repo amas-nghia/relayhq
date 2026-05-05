@@ -7,11 +7,22 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export default defineEventHandler(async (event) => {
-  assertMethod(event, "POST");
+export interface ApproveTaskBody {
+  readonly actorId: string;
+}
 
-  const taskId = getRouterParam(event, "id");
-  const body = await readBody(event);
+export interface ApproveVaultTaskDependencies {
+  readonly approveTaskLifecycle?: typeof approveTaskLifecycle;
+  readonly resolveVaultWorkspaceRoot?: typeof resolveVaultWorkspaceRoot;
+}
+
+export async function approveVaultTask(
+  taskId: string,
+  body: unknown,
+  dependencies: ApproveVaultTaskDependencies = {},
+) {
+  const runApproveTaskLifecycle = dependencies.approveTaskLifecycle ?? approveTaskLifecycle;
+  const runResolveVaultWorkspaceRoot = dependencies.resolveVaultWorkspaceRoot ?? resolveVaultWorkspaceRoot;
 
   if (!taskId) {
     throw createError({ statusCode: 400, statusMessage: "Task id is required." });
@@ -21,6 +32,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
-  const vaultRoot = resolveVaultWorkspaceRoot();
-  return await approveTaskLifecycle({ taskId, actorId: body.actorId, vaultRoot });
+  return await runApproveTaskLifecycle({ taskId, actorId: body.actorId, vaultRoot: runResolveVaultWorkspaceRoot() });
+}
+
+export default defineEventHandler(async (event) => {
+  assertMethod(event, "POST");
+
+  return await approveVaultTask(getRouterParam(event, "id") ?? "", await readBody(event));
 });

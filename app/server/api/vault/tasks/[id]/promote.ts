@@ -55,7 +55,15 @@ export async function promoteIssueCapture(taskId: string, body: unknown) {
   const now = new Date();
 
   const filePath = resolveTaskFilePath(taskId, vaultRoot)
-  const current = await readTaskDocument(filePath)
+  let current;
+  try {
+    current = await readTaskDocument(filePath)
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "ENOENT") {
+      throw createError({ statusCode: 404, statusMessage: `Task ${taskId} was not found.` });
+    }
+    throw error;
+  }
   if (!current.frontmatter.tags.includes("issue-capture")) {
     throw createError({ statusCode: 400, statusMessage: `Task ${taskId} is already a normal task.` });
   }

@@ -4,7 +4,7 @@ export const THEME_STORAGE_KEY = 'relayhq-theme'
 export const THEME_CHANGE_EVENT = 'relayhq:theme-change'
 
 export function normalizeTheme(value: string | null | undefined): AppTheme {
-  return value === 'papernote' || value === 'papernote-dark' ? value : 'pipboy'
+  return value === 'pipboy' || value === 'papernote' || value === 'papernote-dark' ? value : 'papernote'
 }
 
 export function readStoredTheme(storage: Pick<Storage, 'getItem'> | null | undefined = typeof window !== 'undefined' ? window.localStorage : null): AppTheme {

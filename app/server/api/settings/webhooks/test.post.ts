@@ -7,8 +7,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export default defineEventHandler(async (event) => {
-  const body = await readBody(event);
+export interface WebhookTestRequest {
+  readonly url: string;
+  readonly event: WebhookEvent;
+  readonly signingSecretRef: string | null;
+}
+
+export function parseWebhookTestRequest(body: unknown): WebhookTestRequest {
   if (!isPlainRecord(body) || typeof body.url !== "string") {
     throw createError({ statusCode: 400, statusMessage: "url is required." });
   }
@@ -18,12 +23,23 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Unsupported webhook event." });
   }
 
+  return {
+    url: body.url,
+    event: eventType,
+    signingSecretRef: typeof body.signingSecretRef === "string" ? body.signingSecretRef : null,
+  };
+}
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody(event);
+  const request = parseWebhookTestRequest(body);
+
   const delivery = await sendWebhookTest({
     id: "webhook-test",
-    url: body.url,
-    signingSecretRef: typeof body.signingSecretRef === "string" ? body.signingSecretRef : null,
+    url: request.url,
+    signingSecretRef: request.signingSecretRef,
   }, {
-    event: eventType,
+    event: request.event,
     taskId: "task-example",
     title: "Webhook delivery test",
     status: "done",

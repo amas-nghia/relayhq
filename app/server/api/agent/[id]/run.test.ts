@@ -223,4 +223,22 @@ describe("POST /api/agent/[id]/run", () => {
       launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "missing-agent", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
     })).rejects.toMatchObject({ statusCode: 404 })
   })
+
+  test("rejects unknown task ids", async () => {
+    await expect(runAgentTask("claude-code", { taskId: "task-missing" }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => createReadModel(),
+      workspaceIdReader: () => null,
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-missing", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
+    })).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  test("rejects blank agent ids", async () => {
+    await expect(runAgentTask("   ", { taskId: "task-001" }, {
+      resolveRoot: () => "/tmp/relayhq-vault",
+      readModelReader: async () => createReadModel(),
+      workspaceIdReader: () => null,
+      launchAgentSession: async () => ({ sessionId: "runner-1", runnerId: "runner-1", agentId: "claude-code", taskId: "task-001", runtimeKind: "claude-code", launchSurface: "background", launchMode: "fresh", command: "claude", args: [] }),
+    })).rejects.toMatchObject({ statusCode: 400 })
+  })
 });

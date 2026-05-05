@@ -20,13 +20,13 @@ const KNOWN_CLIS = [
   { id: 'npx', name: 'NPX (Node)', command: 'npx', description: 'Node package executor, useful to run remote agents.' }
 ];
 
-export default defineEventHandler(() => {
+export function listAvailableClis(commandRunner: typeof execSync = execSync) {
   const results: AvailableCLI[] = [];
 
   for (const cli of KNOWN_CLIS) {
     try {
       // Use command -v to check if it exists in PATH
-      const pathBuf = execSync(`command -v ${cli.command}`, { stdio: 'pipe' });
+      const pathBuf = commandRunner(`command -v ${cli.command}`, { stdio: 'pipe' });
       const path = pathBuf.toString().trim();
       results.push({
         ...cli,
@@ -43,4 +43,6 @@ export default defineEventHandler(() => {
   }
 
   return results;
-});
+}
+
+export default defineEventHandler(() => listAvailableClis());

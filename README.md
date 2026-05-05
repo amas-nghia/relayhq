@@ -22,6 +22,14 @@
 
 ---
 
+<p align="center">
+  <a href="https://www.loom.com/share/496c1d58c33a435f826ad8f620191eab">
+    <img src="https://cdn.loom.com/sessions/thumbnails/496c1d58c33a435f826ad8f620191eab-with-play.gif" alt="RelayHQ demo" width="720" />
+  </a>
+</p>
+
+---
+
 AI agents can write code, run tests, and ship features — but they still need someone to decide *what* to work on, in *what order*, and to say *yes* before anything goes to production.
 
 RelayHQ is the coordination layer that sits between you and your agents. It decides which agent gets which task, prevents two agents from claiming the same work, routes by capability, holds approval gates, and keeps a full audit trail — all in plain Markdown files committed to your Git repo.

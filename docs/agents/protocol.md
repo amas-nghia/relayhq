@@ -4,14 +4,14 @@ How an agent interacts with RelayHQ during a session.
 
 ## Session start
 
-When an agent session launches, RelayHQ injects a bootstrap pack via the context API. The agent should read this at the start of every session.
+When an agent session launches, RelayHQ injects a bootstrap pack via the session API. The agent should read this at the start of every session.
 
 ```bash
-GET /api/agent/context
-# Returns: task list, workspace context, matched skill files, agent config
+GET /api/agent/session
+# Returns: task list, workspace context, matched skill files, agent config, protocol instructions
 ```
 
-Or use the MCP server — `relayhq_session_start(agentId="your-agent-id")` returns the same context.
+Or use the MCP server — `relayhq_inbox(agentId="your-agent-id")` returns the same context.
 
 ## Task lifecycle
 
@@ -140,11 +140,12 @@ bun run ./cli/relayhq.ts update task-001 \
 If running inside Claude Code, the `relayhq-mcp` server exposes all the above as MCP tools:
 
 ```
-relayhq_session_start    — load workspace context and task list
-relayhq_claim_task       — claim a specific task
-relayhq_heartbeat        — send heartbeat
-relayhq_update_task      — update status/progress/result
-relayhq_request_approval — request human sign-off
+relayhq_inbox            — load workspace context and task list
+relayhq_start            — claim a task and fetch its bootstrap context
+relayhq_progress         — send heartbeat and update progress/notes
+relayhq_done             — mark task ready for review with a result
+relayhq_request_approval — request human sign-off before risky actions
+relayhq_blocked          — mark task blocked and describe what is needed
 ```
 
 ## Summary

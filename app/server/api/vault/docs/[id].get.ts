@@ -3,9 +3,8 @@ import { createError, defineEventHandler, getRouterParam } from "h3";
 import { readCanonicalVaultReadModel } from "../../../services/vault/read";
 import { resolveVaultWorkspaceRoot } from "../../../services/vault/runtime";
 
-export default defineEventHandler(async (event) => {
-  const docId = getRouterParam(event, "id") ?? "";
-  const model = await readCanonicalVaultReadModel(resolveVaultWorkspaceRoot());
+export async function readVaultDoc(docId: string, options: { vaultRoot?: string } = {}) {
+  const model = await readCanonicalVaultReadModel(options.vaultRoot ?? resolveVaultWorkspaceRoot());
   const doc = model.docs.find((entry) => entry.id === docId);
   if (!doc) {
     throw createError({ statusCode: 404, statusMessage: `Doc ${docId} was not found.` });
@@ -30,4 +29,9 @@ export default defineEventHandler(async (event) => {
     },
     error: null,
   };
+}
+
+export default defineEventHandler(async (event) => {
+  const docId = getRouterParam(event, "id") ?? "";
+  return await readVaultDoc(docId);
 });

@@ -5,10 +5,21 @@ import { recoverStoppedSessionTasks } from "../../services/agents/session-recove
 import { readCanonicalVaultReadModel } from "../../services/vault/read";
 import { normalizeConfiguredWorkspaceId, readConfiguredWorkspaceId, resolveVaultWorkspaceRoot } from "../../services/vault/runtime";
 
-export default defineEventHandler(async () => {
-  const vaultRoot = resolveVaultWorkspaceRoot();
-  await recoverStoppedSessionTasks(vaultRoot);
-  const readModel = await readCanonicalVaultReadModel(vaultRoot);
-  const workspaceId = normalizeConfiguredWorkspaceId(readConfiguredWorkspaceId(), readModel.workspaces);
+export async function readVaultReadModel(options: {
+  vaultRoot?: string;
+  recoverStoppedSessions?: typeof recoverStoppedSessionTasks;
+  readModelReader?: typeof readCanonicalVaultReadModel;
+  workspaceIdReader?: typeof readConfiguredWorkspaceId;
+  workspaceIdNormalizer?: typeof normalizeConfiguredWorkspaceId;
+} = {}) {
+  const vaultRoot = options.vaultRoot ?? resolveVaultWorkspaceRoot();
+  await (options.recoverStoppedSessions ?? recoverStoppedSessionTasks)(vaultRoot);
+  const readModel = await (options.readModelReader ?? readCanonicalVaultReadModel)(vaultRoot);
+  const workspaceId = (options.workspaceIdNormalizer ?? normalizeConfiguredWorkspaceId)(
+    (options.workspaceIdReader ?? readConfiguredWorkspaceId)(),
+    readModel.workspaces,
+  );
   return workspaceId === null ? readModel : filterVaultReadModelByWorkspaceId(readModel, workspaceId);
-});
+}
+
+export default defineEventHandler(async () => await readVaultReadModel());

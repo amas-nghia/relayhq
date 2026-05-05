@@ -27,7 +27,7 @@ RelayHQ grows as one app with clear domain modules, staying small and testable a
 
 ## Phase 2: Scheduled tasks, rate limits, and model fallback
 
-**Status: planned**
+**Status: partial** — `next_run_at`, `cron_schedule`, `scheduled` status, and the scheduled-task-sweeper plugin are implemented. Rate-limit detection and model fallback chain are not yet built.
 
 ### Scheduled tasks
 
@@ -64,7 +64,7 @@ On completion, the scheduler creates a fresh copy with the next `nextRunAt`.
 
 ## Phase 3: Templates, comments, and real-time board
 
-**Status: planned**
+**Status: partial** — task templates (CRUD API + vault schema) and per-task comments are implemented. Real-time is live via SSE (`/api/vault/events`), not WebSocket as originally planned — the WebSocket spec below is superseded.
 
 ### Task templates
 
@@ -108,7 +108,7 @@ Replace 5-second polling with push updates.
 
 ## Phase 4: Project docs and semantic search
 
-**Status: planned**
+**Status: partial** — project documents (`POST/GET /api/vault/docs`, `PATCH /api/vault/docs/:id`) are implemented. Kioku semantic search (`GET /api/kioku/graph`, `POST /api/kioku/search`) is implemented. Search bar wiring in the UI is in progress.
 
 ### Project documents
 
@@ -153,7 +153,7 @@ Optional: Kioku vector graph endpoint for visualising document relationships.
 
 ## Phase 5: Notifications, analytics, and mobile
 
-**Status: planned**
+**Status: partial** — analytics endpoints (`/api/analytics/agents`, `/cost`, `/velocity`, `/summary`, `/providers`) are live. Webhooks (`GET/POST /api/settings/webhooks`, test endpoint) are implemented. Slack integration and mobile layout are not yet built.
 
 ### Notifications
 
@@ -199,7 +199,7 @@ The Kanban board works on phones.
 
 ## Phase 6: Agent SDK, skill system, and subtasks
 
-**Status: planned**
+**Status: partial** — `@relayhq/agent-sdk` package exists. Skills system is live (`GET /api/settings/skills`, skills injected at session start). `POST /api/vault/tasks/:id/spawn-subtask` is implemented. Parent–child UI and etag-based context deduplication are not yet built.
 
 ### Agent SDK
 

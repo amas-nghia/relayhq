@@ -99,7 +99,7 @@ Every agent action is gated by `app/server/services/policy/work-policy.ts`. Each
 
 ## Skills system
 
-Skills are `.md` files with YAML frontmatter, installed to `~/.relayhq/skills/`. At session start, the agent context API (`GET /api/agent/context`) injects matching skills into the bootstrap pack based on the task's type and tags.
+Skills are `.md` files with YAML frontmatter, installed to `~/.relayhq/skills/`. At session start, the agent session API (`GET /api/agent/session`) injects matching skills into the bootstrap pack based on the task's type and tags.
 
 ```yaml
 ---

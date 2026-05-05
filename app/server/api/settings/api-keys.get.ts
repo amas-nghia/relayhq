@@ -21,11 +21,11 @@ export interface ApiKeysResponse {
   readonly keys: ReadonlyArray<ApiKeyEntry>;
 }
 
-export default defineEventHandler(async () => {
+export function readApiKeys(env: NodeJS.ProcessEnv = process.env): ApiKeysResponse {
   const keys: ApiKeyEntry[] = [];
 
   for (const { envVar, provider, label } of KNOWN_KEYS) {
-    const envValue = process.env[envVar];
+    const envValue = env[envVar];
     const isEnvSet = typeof envValue === 'string' && envValue.trim().length > 0;
 
     keys.push({
@@ -39,4 +39,6 @@ export default defineEventHandler(async () => {
   }
 
   return { keys };
-});
+}
+
+export default defineEventHandler(async () => readApiKeys());

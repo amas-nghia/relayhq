@@ -4,19 +4,19 @@ import { describe, test } from 'node:test'
 import { applyTheme, normalizeTheme, readStoredTheme, setTheme, THEME_STORAGE_KEY } from './theme'
 
 describe('theme helpers', () => {
-  test('normalizes unknown values back to pipboy', () => {
+  test('normalizes unknown values back to papernote', () => {
     assert.equal(normalizeTheme('papernote'), 'papernote')
     assert.equal(normalizeTheme('papernote-dark'), 'papernote-dark')
     assert.equal(normalizeTheme('pipboy'), 'pipboy')
-    assert.equal(normalizeTheme('unknown'), 'pipboy')
-    assert.equal(normalizeTheme(null), 'pipboy')
+    assert.equal(normalizeTheme('unknown'), 'papernote')
+    assert.equal(normalizeTheme(null), 'papernote')
   })
 
   test('reads stored theme safely', () => {
     assert.equal(readStoredTheme({ getItem: () => 'papernote' }), 'papernote')
     assert.equal(readStoredTheme({ getItem: () => 'papernote-dark' }), 'papernote-dark')
-    assert.equal(readStoredTheme({ getItem: () => 'invalid' }), 'pipboy')
-    assert.equal(readStoredTheme(null), 'pipboy')
+    assert.equal(readStoredTheme({ getItem: () => 'invalid' }), 'papernote')
+    assert.equal(readStoredTheme(null), 'papernote')
   })
 
   test('applies and persists theme together', () => {

@@ -178,7 +178,7 @@ body::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.72) 100%);
+  background: none;
   pointer-events: none;
   z-index: 199;
 }

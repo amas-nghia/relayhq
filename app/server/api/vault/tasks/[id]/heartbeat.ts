@@ -8,11 +8,24 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export default defineEventHandler(async (event) => {
-  assertMethod(event, "POST");
+export interface HeartbeatTaskBody {
+  readonly actorId: string;
+}
 
-  const taskId = getRouterParam(event, "id");
-  const body = await readBody(event);
+export interface HeartbeatVaultTaskDependencies {
+  readonly heartbeatTaskLifecycle?: typeof heartbeatTaskLifecycle;
+  readonly writeAuditNote?: typeof writeAuditNote;
+  readonly resolveVaultWorkspaceRoot?: typeof resolveVaultWorkspaceRoot;
+}
+
+export async function heartbeatVaultTask(
+  taskId: string,
+  body: unknown,
+  dependencies: HeartbeatVaultTaskDependencies = {},
+) {
+  const runHeartbeatTaskLifecycle = dependencies.heartbeatTaskLifecycle ?? heartbeatTaskLifecycle;
+  const runWriteAuditNote = dependencies.writeAuditNote ?? writeAuditNote;
+  const runResolveVaultWorkspaceRoot = dependencies.resolveVaultWorkspaceRoot ?? resolveVaultWorkspaceRoot;
 
   if (!taskId) {
     throw createError({ statusCode: 400, statusMessage: "Task id is required." });
@@ -22,12 +35,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "actorId is required." });
   }
 
-  const result = await heartbeatTaskLifecycle({ taskId, actorId: body.actorId });
-  await writeAuditNote({
-    vaultRoot: resolveVaultWorkspaceRoot(),
+  const result = await runHeartbeatTaskLifecycle({ taskId, actorId: body.actorId });
+  await runWriteAuditNote({
+    vaultRoot: runResolveVaultWorkspaceRoot(),
     taskId,
     source: body.actorId,
     message: `heartbeat from ${body.actorId}`,
-  }).catch(() => undefined)
+  }).catch(() => undefined);
   return result;
+}
+
+export default defineEventHandler(async (event) => {
+  assertMethod(event, "POST");
+
+  return await heartbeatVaultTask(getRouterParam(event, "id") ?? "", await readBody(event));
 });

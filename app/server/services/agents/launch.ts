@@ -829,6 +829,7 @@ export async function launchAgentSession(request: LaunchAgentSessionRequest): Pr
         status: "active",
         updatedAt: new Date().toISOString(),
         ...(task.projectId ? { projectId: task.projectId } : {}),
+        ...(existingTaskRunner.pid != null ? { pid: existingTaskRunner.pid } : {}),
       })
       return toExistingSessionResult(existingTaskRunner)
     }
@@ -1036,6 +1037,7 @@ export async function launchAgentSession(request: LaunchAgentSessionRequest): Pr
         status: "active",
         updatedAt: new Date().toISOString(),
         ...(task.projectId ? { projectId: task.projectId } : {}),
+        ...(runner.pid != null ? { pid: runner.pid } : {}),
       })
     }
     await observer?.onLaunchStarted()

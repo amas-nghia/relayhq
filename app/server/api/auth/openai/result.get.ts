@@ -1,11 +1,10 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
 import { getEntry } from '../../../utils/oauth-state'
 
-export default defineEventHandler((event) => {
-  const { state } = getQuery(event) as { state?: string }
+export function readOpenAIAuthResult(state: string | undefined, entryReader: typeof getEntry = getEntry) {
   if (!state) throw createError({ statusCode: 400, statusMessage: 'Missing state' })
 
-  const entry = getEntry(state)
+  const entry = entryReader(state)
   if (!entry) return { status: 'expired' as const }
 
   return {
@@ -13,4 +12,9 @@ export default defineEventHandler((event) => {
     apiKey: entry.apiKey,
     error: entry.error,
   }
+}
+
+export default defineEventHandler((event) => {
+  const { state } = getQuery(event) as { state?: string }
+  return readOpenAIAuthResult(state)
 })
